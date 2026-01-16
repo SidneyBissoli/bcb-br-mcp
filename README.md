@@ -1,7 +1,7 @@
 # BCB BR MCP Server
 
 [![npm version](https://badge.fury.io/js/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
-[![MCP Registry](https://img.shields.io/badge/MCP-Registry-blue)](https://github.com/modelcontextprotocol/servers)
+[![MCP Registry](https://img.shields.io/badge/MCP-Registry-blue)](https://registry.modelcontextprotocol.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Servidor MCP (Model Context Protocol) para acesso às séries temporais do Banco Central do Brasil (SGS/BCB).
@@ -13,9 +13,11 @@ Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**
 - **Consulta de séries históricas** - Busca valores de séries por código com filtro de datas
 - **Últimos valores** - Obtém os N valores mais recentes de uma série
 - **Metadados** - Informações detalhadas sobre séries (periodicidade, fonte, etc.)
-- **Catálogo de séries populares** - Lista de indicadores econômicos mais utilizados
-- **Busca por nome** - Encontra séries por termo de busca
+- **Catálogo de séries populares** - Lista de 150+ indicadores econômicos organizados em 12 categorias
+- **Busca inteligente** - Encontra séries por termo de busca (com ou sem acentos)
 - **Indicadores atuais** - Valores mais recentes dos principais indicadores econômicos
+- **Cálculo de variação** - Variação percentual entre períodos com estatísticas
+- **Comparação de séries** - Compara múltiplas séries no mesmo período
 
 ## Ferramentas Disponíveis
 
@@ -25,8 +27,10 @@ Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**
 | `bcb_serie_ultimos` | Obtém os últimos N valores de uma série |
 | `bcb_serie_metadados` | Retorna informações/metadados de uma série |
 | `bcb_series_populares` | Lista séries populares agrupadas por categoria |
-| `bcb_buscar_serie` | Busca séries por nome ou descrição |
+| `bcb_buscar_serie` | Busca séries por nome ou descrição (aceita termos sem acento) |
 | `bcb_indicadores_atuais` | Valores mais recentes: Selic, IPCA, Dólar, IBC-Br |
+| `bcb_variacao` | Calcula variação percentual entre duas datas ou últimos N períodos |
+| `bcb_comparar` | Compara 2 a 5 séries no mesmo período com ranking |
 
 ## Instalação
 
@@ -72,31 +76,43 @@ npm install -g bcb-br-mcp
 ### Consultar a Selic atual
 
 ```
-Use bcb_serie_ultimos com código 432 para obter a Selic
+Qual a taxa Selic atual?
+→ Usa bcb_indicadores_atuais
 ```
 
 ### Histórico do IPCA em 2024
 
 ```
-Use bcb_serie_valores com código 433, dataInicial 2024-01-01 e dataFinal 2024-12-31
+Mostre o IPCA mensal de 2024
+→ Usa bcb_serie_valores com código 433, dataInicial 2024-01-01, dataFinal 2024-12-31
 ```
 
 ### Listar indicadores de inflação
 
 ```
-Use bcb_series_populares com categoria "Inflação"
+Quais séries de inflação estão disponíveis?
+→ Usa bcb_series_populares com categoria "Inflação"
 ```
 
 ### Buscar séries sobre dólar
 
 ```
-Use bcb_buscar_serie com termo "dolar"
+Busque séries relacionadas ao dólar
+→ Usa bcb_buscar_serie com termo "dolar" (funciona mesmo sem acento)
 ```
 
-### Obter indicadores atuais
+### Calcular variação do dólar
 
 ```
-Use bcb_indicadores_atuais para ver Selic, IPCA, Dólar e IBC-Br atuais
+Qual foi a variação do dólar nos últimos 12 meses?
+→ Usa bcb_variacao com código 1 e periodos 12
+```
+
+### Comparar IPCA, IGP-M e INPC
+
+```
+Compare IPCA, IGP-M e INPC em 2024
+→ Usa bcb_comparar com códigos [433, 189, 188], dataInicial 2024-01-01, dataFinal 2024-12-31
 ```
 
 ## Catálogo de Séries (150+)
@@ -104,6 +120,7 @@ Use bcb_indicadores_atuais para ver Selic, IPCA, Dólar e IBC-Br atuais
 O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categorias.
 
 ### Juros e Taxas
+
 | Código | Descrição |
 |--------|-----------|
 | 11 | Taxa Selic acumulada no mês |
@@ -115,6 +132,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 256 | Taxa de Juros de Longo Prazo (TJLP) |
 
 ### Inflação (30+ séries)
+
 | Código | Descrição |
 |--------|-----------|
 | 433 | IPCA - Variação mensal |
@@ -130,6 +148,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 16121-16122 | IPCA - Núcleos |
 
 ### Câmbio (15+ séries)
+
 | Código | Descrição |
 |--------|-----------|
 | 1 | Dólar americano (venda) |
@@ -142,6 +161,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 21639/21640 | Yuan Chinês (venda/compra) |
 
 ### Atividade Econômica (25+ séries)
+
 | Código | Descrição |
 |--------|-----------|
 | 4380 | PIB mensal (R$ milhões) |
@@ -155,6 +175,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 21862 | Utilização da capacidade instalada |
 
 ### Emprego (10+ séries)
+
 | Código | Descrição |
 |--------|-----------|
 | 24369 | Taxa de desocupação - PNAD Contínua |
@@ -164,6 +185,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 28561 | CAGED - Saldo de empregos formais |
 
 ### Fiscal (10+ séries)
+
 | Código | Descrição |
 |--------|-----------|
 | 4503 | Dívida líquida do setor público (% PIB) |
@@ -173,6 +195,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 5364 | Receita total do governo central |
 
 ### Setor Externo (15+ séries)
+
 | Código | Descrição |
 |--------|-----------|
 | 3546 | Reservas internacionais - diário |
@@ -184,6 +207,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 13690 | Dívida externa total |
 
 ### Crédito (30+ séries)
+
 | Código | Descrição |
 |--------|-----------|
 | 20539 | Saldo de crédito - Total |
@@ -196,6 +220,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 21128/21129 | Inadimplência - Cartão de crédito |
 
 ### Agregados Monetários
+
 | Código | Descrição |
 |--------|-----------|
 | 1788 | Base monetária |
@@ -203,6 +228,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 27815 | Multiplicador monetário |
 
 ### Poupança
+
 | Código | Descrição |
 |--------|-----------|
 | 25 | Poupança - Rendimento mensal |
@@ -210,6 +236,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 7165 | Poupança - Captação líquida |
 
 ### Índices de Mercado
+
 | Código | Descrição |
 |--------|-----------|
 | 12466 | IMA-B |
@@ -218,6 +245,7 @@ O servidor inclui um catálogo com mais de 150 séries organizadas em 12 categor
 | 7832 | Ibovespa mensal |
 
 ### Expectativas (Focus)
+
 | Código | Descrição |
 |--------|-----------|
 | 29033/29034 | Expectativa IPCA (ano corrente/próximo) |
@@ -233,6 +261,22 @@ O SGS possui mais de 18.000 séries temporais. Para encontrar o código de outra
 2. Use a busca para encontrar a série desejada
 3. Anote o código da série
 4. Use esse código nas ferramentas deste servidor
+
+## Características Técnicas
+
+### Robustez
+
+- **Timeout**: 30 segundos por requisição (evita travamentos)
+- **Retry automático**: 3 tentativas com backoff exponencial (1s, 2s, 4s)
+- **Tratamento de erros**: Mensagens claras em português
+
+### Busca Inteligente
+
+A ferramenta `bcb_buscar_serie` normaliza os termos de busca, permitindo encontrar séries mesmo sem acentos:
+
+- `"inflacao"` → encontra "Inflação"
+- `"cambio"` → encontra "Câmbio"
+- `"credito"` → encontra "Crédito"
 
 ## Desenvolvimento
 
@@ -272,7 +316,25 @@ Este servidor utiliza a API pública do Banco Central do Brasil:
 
 - **Endpoint base:** `https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados`
 - **Formato:** JSON
+- **Autenticação:** Nenhuma (API pública)
 - **Documentação:** [Dados Abertos BCB](https://dadosabertos.bcb.gov.br/)
+
+## Changelog
+
+### v1.1.0
+
+- ✨ Nova ferramenta `bcb_variacao` para cálculo de variação percentual
+- ✨ Nova ferramenta `bcb_comparar` para comparação de múltiplas séries
+- 🔧 Timeout de 30 segundos nas requisições
+- 🔧 Retry automático com backoff exponencial (3 tentativas)
+- 🔧 Busca normalizada (aceita termos sem acentos)
+- 📊 Estatísticas adicionais (máximo, mínimo, média, amplitude)
+
+### v1.0.0
+
+- 🎉 Lançamento inicial
+- 6 ferramentas básicas
+- Catálogo com 150+ séries
 
 ## Contribuição
 
@@ -300,4 +362,5 @@ MIT - veja [LICENSE](LICENSE) para detalhes.
 - [Portal SGS BCB](https://www3.bcb.gov.br/sgspub/)
 - [Dados Abertos BCB](https://dadosabertos.bcb.gov.br/)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
-- [MCP Registry](https://github.com/modelcontextprotocol/servers)
+- [MCP Registry](https://registry.modelcontextprotocol.io/)
+- [npm: bcb-br-mcp](https://www.npmjs.com/package/bcb-br-mcp)

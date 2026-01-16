@@ -15,7 +15,15 @@ import { z } from "zod";
 // API Base URL
 const BCB_API_BASE = "https://api.bcb.gov.br/dados/serie/bcdata.sgs";
 
-// Popular series catalog - Expanded with 100+ series
+// Configuration
+const CONFIG = {
+  TIMEOUT_MS: 30000,      // 30 seconds timeout
+  MAX_RETRIES: 3,         // Maximum retry attempts
+  RETRY_DELAY_MS: 1000,   // Initial retry delay (doubles each attempt)
+  USER_AGENT: "bcb-br-mcp/1.1.0"
+};
+
+// Popular series catalog - Expanded with 150+ series
 const SERIES_POPULARES = [
   // ==================== JUROS E TAXAS ====================
   // Selic
@@ -267,7 +275,21 @@ interface SerieMetadados {
   especial: boolean;
 }
 
-// Helper function to format date for API (dd/MM/yyyy)
+// ==================== UTILITY FUNCTIONS ====================
+
+/**
+ * Normalize string for comparison (remove accents, lowercase)
+ */
+function normalizeString(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * Helper function to format date for API (dd/MM/yyyy)
+ */
 function formatDateForApi(dateStr: string): string {
   // Accept formats: yyyy-MM-dd, dd/MM/yyyy
   if (dateStr.includes("-")) {
@@ -277,29 +299,100 @@ function formatDateForApi(dateStr: string): string {
   return dateStr;
 }
 
-// Helper function to fetch from BCB API
-async function fetchBcbApi(url: string): Promise<unknown> {
-  const response = await fetch(url, {
-    headers: {
-      "Accept": "application/json",
-      "User-Agent": "bcb-br-mcp/1.0.0"
-    }
-  });
+/**
+ * Sleep function for retry delays
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error(`Série não encontrada ou sem dados para o período solicitado`);
+/**
+ * Fetch with timeout using AbortController
+ */
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "Accept": "application/json",
+        "User-Agent": CONFIG.USER_AGENT
+      }
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Fetch from BCB API with retry and timeout
+ */
+async function fetchBcbApi(url: string): Promise<unknown> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= CONFIG.MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetchWithTimeout(url, CONFIG.TIMEOUT_MS);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`Série não encontrada ou sem dados para o período solicitado`);
+        }
+        throw new Error(`Erro na API do BCB: ${response.status} ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      // Don't retry on 404 (not found)
+      if (lastError.message.includes("não encontrada")) {
+        throw lastError;
+      }
+
+      // Check if it's a timeout/abort error
+      const isTimeout = lastError.name === "AbortError" ||
+        lastError.message.includes("aborted") ||
+        lastError.message.includes("timeout");
+
+      // Log retry attempt
+      if (attempt < CONFIG.MAX_RETRIES) {
+        const delayMs = CONFIG.RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+        const reason = isTimeout ? "timeout" : "erro";
+        console.error(`Tentativa ${attempt}/${CONFIG.MAX_RETRIES} falhou (${reason}). Aguardando ${delayMs}ms...`);
+        await sleep(delayMs);
+      }
     }
-    throw new Error(`Erro na API do BCB: ${response.status} ${response.statusText}`);
   }
 
-  return response.json();
+  throw new Error(`Falha após ${CONFIG.MAX_RETRIES} tentativas: ${lastError?.message || "Erro desconhecido"}`);
 }
+
+/**
+ * Parse date string from BCB format (dd/MM/yyyy) to Date object
+ */
+function parseBcbDate(dateStr: string): Date {
+  const [day, month, year] = dateStr.split("/").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+/**
+ * Calculate percentage variation between two values
+ */
+function calculateVariation(valorInicial: number, valorFinal: number): number {
+  if (valorInicial === 0) return 0;
+  return ((valorFinal - valorInicial) / Math.abs(valorInicial)) * 100;
+}
+
+// ==================== MCP SERVER ====================
 
 // Create MCP server
 const server = new McpServer({
   name: "bcb-br-mcp",
-  version: "1.0.0"
+  version: "1.1.0"
 });
 
 // Tool: Get series values
@@ -536,8 +629,10 @@ server.tool(
       let series = SERIES_POPULARES;
 
       if (categoria) {
+        // Normalized search (accent-insensitive)
+        const categoriaNorm = normalizeString(categoria);
         series = series.filter(s =>
-          s.categoria.toLowerCase().includes(categoria.toLowerCase())
+          normalizeString(s.categoria).includes(categoriaNorm)
         );
       }
 
@@ -575,20 +670,20 @@ server.tool(
   }
 );
 
-// Tool: Search series by name
+// Tool: Search series by name (with normalized search)
 server.tool(
   "bcb_buscar_serie",
-  "Busca séries no catálogo interno por nome ou descrição. Retorna séries que correspondem ao termo buscado.",
+  "Busca séries no catálogo interno por nome ou descrição. Aceita termos com ou sem acentos (ex: 'inflacao' encontra 'Inflação').",
   {
     termo: z.string().min(2).describe("Termo de busca (mínimo 2 caracteres)")
   },
   async ({ termo }) => {
     try {
-      const termoLower = termo.toLowerCase();
+      const termoNorm = normalizeString(termo);
 
       const encontradas = SERIES_POPULARES.filter(s =>
-        s.nome.toLowerCase().includes(termoLower) ||
-        s.categoria.toLowerCase().includes(termoLower)
+        normalizeString(s.nome).includes(termoNorm) ||
+        normalizeString(s.categoria).includes(termoNorm)
       );
 
       if (encontradas.length === 0) {
@@ -599,7 +694,7 @@ server.tool(
               termo,
               totalEncontradas: 0,
               mensagem: "Nenhuma série encontrada no catálogo interno. Use o portal SGS do BCB para buscar outras séries: https://www3.bcb.gov.br/sgspub/",
-              sugestao: "Tente termos como: selic, ipca, dolar, cambio, pib, inflacao"
+              sugestao: "Tente termos como: selic, ipca, dolar, cambio, pib, inflacao, credito, emprego"
             }, null, 2)
           }]
         };
@@ -687,6 +782,204 @@ server.tool(
         content: [{
           type: "text" as const,
           text: `Erro ao consultar indicadores: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Tool: Calculate percentage variation
+server.tool(
+  "bcb_variacao",
+  "Calcula a variação percentual de uma série entre duas datas ou nos últimos N períodos. Útil para análise de tendências.",
+  {
+    codigo: z.number().describe("Código da série no SGS/BCB"),
+    dataInicial: z.string().optional().describe("Data inicial (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o primeiro valor disponível."),
+    dataFinal: z.string().optional().describe("Data final (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o último valor disponível."),
+    periodos: z.number().optional().describe("Alternativa: calcular variação dos últimos N períodos (ignora datas se informado)")
+  },
+  async ({ codigo, dataInicial, dataFinal, periodos }) => {
+    try {
+      let data: SerieValor[];
+
+      if (periodos && periodos > 1) {
+        // Fetch last N values
+        const url = `${BCB_API_BASE}.${codigo}/dados/ultimos/${periodos}?formato=json`;
+        data = await fetchBcbApi(url) as SerieValor[];
+      } else {
+        // Fetch by date range
+        let url = `${BCB_API_BASE}.${codigo}/dados?formato=json`;
+        if (dataInicial) {
+          url += `&dataInicial=${formatDateForApi(dataInicial)}`;
+        }
+        if (dataFinal) {
+          url += `&dataFinal=${formatDateForApi(dataFinal)}`;
+        }
+        data = await fetchBcbApi(url) as SerieValor[];
+      }
+
+      if (!Array.isArray(data) || data.length < 2) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Dados insuficientes para calcular variação. São necessários pelo menos 2 valores.`
+          }]
+        };
+      }
+
+      const serieInfo = SERIES_POPULARES.find(s => s.codigo === codigo);
+
+      const valorInicial = parseFloat(data[0].valor);
+      const valorFinal = parseFloat(data[data.length - 1].valor);
+      const variacao = calculateVariation(valorInicial, valorFinal);
+      const diferencaAbsoluta = valorFinal - valorInicial;
+
+      // Calculate intermediate statistics
+      const valores = data.map(d => parseFloat(d.valor));
+      const maximo = Math.max(...valores);
+      const minimo = Math.min(...valores);
+      const media = valores.reduce((a, b) => a + b, 0) / valores.length;
+
+      const result = {
+        serie: {
+          codigo,
+          nome: serieInfo?.nome || `Série ${codigo}`,
+          categoria: serieInfo?.categoria || "Desconhecida"
+        },
+        periodo: {
+          dataInicial: data[0].data,
+          dataFinal: data[data.length - 1].data,
+          totalPeriodos: data.length
+        },
+        analise: {
+          valorInicial,
+          valorFinal,
+          diferencaAbsoluta: Number(diferencaAbsoluta.toFixed(4)),
+          variacaoPercentual: Number(variacao.toFixed(4)),
+          variacaoFormatada: `${variacao >= 0 ? "+" : ""}${variacao.toFixed(2)}%`
+        },
+        estatisticas: {
+          maximo: Number(maximo.toFixed(4)),
+          minimo: Number(minimo.toFixed(4)),
+          media: Number(media.toFixed(4)),
+          amplitude: Number((maximo - minimo).toFixed(4))
+        }
+      };
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify(result, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Erro ao calcular variação: ${error instanceof Error ? error.message : String(error)}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Tool: Compare multiple series
+server.tool(
+  "bcb_comparar",
+  "Compara 2 a 5 séries temporais no mesmo período. Útil para análise de correlação entre indicadores.",
+  {
+    codigos: z.array(z.number()).min(2).max(5).describe("Array com 2 a 5 códigos de séries para comparar"),
+    dataInicial: z.string().describe("Data inicial (yyyy-MM-dd ou dd/MM/yyyy)"),
+    dataFinal: z.string().describe("Data final (yyyy-MM-dd ou dd/MM/yyyy)")
+  },
+  async ({ codigos, dataInicial, dataFinal }) => {
+    try {
+      const resultados = await Promise.all(
+        codigos.map(async (codigo) => {
+          try {
+            let url = `${BCB_API_BASE}.${codigo}/dados?formato=json`;
+            url += `&dataInicial=${formatDateForApi(dataInicial)}`;
+            url += `&dataFinal=${formatDateForApi(dataFinal)}`;
+
+            const data = await fetchBcbApi(url) as SerieValor[];
+            const serieInfo = SERIES_POPULARES.find(s => s.codigo === codigo);
+
+            if (!Array.isArray(data) || data.length === 0) {
+              return {
+                codigo,
+                nome: serieInfo?.nome || `Série ${codigo}`,
+                erro: "Sem dados no período"
+              };
+            }
+
+            const valores = data.map(d => parseFloat(d.valor));
+            const valorInicial = valores[0];
+            const valorFinal = valores[valores.length - 1];
+            const variacao = calculateVariation(valorInicial, valorFinal);
+
+            return {
+              codigo,
+              nome: serieInfo?.nome || `Série ${codigo}`,
+              categoria: serieInfo?.categoria || "Desconhecida",
+              periodicidade: serieInfo?.periodicidade || "Desconhecida",
+              totalRegistros: data.length,
+              valorInicial,
+              valorFinal,
+              variacaoPercentual: Number(variacao.toFixed(4)),
+              variacaoFormatada: `${variacao >= 0 ? "+" : ""}${variacao.toFixed(2)}%`,
+              maximo: Math.max(...valores),
+              minimo: Math.min(...valores),
+              media: Number((valores.reduce((a, b) => a + b, 0) / valores.length).toFixed(4))
+            };
+          } catch (err) {
+            const serieInfo = SERIES_POPULARES.find(s => s.codigo === codigo);
+            return {
+              codigo,
+              nome: serieInfo?.nome || `Série ${codigo}`,
+              erro: err instanceof Error ? err.message : "Erro desconhecido"
+            };
+          }
+        })
+      );
+
+      // Sort by variation (descending)
+      const seriesComDados = resultados.filter(r => !("erro" in r));
+      const seriesComErro = resultados.filter(r => "erro" in r);
+
+      const seriesOrdenadas = [...seriesComDados].sort((a, b) => {
+        const varA = "variacaoPercentual" in a && typeof a.variacaoPercentual === "number" ? a.variacaoPercentual : 0;
+        const varB = "variacaoPercentual" in b && typeof b.variacaoPercentual === "number" ? b.variacaoPercentual : 0;
+        return varB - varA;
+      });
+
+      const result = {
+        periodo: {
+          dataInicial: formatDateForApi(dataInicial),
+          dataFinal: formatDateForApi(dataFinal)
+        },
+        totalSeries: codigos.length,
+        seriesComDados: seriesComDados.length,
+        seriesComErro: seriesComErro.length,
+        ranking: seriesOrdenadas.map((s, i) => ({
+          posicao: i + 1,
+          ...s
+        })),
+        erros: seriesComErro.length > 0 ? seriesComErro : undefined
+      };
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify(result, null, 2)
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: `Erro ao comparar séries: ${error instanceof Error ? error.message : String(error)}`
         }],
         isError: true
       };
