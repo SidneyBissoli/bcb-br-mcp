@@ -1,0 +1,56 @@
+{
+  "name": "bcb-br-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server for Brazilian Central Bank Time Series (SGS/BCB) - Economic and Financial Data",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "bcb-br-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "bcb",
+    "banco-central",
+    "sgs",
+    "series-temporais",
+    "economia",
+    "selic",
+    "ipca",
+    "cambio",
+    "claude",
+    "ai",
+    "brazil"
+  ],
+  "author": "Sidney Bissoli <sbissoli76@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SidneyBissoli/bcb-br-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SidneyBissoli/bcb-br-mcp/issues"
+  },
+  "homepage": "https://github.com/SidneyBissoli/bcb-br-mcp#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "data"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
