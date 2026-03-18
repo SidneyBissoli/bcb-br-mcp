@@ -16,7 +16,7 @@ export const CONFIG = {
   TIMEOUT_MS: 30000,
   MAX_RETRIES: 3,
   RETRY_DELAY_MS: 1000,
-  USER_AGENT: "bcb-br-mcp/1.1.0"
+  USER_AGENT: "bcb-br-mcp/1.2.0"
 };
 
 // Worker uses shorter timeout (Cloudflare has its own limits)
@@ -24,7 +24,7 @@ export const WORKER_CONFIG = {
   TIMEOUT_MS: 10000,
   MAX_RETRIES: 2,
   RETRY_DELAY_MS: 1000,
-  USER_AGENT: "bcb-br-mcp/1.1.0"
+  USER_AGENT: "bcb-br-mcp/1.2.0"
 };
 
 // ==================== TYPES ====================
