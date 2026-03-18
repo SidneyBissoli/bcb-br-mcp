@@ -13,6 +13,8 @@ MCP (Model Context Protocol) server for accessing the Brazilian Central Bank's t
 
 Query economic and financial indicators such as **Selic** (interest rate), **IPCA** (inflation), **exchange rates**, **GDP**, and more, directly from AI assistants like Claude.
 
+> If you find this project useful, please consider giving it a [star on GitHub](https://github.com/SidneyBissoli/bcb-br-mcp). It helps others discover the project!
+
 ## Features
 
 - **Historical data** - Query time series values by code with date filters

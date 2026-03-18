@@ -13,6 +13,8 @@ Servidor MCP (Model Context Protocol) para acesso às séries temporais do Banco
 
 Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**, **câmbio**, **PIB**, entre outros, diretamente em assistentes de IA como Claude.
 
+> Se você achou este projeto útil, considere dar uma [estrela no GitHub](https://github.com/SidneyBissoli/bcb-br-mcp). Isso ajuda outras pessoas a descobrirem o projeto!
+
 ## Funcionalidades
 
 - **Consulta de séries históricas** - Busca valores de séries por código com filtro de datas
