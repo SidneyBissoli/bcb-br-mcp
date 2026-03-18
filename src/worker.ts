@@ -141,7 +141,7 @@ async function handleMcp(request: Request): Promise<Response> {
 }
 
 export default {
-  async fetch(request: Request, _env: Env, _ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, _env: Env, _ctx: unknown): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
     const method = request.method.toUpperCase();
