@@ -369,7 +369,7 @@ MIT - veja [LICENSE](LICENSE) para detalhes.
 
 ## Autor
 
-**Sidney Bissoli**
+**Sidney da Silva Pereira Bissoli**
 
 - GitHub: [@SidneyBissoli](https://github.com/SidneyBissoli)
 - Email: sbissoli76@gmail.com
