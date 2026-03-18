@@ -79,7 +79,7 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 
 ### Comunidades MCP (internacional)
 
-- [x] **MCP Discord (oficial)** — Postado em #intro-members e #package-dev
+- [ ] **MCP Discord (oficial)** — Apresentar o servidor no canal apropriado (11.600+ membros)
 - [ ] **r/mcp** (Reddit) — Post de anúncio com demonstração
 - [ ] **r/ClaudeAI** (Reddit) — Post mostrando uso prático com Claude
 - [ ] **r/programming** (Reddit) — Post técnico sobre dados econômicos via IA
@@ -156,7 +156,7 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 - [x] Abrir PRs nas listas awesome-mcp-servers (punkpeye PR #3465, appcypher PR #641)
 - [x] Submeter em mcpservers.org (submetido) e awesome-remote-mcp-servers (PR #156)
 - [ ] Submeter em awesome-made-by-brazilians
-- [x] Post no MCP Discord (#intro-members e #package-dev)
+- [ ] Post no MCP Discord
 
 ### Semana 3-4
 
