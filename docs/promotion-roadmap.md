@@ -32,10 +32,10 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 
 ### Tier 2 — Listas curadas no GitHub (submeter via Pull Request)
 
-- [ ] **punkpeye/awesome-mcp-servers** — github.com/punkpeye/awesome-mcp-servers (alta visibilidade)
-- [ ] **appcypher/awesome-mcp-servers** — github.com/appcypher/awesome-mcp-servers (alta visibilidade)
-- [ ] **wong2/awesome-mcp-servers** — mcpservers.org (submeter em mcpservers.org/submit)
-- [ ] **jaw9c/awesome-remote-mcp-servers** — github.com/jaw9c/awesome-remote-mcp-servers (servidor remoto via Cloudflare)
+- [x] **punkpeye/awesome-mcp-servers** — github.com/punkpeye/awesome-mcp-servers (PR #3465 aberto)
+- [x] **appcypher/awesome-mcp-servers** — github.com/appcypher/awesome-mcp-servers (PR #641 aberto)
+- [x] **wong2/awesome-mcp-servers** — mcpservers.org (submetido, aguardando aprovação)
+- [x] **jaw9c/awesome-remote-mcp-servers** — github.com/jaw9c/awesome-remote-mcp-servers (PR #156 aberto)
 
 ### Tier 3 — Diretórios adicionais
 
@@ -79,7 +79,7 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 
 ### Comunidades MCP (internacional)
 
-- [ ] **MCP Discord (oficial)** — Apresentar o servidor no canal apropriado (11.600+ membros)
+- [x] **MCP Discord (oficial)** — Postado em #intro-members e #package-dev
 - [ ] **r/mcp** (Reddit) — Post de anúncio com demonstração
 - [ ] **r/ClaudeAI** (Reddit) — Post mostrando uso prático com Claude
 - [ ] **r/programming** (Reddit) — Post técnico sobre dados econômicos via IA
@@ -153,10 +153,10 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 - [x] Otimizar descrição e topics do GitHub
 - [x] Atualizar keywords do package.json e publicar nova versão npm (v1.2.1)
 - [x] Submeter para Glama, PulseMCP, MCP.so
-- [ ] Abrir PRs nas listas awesome-mcp-servers (punkpeye + appcypher)
-- [ ] Submeter em mcpservers.org e awesome-remote-mcp-servers
+- [x] Abrir PRs nas listas awesome-mcp-servers (punkpeye PR #3465, appcypher PR #641)
+- [x] Submeter em mcpservers.org (submetido) e awesome-remote-mcp-servers (PR #156)
 - [ ] Submeter em awesome-made-by-brazilians
-- [ ] Post no MCP Discord
+- [x] Post no MCP Discord (#intro-members e #package-dev)
 
 ### Semana 3-4
 
