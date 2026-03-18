@@ -11,7 +11,10 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 - [x] README bilíngue (EN + PT-BR)
 - [x] Badges de versão, downloads, licença
 - [x] Deploy HTTP via Cloudflare Workers (`https://bcb.sidneybissoli.workers.dev`)
-- [x] Changelog documentado (v1.0.0, v1.1.0, v1.2.0)
+- [x] Changelog documentado (v1.0.0, v1.1.0, v1.2.0, v1.2.1)
+- [x] MCP Prompts registrados (indicadores_atuais, panorama_economico, comparar_inflacao)
+- [x] MCP Resources registrados (series/populares, series/categorias, series/principais)
+- [x] Badge LobeHub adicionado aos READMEs
 
 ---
 
@@ -39,7 +42,7 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 - [x] OpenTools Registry — opentools.com/registry (na waitlist)
 - [ ] MCP Index — mcpindex.net
 - [ ] MCP Server Finder — mcpserverfinder.com
-- [x] LobeHub MCP — lobehub.com/mcp (badge adicionado ao README, reivindicação em andamento)
+- [x] LobeHub MCP — lobehub.com/mcp (badge adicionado, reivindicado, prompts e resources adicionados para score)
 
 ---
 
@@ -147,9 +150,9 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 
 ### Semana 1-2 (Imediato)
 
-- [ ] Otimizar descrição e topics do GitHub
-- [ ] Atualizar keywords do package.json e publicar nova versão npm
-- [ ] Submeter para Glama, PulseMCP, MCP.so
+- [x] Otimizar descrição e topics do GitHub
+- [x] Atualizar keywords do package.json e publicar nova versão npm (v1.2.1)
+- [x] Submeter para Glama, PulseMCP, MCP.so
 - [ ] Abrir PRs nas listas awesome-mcp-servers (punkpeye + appcypher)
 - [ ] Submeter em mcpservers.org e awesome-remote-mcp-servers
 - [ ] Submeter em awesome-made-by-brazilians
