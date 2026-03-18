@@ -1,10 +1,6 @@
 startCommand:
-  type: stdio
+  type: http
+  url: "https://bcb.sidneybissoli.workers.dev"
   configSchema:
     type: object
     properties: {}
-  commandFunction: |-
-    (config) => ({
-      command: "npx",
-      args: ["-y", "bcb-br-mcp"]
-    })
