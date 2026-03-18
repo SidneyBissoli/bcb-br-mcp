@@ -89,7 +89,7 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 
 - [ ] **TabNews** (tabnews.com.br) — Artigo técnico em português sobre o projeto
 - [ ] **Dev.to #brazil** (dev.to/t/brazil) — Tutorial bilíngue (PT/EN)
-- [ ] **awesome-made-by-brazilians** (GitHub) — Requer 100+ stars (atual: 1)
+- [ ] **awesome-made-by-brazilians** (GitHub) — Abrir PR após atingir 100+ stars
 - [ ] **BrasilAPI** (GitHub / comunidade) — Cross-promotion (afinidade: APIs públicas brasileiras)
 
 ---
@@ -155,7 +155,6 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 - [x] Submeter para Glama, PulseMCP, MCP.so
 - [x] Abrir PRs nas listas awesome-mcp-servers (punkpeye PR #3465, appcypher PR #641)
 - [x] Submeter em mcpservers.org (submetido) e awesome-remote-mcp-servers (PR #156)
-- [ ] Submeter em awesome-made-by-brazilians (requer 100+ stars)
 - [ ] Post no MCP Discord
 
 ### Semana 3-4
@@ -182,6 +181,7 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 - [ ] Monitorar quais canais geram mais tráfego
 - [ ] Participar ativamente nas comunidades MCP (Discord, Reddit)
 - [ ] Atualizar o README com novos badges e métricas conforme crescerem
+- [ ] Submeter em awesome-made-by-brazilians (após atingir 100+ stars)
 
 ---
 
