@@ -13,6 +13,7 @@
 
 import {
   TOOL_DEFINITIONS,
+  SERIES_POPULARES,
   dispatchTool,
   WORKER_CONFIG
 } from "./tools.js";
@@ -83,7 +84,7 @@ async function handleMcp(request: Request): Promise<Response> {
         id,
         result: {
           protocolVersion: "2024-11-05",
-          capabilities: { tools: {}, prompts: {} },
+          capabilities: { tools: {}, prompts: {}, resources: {} },
           serverInfo: {
             name: "bcb-br-mcp",
             version: "1.1.0"
@@ -103,6 +104,72 @@ async function handleMcp(request: Request): Promise<Response> {
         id,
         result: {
           tools: TOOL_DEFINITIONS
+        }
+      });
+    }
+
+    case "resources/list": {
+      return jsonResponse({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          resources: [
+            {
+              uri: "bcb://series/populares",
+              name: "Séries Populares BCB",
+              description: "Catálogo de 150+ séries econômicas populares do BCB organizadas por categoria",
+              mimeType: "application/json"
+            },
+            {
+              uri: "bcb://series/categorias",
+              name: "Categorias de Séries",
+              description: "Lista de categorias disponíveis no catálogo de séries do BCB",
+              mimeType: "application/json"
+            },
+            {
+              uri: "bcb://series/principais",
+              name: "Códigos Principais",
+              description: "Códigos dos indicadores econômicos mais utilizados (Selic, IPCA, Dólar, PIB, etc.)",
+              mimeType: "application/json"
+            }
+          ]
+        }
+      });
+    }
+
+    case "resources/read": {
+      const resourceUri = params?.uri as string | undefined;
+
+      if (!resourceUri) {
+        return jsonRpcError(id, -32602, "Invalid params: 'uri' is required for resources/read");
+      }
+
+      const categorias = [...new Set(SERIES_POPULARES.map(s => s.categoria))].sort();
+      const principais = {
+        juros: { selic_meta: 1178, selic_acumulada: 432, cdi: 4389, tr: 226 },
+        inflacao: { ipca_mensal: 433, ipca_12m: 13522, igpm: 189, inpc: 188 },
+        cambio: { dolar_venda: 1, dolar_ptax: 3698, euro: 21619 },
+        atividade: { pib_mensal: 4380, ibc_br: 24364 },
+        emprego: { desemprego: 24369, rendimento_medio: 24380 },
+        fiscal: { divida_bruta: 4513, divida_liquida: 4503, resultado_primario: 4537 }
+      };
+
+      const resourceData: Record<string, { uri: string; mimeType: string; text: string }> = {
+        "bcb://series/populares": { uri: "bcb://series/populares", mimeType: "application/json", text: JSON.stringify(SERIES_POPULARES, null, 2) },
+        "bcb://series/categorias": { uri: "bcb://series/categorias", mimeType: "application/json", text: JSON.stringify(categorias, null, 2) },
+        "bcb://series/principais": { uri: "bcb://series/principais", mimeType: "application/json", text: JSON.stringify(principais, null, 2) }
+      };
+
+      const resource = resourceData[resourceUri];
+      if (!resource) {
+        return jsonRpcError(id, -32602, `Resource not found: ${resourceUri}`);
+      }
+
+      return jsonResponse({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          contents: [resource]
         }
       });
     }

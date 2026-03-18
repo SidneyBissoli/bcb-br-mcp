@@ -13,6 +13,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 import {
+  SERIES_POPULARES,
   handleSerieValores,
   handleSerieUltimos,
   handleSerieMetadados,
@@ -115,6 +116,72 @@ server.tool(
     dataFinal: z.string().describe("Data final (yyyy-MM-dd ou dd/MM/yyyy)")
   },
   async (args) => handleComparar(args)
+);
+
+// ==================== RESOURCES ====================
+
+server.resource(
+  "series_populares",
+  "bcb://series/populares",
+  {
+    description: "Catálogo de 150+ séries econômicas populares do BCB organizadas por categoria",
+    mimeType: "application/json"
+  },
+  async () => ({
+    contents: [
+      {
+        uri: "bcb://series/populares",
+        mimeType: "application/json",
+        text: JSON.stringify(SERIES_POPULARES, null, 2)
+      }
+    ]
+  })
+);
+
+server.resource(
+  "categorias",
+  "bcb://series/categorias",
+  {
+    description: "Lista de categorias disponíveis no catálogo de séries do BCB",
+    mimeType: "application/json"
+  },
+  async () => {
+    const categorias = [...new Set(SERIES_POPULARES.map(s => s.categoria))].sort();
+    return {
+      contents: [
+        {
+          uri: "bcb://series/categorias",
+          mimeType: "application/json",
+          text: JSON.stringify(categorias, null, 2)
+        }
+      ]
+    };
+  }
+);
+
+server.resource(
+  "codigos_principais",
+  "bcb://series/principais",
+  {
+    description: "Códigos dos indicadores econômicos mais utilizados (Selic, IPCA, Dólar, PIB, etc.)",
+    mimeType: "application/json"
+  },
+  async () => ({
+    contents: [
+      {
+        uri: "bcb://series/principais",
+        mimeType: "application/json",
+        text: JSON.stringify({
+          juros: { selic_meta: 1178, selic_acumulada: 432, cdi: 4389, tr: 226 },
+          inflacao: { ipca_mensal: 433, ipca_12m: 13522, igpm: 189, inpc: 188 },
+          cambio: { dolar_venda: 1, dolar_ptax: 3698, euro: 21619 },
+          atividade: { pib_mensal: 4380, ibc_br: 24364 },
+          emprego: { desemprego: 24369, rendimento_medio: 24380 },
+          fiscal: { divida_bruta: 4513, divida_liquida: 4503, resultado_primario: 4537 }
+        }, null, 2)
+      }
+    ]
+  })
 );
 
 // ==================== PROMPTS ====================
