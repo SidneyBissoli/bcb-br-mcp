@@ -21,9 +21,11 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 
 - [x] **Official MCP Registry** — registry.modelcontextprotocol.io (registrado via `mcp-publisher` CLI)
 - [x] **Smithery** — smithery.ai (registrado via web com `smithery.yaml`)
-- [ ] **Glama** — glama.ai/mcp/servers (curadoria editorial — submeter via site)
-- [ ] **PulseMCP** — pulsemcp.com/servers (submeter via site)
-- [ ] **MCP.so** — mcp.so (submeter via GitHub issue ou site)
+- [x] **Glama** — glama.ai/mcp/servers (aprovado, listado e verificado)
+  - [x] Claim: autoria reivindicada via autenticação GitHub ("author verified")
+  - [x] Dockerfile: build configurado e release criado no Glama
+- [x] **PulseMCP** — pulsemcp.com/servers (listado)
+- [x] **MCP.so** — mcp.so (submetido, aguardando aprovação)
 
 ### Tier 2 — Listas curadas no GitHub (submeter via Pull Request)
 
@@ -34,11 +36,10 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 
 ### Tier 3 — Diretórios adicionais
 
-- [ ] MCP-Get — mcp-get.com
-- [ ] OpenTools Registry — opentools.com/registry
+- [x] OpenTools Registry — opentools.com/registry (na waitlist)
 - [ ] MCP Index — mcpindex.net
 - [ ] MCP Server Finder — mcpserverfinder.com
-- [ ] LobeHub MCP — lobehub.com/mcp
+- [x] LobeHub MCP — lobehub.com/mcp (badge adicionado ao README, reivindicação em andamento)
 
 ---
 
