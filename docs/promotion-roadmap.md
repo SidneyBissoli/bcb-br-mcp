@@ -47,18 +47,8 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 
 ### GitHub — Otimização do repositório
 
-- [ ] Atualizar descrição do repositório (About — max 120 caracteres):
-  ```
-  MCP server for Brazil Central Bank (BCB) data — Selic, IPCA, exchange rates, GDP for AI agents
-  ```
-
-- [ ] Configurar Topics (usar todos os 20 slots disponíveis):
-  ```
-  mcp, mcp-server, model-context-protocol, financial-data, central-bank,
-  economic-data, brazil, brazilian, bcb, banco-central, selic, ipca,
-  exchange-rate, inflation, interest-rate, gdp, typescript, ai-tools,
-  claude, cursor
-  ```
+- [x] Atualizar descrição do repositório (About — max 120 caracteres)
+- [x] Configurar Topics (20 topics adicionados)
 
 - [ ] Manter commits e releases frequentes (sinal de manutenção ativa)
 - [ ] Responder issues rapidamente
@@ -66,7 +56,7 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 
 ### npm — Otimização do package.json
 
-- [ ] Atualizar `keywords` no `package.json`:
+- [x] Atualizar `keywords` no `package.json`:
   ```json
   "keywords": [
     "mcp", "mcp-server", "model-context-protocol",
