@@ -117,6 +117,56 @@ server.tool(
   async (args) => handleComparar(args)
 );
 
+// ==================== PROMPTS ====================
+
+server.prompt(
+  "indicadores_atuais",
+  "Consulta os principais indicadores econômicos do Brasil (Selic, IPCA, Dólar, IBC-Br)",
+  async () => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: "Consulte os indicadores econômicos atuais do Brasil usando a ferramenta bcb_indicadores_atuais e apresente os resultados de forma clara e organizada."
+        }
+      }
+    ]
+  })
+);
+
+server.prompt(
+  "panorama_economico",
+  "Gera um panorama completo da economia brasileira com os principais indicadores",
+  async () => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: "Faça um panorama completo da economia brasileira. Use bcb_indicadores_atuais para obter Selic, IPCA, Dólar e IBC-Br. Depois use bcb_serie_ultimos para consultar os últimos 3 valores da taxa de desemprego (código 24369) e da dívida bruta (código 4513). Apresente tudo de forma organizada com análise breve."
+        }
+      }
+    ]
+  })
+);
+
+server.prompt(
+  "comparar_inflacao",
+  "Compara os principais índices de inflação do Brasil (IPCA, IGP-M, INPC) nos últimos 12 meses",
+  async () => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: "Compare os principais índices de inflação do Brasil nos últimos 12 meses. Use bcb_serie_ultimos com quantidade 12 para IPCA (código 433), IGP-M (código 189) e INPC (código 188). Apresente uma tabela comparativa e análise das tendências."
+        }
+      }
+    ]
+  })
+);
+
 // Start server
 async function main() {
   const transport = new StdioServerTransport();

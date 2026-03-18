@@ -83,7 +83,7 @@ async function handleMcp(request: Request): Promise<Response> {
         id,
         result: {
           protocolVersion: "2024-11-05",
-          capabilities: { tools: {} },
+          capabilities: { tools: {}, prompts: {} },
           serverInfo: {
             name: "bcb-br-mcp",
             version: "1.1.0"
@@ -103,6 +103,50 @@ async function handleMcp(request: Request): Promise<Response> {
         id,
         result: {
           tools: TOOL_DEFINITIONS
+        }
+      });
+    }
+
+    case "prompts/list": {
+      return jsonResponse({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          prompts: [
+            {
+              name: "indicadores_atuais",
+              description: "Consulta os principais indicadores econômicos do Brasil (Selic, IPCA, Dólar, IBC-Br)"
+            },
+            {
+              name: "panorama_economico",
+              description: "Gera um panorama completo da economia brasileira com os principais indicadores"
+            },
+            {
+              name: "comparar_inflacao",
+              description: "Compara os principais índices de inflação do Brasil (IPCA, IGP-M, INPC) nos últimos 12 meses"
+            }
+          ]
+        }
+      });
+    }
+
+    case "prompts/get": {
+      const promptName = params?.name as string | undefined;
+      const promptMessages: Record<string, { role: string; content: { type: string; text: string } }[]> = {
+        indicadores_atuais: [{ role: "user", content: { type: "text", text: "Consulte os indicadores econômicos atuais do Brasil usando a ferramenta bcb_indicadores_atuais e apresente os resultados de forma clara e organizada." } }],
+        panorama_economico: [{ role: "user", content: { type: "text", text: "Faça um panorama completo da economia brasileira. Use bcb_indicadores_atuais para obter Selic, IPCA, Dólar e IBC-Br. Depois use bcb_serie_ultimos para consultar os últimos 3 valores da taxa de desemprego (código 24369) e da dívida bruta (código 4513). Apresente tudo de forma organizada com análise breve." } }],
+        comparar_inflacao: [{ role: "user", content: { type: "text", text: "Compare os principais índices de inflação do Brasil nos últimos 12 meses. Use bcb_serie_ultimos com quantidade 12 para IPCA (código 433), IGP-M (código 189) e INPC (código 188). Apresente uma tabela comparativa e análise das tendências." } }]
+      };
+
+      if (!promptName || !promptMessages[promptName]) {
+        return jsonRpcError(id, -32602, `Prompt not found: ${promptName}`);
+      }
+
+      return jsonResponse({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          messages: promptMessages[promptName]
         }
       });
     }
