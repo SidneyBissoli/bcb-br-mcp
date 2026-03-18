@@ -1,6 +1,7 @@
 # BCB BR MCP Server
 
 [![npm version](https://badge.fury.io/js/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
+[![Smithery](https://img.shields.io/badge/Smithery-bcb--br--mcp-orange)](https://smithery.ai/server/@sidneybissoli/bcb-br-mcp)
 [![MCP Registry](https://img.shields.io/badge/MCP-Registry-blue)](https://registry.modelcontextprotocol.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -34,15 +35,25 @@ Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**
 
 ## Instalação
 
-### Claude Desktop
+### Via Smithery (recomendado)
+
+Acesse [bcb-br-mcp no Smithery](https://smithery.ai/server/@sidneybissoli/bcb-br-mcp) e siga as instruções de instalação para o seu cliente MCP.
+
+### Via URL (Claude.ai, Claude Desktop, qualquer cliente MCP)
+
+Use o endpoint HTTP diretamente, sem instalar nada:
+
+```
+https://bcb.sidneybissoli.workers.dev
+```
+
+### Via npx (Claude Desktop)
 
 Adicione ao arquivo de configuração do Claude Desktop:
 
 **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
 **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-#### Opção 1: Via npx (recomendado)
 
 ```json
 {
@@ -55,7 +66,7 @@ Adicione ao arquivo de configuração do Claude Desktop:
 }
 ```
 
-#### Opção 2: Instalação global
+### Via instalação global
 
 ```bash
 npm install -g bcb-br-mcp
@@ -321,6 +332,12 @@ Este servidor utiliza a API pública do Banco Central do Brasil:
 
 ## Changelog
 
+### v1.2.0
+
+- Endpoint HTTP via Cloudflare Workers (`https://bcb.sidneybissoli.workers.dev`)
+- Publicado no Smithery.ai
+- Refatoração: lógica das tools extraída para `src/tools.ts` (compartilhada entre stdio e HTTP)
+
 ### v1.1.0
 
 - ✨ Nova ferramenta `bcb_variacao` para cálculo de variação percentual
@@ -363,4 +380,5 @@ MIT - veja [LICENSE](LICENSE) para detalhes.
 - [Dados Abertos BCB](https://dadosabertos.bcb.gov.br/)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 - [MCP Registry](https://registry.modelcontextprotocol.io/)
+- [Smithery: bcb-br-mcp](https://smithery.ai/server/@sidneybissoli/bcb-br-mcp)
 - [npm: bcb-br-mcp](https://www.npmjs.com/package/bcb-br-mcp)
