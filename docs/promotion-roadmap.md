@@ -82,7 +82,7 @@ Objetivo: tornar o bcb-br-mcp o MCP server de referência para dados econômicos
 - [x] **MCP Discord (oficial)** — Postado em #showcase (11.600+ membros)
 - [x] **r/mcp** (Reddit) — Postado com flair "showcase"
 - [x] **r/ClaudeAI** (Reddit) — Postado com flair "MCP"
-- [ ] **r/programming** (Reddit) — Post técnico sobre dados econômicos via IA
+- ~~**r/programming** (Reddit)~~ — Não permite posts de projeto próprio (regra #6)
 - [ ] **Cursor Community Forum** (forum.cursor.com) — Post sobre integração com Cursor
 
 ### Comunidades Brasil
