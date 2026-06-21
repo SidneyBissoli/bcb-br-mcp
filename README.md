@@ -49,6 +49,16 @@ Reference catalogs the server exposes as MCP **resources** (read-only contextual
 | `bcb://series/categorias` | List of available categories in the series catalog (JSON) |
 | `bcb://series/principais` | Codes of the most-used indicators — Selic, IPCA, USD/BRL, GDP, etc. (JSON) |
 
+## Prompts
+
+Ready-made templates the server provides as MCP **prompts**:
+
+| Prompt | Description |
+|--------|-------------|
+| `indicadores_atuais` | Query Brazil's key economic indicators (Selic, IPCA, USD/BRL, IBC-Br) |
+| `panorama_economico` | Generate a complete overview of the Brazilian economy |
+| `comparar_inflacao` | Compare Brazil's main inflation indices (IPCA, IGP-M, INPC) over the last 12 months |
+
 ## Installation
 
 ### Via Smithery (recommended)

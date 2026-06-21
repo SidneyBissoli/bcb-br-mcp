@@ -49,6 +49,16 @@ Catálogos de referência que o servidor expõe como **recursos** MCP (dados con
 | `bcb://series/categorias` | Lista de categorias disponíveis no catálogo de séries (JSON) |
 | `bcb://series/principais` | Códigos dos indicadores mais usados — Selic, IPCA, Dólar, PIB, etc. (JSON) |
 
+## Prompts
+
+Modelos prontos que o servidor fornece como **prompts** MCP:
+
+| Prompt | Descrição |
+|--------|-----------|
+| `indicadores_atuais` | Consulta os principais indicadores econômicos do Brasil (Selic, IPCA, Dólar, IBC-Br) |
+| `panorama_economico` | Gera um panorama completo da economia brasileira |
+| `comparar_inflacao` | Compara os principais índices de inflação (IPCA, IGP-M, INPC) nos últimos 12 meses |
+
 ## Instalação
 
 ### Via Smithery (recomendado)
