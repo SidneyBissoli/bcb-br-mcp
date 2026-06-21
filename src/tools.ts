@@ -16,7 +16,7 @@ export const CONFIG = {
   TIMEOUT_MS: 30000,
   MAX_RETRIES: 3,
   RETRY_DELAY_MS: 1000,
-  USER_AGENT: "bcb-br-mcp/1.2.0"
+  USER_AGENT: "bcb-br-mcp/1.3.0"
 };
 
 // Worker uses shorter timeout (Cloudflare has its own limits)
@@ -24,7 +24,7 @@ export const WORKER_CONFIG = {
   TIMEOUT_MS: 10000,
   MAX_RETRIES: 2,
   RETRY_DELAY_MS: 1000,
-  USER_AGENT: "bcb-br-mcp/1.2.0"
+  USER_AGENT: "bcb-br-mcp/1.3.0"
 };
 
 // ==================== TYPES ====================
@@ -53,6 +53,7 @@ export interface SeriePopular {
 export interface ToolResult {
   [key: string]: unknown;
   content: Array<{ type: "text"; text: string }>;
+  structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }
 
@@ -61,6 +62,20 @@ export interface ToolDefinition {
   description: string;
   schema: Record<string, z.ZodTypeAny>;
   handler: (args: Record<string, unknown>, config?: { timeoutMs?: number; maxRetries?: number }) => Promise<ToolResult>;
+}
+
+// ==================== OUTPUT HELPER ====================
+
+/**
+ * Builds a ToolResult that satisfies an MCP tool's outputSchema:
+ * the same payload is exposed as machine-readable structuredContent and,
+ * for backward compatibility, serialized into a TextContent block.
+ */
+function structuredResult(payload: Record<string, unknown>): ToolResult {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+    structuredContent: payload
+  };
 }
 
 // ==================== SERIES CATALOG ====================
@@ -359,28 +374,30 @@ export async function handleSerieValores(
     if (args.dataFinal) url += `&dataFinal=${formatDateForApi(args.dataFinal)}`;
 
     const data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
+    const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
+    const serie = {
+      codigo: args.codigo,
+      nome: serieInfo?.nome || `Série ${args.codigo}`,
+      categoria: serieInfo?.categoria || "Desconhecida",
+      periodicidade: serieInfo?.periodicidade || "Desconhecida"
+    };
 
     if (!Array.isArray(data) || data.length === 0) {
-      return {
-        content: [{ type: "text" as const, text: `Nenhum dado encontrado para a série ${args.codigo} no período solicitado.` }]
-      };
+      return structuredResult({
+        serie,
+        totalRegistros: 0,
+        dados: [],
+        observacao: `Nenhum dado encontrado para a série ${args.codigo} no período solicitado.`
+      });
     }
 
-    const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
-    const result = {
-      serie: {
-        codigo: args.codigo,
-        nome: serieInfo?.nome || `Série ${args.codigo}`,
-        categoria: serieInfo?.categoria || "Desconhecida",
-        periodicidade: serieInfo?.periodicidade || "Desconhecida"
-      },
+    return structuredResult({
+      serie,
       totalRegistros: data.length,
       periodoInicial: data[0].data,
       periodoFinal: data[data.length - 1].data,
       dados: data.map(d => ({ data: d.data, valor: parseFloat(d.valor) }))
-    };
-
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    });
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao consultar série ${args.codigo}: ${error instanceof Error ? error.message : String(error)}` }],
@@ -397,26 +414,28 @@ export async function handleSerieUltimos(
   try {
     const url = `${BCB_API_BASE}.${args.codigo}/dados/ultimos/${args.quantidade}?formato=json`;
     const data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
-
-    if (!Array.isArray(data) || data.length === 0) {
-      return {
-        content: [{ type: "text" as const, text: `Nenhum dado encontrado para a série ${args.codigo}.` }]
-      };
-    }
-
     const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
-    const result = {
-      serie: {
-        codigo: args.codigo,
-        nome: serieInfo?.nome || `Série ${args.codigo}`,
-        categoria: serieInfo?.categoria || "Desconhecida",
-        periodicidade: serieInfo?.periodicidade || "Desconhecida"
-      },
-      totalRegistros: data.length,
-      dados: data.map(d => ({ data: d.data, valor: parseFloat(d.valor) }))
+    const serie = {
+      codigo: args.codigo,
+      nome: serieInfo?.nome || `Série ${args.codigo}`,
+      categoria: serieInfo?.categoria || "Desconhecida",
+      periodicidade: serieInfo?.periodicidade || "Desconhecida"
     };
 
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    if (!Array.isArray(data) || data.length === 0) {
+      return structuredResult({
+        serie,
+        totalRegistros: 0,
+        dados: [],
+        observacao: `Nenhum dado encontrado para a série ${args.codigo}.`
+      });
+    }
+
+    return structuredResult({
+      serie,
+      totalRegistros: data.length,
+      dados: data.map(d => ({ data: d.data, valor: parseFloat(d.valor) }))
+    });
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao consultar últimos valores da série ${args.codigo}: ${error instanceof Error ? error.message : String(error)}` }],
@@ -437,7 +456,7 @@ export async function handleSerieMetadados(
       const metadata = await fetchBcbApi(metadataUrl, timeoutMs, maxRetries) as SerieMetadados;
       const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
 
-      const result = {
+      return structuredResult({
         codigo: metadata.codigo || args.codigo,
         nome: metadata.nome || serieInfo?.nome || `Série ${args.codigo}`,
         unidade: metadata.unidade || "Não informada",
@@ -447,14 +466,12 @@ export async function handleSerieMetadados(
         especial: metadata.especial || false,
         urlConsulta: `${BCB_API_BASE}.${args.codigo}/dados?formato=json`,
         urlUltimos10: `${BCB_API_BASE}.${args.codigo}/dados/ultimos/10?formato=json`
-      };
-
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      });
     } catch {
       const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
 
       if (serieInfo) {
-        const result = {
+        return structuredResult({
           codigo: args.codigo,
           nome: serieInfo.nome,
           periodicidade: serieInfo.periodicidade,
@@ -463,25 +480,21 @@ export async function handleSerieMetadados(
           urlConsulta: `${BCB_API_BASE}.${args.codigo}/dados?formato=json`,
           urlUltimos10: `${BCB_API_BASE}.${args.codigo}/dados/ultimos/10?formato=json`,
           observacao: "Metadados obtidos do catálogo interno"
-        };
-
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+        });
       }
 
       const url = `${BCB_API_BASE}.${args.codigo}/dados/ultimos/1?formato=json`;
       const data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
 
       if (Array.isArray(data) && data.length > 0) {
-        const result = {
+        return structuredResult({
           codigo: args.codigo,
           nome: `Série ${args.codigo}`,
-          ultimoValor: { data: data[0].data, valor: parseFloat(data[0].valor) },
           fonte: "Banco Central do Brasil",
+          ultimoValor: { data: data[0].data, valor: parseFloat(data[0].valor) },
           urlConsulta: `${BCB_API_BASE}.${args.codigo}/dados?formato=json`,
           observacao: "Série encontrada, mas metadados detalhados não disponíveis"
-        };
-
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+        });
       }
 
       throw new Error("Série não encontrada");
@@ -511,14 +524,12 @@ export async function handleSeriesPopulares(
       porCategoria[serie.categoria].push(serie);
     }
 
-    const result = {
+    return structuredResult({
       totalSeries: series.length,
       categorias: Object.keys(porCategoria).length,
       series: args.categoria ? series : porCategoria,
       observacao: "Use bcb_serie_valores ou bcb_serie_ultimos com o código para consultar os dados"
-    };
-
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    });
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao listar séries: ${error instanceof Error ? error.message : String(error)}` }],
@@ -538,21 +549,16 @@ export async function handleBuscarSerie(
     );
 
     if (encontradas.length === 0) {
-      return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            termo: args.termo,
-            totalEncontradas: 0,
-            mensagem: "Nenhuma série encontrada no catálogo interno. Use o portal SGS do BCB para buscar outras séries: https://www3.bcb.gov.br/sgspub/",
-            sugestao: "Tente termos como: selic, ipca, dolar, cambio, pib, inflacao, credito, emprego"
-          }, null, 2)
-        }]
-      };
+      return structuredResult({
+        termo: args.termo,
+        totalEncontradas: 0,
+        series: [],
+        mensagem: "Nenhuma série encontrada no catálogo interno. Use o portal SGS do BCB para buscar outras séries: https://www3.bcb.gov.br/sgspub/",
+        sugestao: "Tente termos como: selic, ipca, dolar, cambio, pib, inflacao, credito, emprego"
+      });
     }
 
-    const result = { termo: args.termo, totalEncontradas: encontradas.length, series: encontradas };
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return structuredResult({ termo: args.termo, totalEncontradas: encontradas.length, series: encontradas });
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao buscar séries: ${error instanceof Error ? error.message : String(error)}` }],
@@ -591,12 +597,7 @@ export async function handleIndicadoresAtuais(
       })
     );
 
-    return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({ consultadoEm: new Date().toISOString(), indicadores: resultados }, null, 2)
-      }]
-    };
+    return structuredResult({ consultadoEm: new Date().toISOString(), indicadores: resultados });
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao consultar indicadores: ${error instanceof Error ? error.message : String(error)}` }],
@@ -625,7 +626,8 @@ export async function handleVariacao(
 
     if (!Array.isArray(data) || data.length < 2) {
       return {
-        content: [{ type: "text" as const, text: `Dados insuficientes para calcular variação. São necessários pelo menos 2 valores.` }]
+        content: [{ type: "text" as const, text: `Dados insuficientes para calcular variação. São necessários pelo menos 2 valores.` }],
+        isError: true
       };
     }
 
@@ -639,7 +641,7 @@ export async function handleVariacao(
     const minimo = Math.min(...valores);
     const media = valores.reduce((a, b) => a + b, 0) / valores.length;
 
-    const result = {
+    return structuredResult({
       serie: { codigo: args.codigo, nome: serieInfo?.nome || `Série ${args.codigo}`, categoria: serieInfo?.categoria || "Desconhecida" },
       periodo: { dataInicial: data[0].data, dataFinal: data[data.length - 1].data, totalPeriodos: data.length },
       analise: {
@@ -654,9 +656,7 @@ export async function handleVariacao(
         media: Number(media.toFixed(4)),
         amplitude: Number((maximo - minimo).toFixed(4))
       }
-    };
-
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    });
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao calcular variação: ${error instanceof Error ? error.message : String(error)}` }],
@@ -719,16 +719,14 @@ export async function handleComparar(
       return varB - varA;
     });
 
-    const result = {
+    return structuredResult({
       periodo: { dataInicial: formatDateForApi(args.dataInicial), dataFinal: formatDateForApi(args.dataFinal) },
       totalSeries: args.codigos.length,
       seriesComDados: seriesComDados.length,
       seriesComErro: seriesComErro.length,
       ranking: seriesOrdenadas.map((s, i) => ({ posicao: i + 1, ...s })),
-      erros: seriesComErro.length > 0 ? seriesComErro : undefined
-    };
-
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      erros: seriesComErro.length > 0 ? seriesComErro : []
+    });
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao comparar séries: ${error instanceof Error ? error.message : String(error)}` }],
@@ -736,6 +734,31 @@ export async function handleComparar(
     };
   }
 }
+
+// ==================== OUTPUT SCHEMAS (JSON Schema, for worker JSON-RPC) ====================
+
+// Shared fragment: identification block for a BCB time series.
+const SERIE_REF_SCHEMA = {
+  type: "object" as const,
+  description: "Identificação da série temporal",
+  properties: {
+    codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
+    nome: { type: "string" as const, description: "Nome da série" },
+    categoria: { type: "string" as const, description: "Categoria econômica" },
+    periodicidade: { type: "string" as const, description: "Periodicidade (Diária, Mensal, etc.)" }
+  },
+  required: ["codigo", "nome"]
+};
+
+// Shared fragment: a single observation (date + numeric value).
+const OBSERVACAO_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    data: { type: "string" as const, description: "Data da observação (dd/MM/yyyy)" },
+    valor: { type: "number" as const, description: "Valor numérico da observação" }
+  },
+  required: ["data", "valor"]
+};
 
 // ==================== TOOL DEFINITIONS (for worker JSON-RPC) ====================
 
@@ -751,6 +774,18 @@ export const TOOL_DEFINITIONS = [
         dataFinal: { type: "string" as const, description: "Data final no formato yyyy-MM-dd ou dd/MM/yyyy (opcional)" }
       },
       required: ["codigo"]
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        serie: SERIE_REF_SCHEMA,
+        totalRegistros: { type: "number" as const, description: "Quantidade de observações retornadas" },
+        periodoInicial: { type: "string" as const, description: "Data da primeira observação" },
+        periodoFinal: { type: "string" as const, description: "Data da última observação" },
+        dados: { type: "array" as const, description: "Observações históricas", items: OBSERVACAO_SCHEMA },
+        observacao: { type: "string" as const, description: "Mensagem informativa (ex.: quando não há dados)" }
+      },
+      required: ["serie", "totalRegistros", "dados"]
     }
   },
   {
@@ -763,6 +798,16 @@ export const TOOL_DEFINITIONS = [
         quantidade: { type: "number" as const, description: "Quantidade de valores a retornar (1-1000, padrão: 10)" }
       },
       required: ["codigo"]
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        serie: SERIE_REF_SCHEMA,
+        totalRegistros: { type: "number" as const, description: "Quantidade de observações retornadas" },
+        dados: { type: "array" as const, description: "Observações mais recentes", items: OBSERVACAO_SCHEMA },
+        observacao: { type: "string" as const, description: "Mensagem informativa (ex.: quando não há dados)" }
+      },
+      required: ["serie", "totalRegistros", "dados"]
     }
   },
   {
@@ -774,6 +819,23 @@ export const TOOL_DEFINITIONS = [
         codigo: { type: "number" as const, description: "Código da série no SGS/BCB" }
       },
       required: ["codigo"]
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
+        nome: { type: "string" as const, description: "Nome da série" },
+        unidade: { type: "string" as const, description: "Unidade de medida" },
+        periodicidade: { type: "string" as const, description: "Periodicidade da série" },
+        fonte: { type: "string" as const, description: "Fonte dos dados" },
+        categoria: { type: "string" as const, description: "Categoria econômica" },
+        especial: { type: "boolean" as const, description: "Indica se é uma série especial" },
+        ultimoValor: { ...OBSERVACAO_SCHEMA, description: "Última observação disponível (quando metadados detalhados não existem)" },
+        urlConsulta: { type: "string" as const, description: "URL da API do BCB para consulta completa" },
+        urlUltimos10: { type: "string" as const, description: "URL da API do BCB para os últimos 10 valores" },
+        observacao: { type: "string" as const, description: "Observação sobre a origem dos metadados" }
+      },
+      required: ["codigo", "nome", "fonte"]
     }
   },
   {
@@ -784,6 +846,18 @@ export const TOOL_DEFINITIONS = [
       properties: {
         categoria: { type: "string" as const, description: "Filtrar por categoria: Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, Agregados Monetários, Poupança, Índices de Mercado, Expectativas" }
       }
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        totalSeries: { type: "number" as const, description: "Quantidade total de séries retornadas" },
+        categorias: { type: "number" as const, description: "Quantidade de categorias distintas" },
+        series: {
+          description: "Séries encontradas. Objeto agrupado por categoria quando sem filtro; array plano quando filtrado por categoria. Cada item contém codigo, nome, categoria e periodicidade."
+        },
+        observacao: { type: "string" as const, description: "Dica de uso" }
+      },
+      required: ["totalSeries", "categorias", "series"]
     }
   },
   {
@@ -795,6 +869,30 @@ export const TOOL_DEFINITIONS = [
         termo: { type: "string" as const, description: "Termo de busca (mínimo 2 caracteres)" }
       },
       required: ["termo"]
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        termo: { type: "string" as const, description: "Termo pesquisado" },
+        totalEncontradas: { type: "number" as const, description: "Quantidade de séries encontradas" },
+        series: {
+          type: "array" as const,
+          description: "Séries que correspondem ao termo",
+          items: {
+            type: "object" as const,
+            properties: {
+              codigo: { type: "number" as const },
+              nome: { type: "string" as const },
+              categoria: { type: "string" as const },
+              periodicidade: { type: "string" as const }
+            },
+            required: ["codigo", "nome"]
+          }
+        },
+        mensagem: { type: "string" as const, description: "Mensagem exibida quando nada é encontrado" },
+        sugestao: { type: "string" as const, description: "Sugestões de termos alternativos" }
+      },
+      required: ["termo", "totalEncontradas", "series"]
     }
   },
   {
@@ -803,6 +901,28 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object" as const,
       properties: {}
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        consultadoEm: { type: "string" as const, description: "Timestamp ISO 8601 da consulta" },
+        indicadores: {
+          type: "array" as const,
+          description: "Lista de indicadores com seus valores mais recentes",
+          items: {
+            type: "object" as const,
+            properties: {
+              indicador: { type: "string" as const, description: "Nome do indicador" },
+              codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
+              data: { type: "string" as const, description: "Data da observação" },
+              valor: { type: "number" as const, description: "Valor mais recente" },
+              erro: { type: "string" as const, description: "Mensagem de erro quando o indicador não pôde ser obtido" }
+            },
+            required: ["indicador", "codigo"]
+          }
+        }
+      },
+      required: ["consultadoEm", "indicadores"]
     }
   },
   {
@@ -817,6 +937,55 @@ export const TOOL_DEFINITIONS = [
         periodos: { type: "number" as const, description: "Alternativa: calcular variação dos últimos N períodos (ignora datas se informado)" }
       },
       required: ["codigo"]
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        serie: {
+          type: "object" as const,
+          description: "Identificação da série",
+          properties: {
+            codigo: { type: "number" as const },
+            nome: { type: "string" as const },
+            categoria: { type: "string" as const }
+          },
+          required: ["codigo", "nome"]
+        },
+        periodo: {
+          type: "object" as const,
+          description: "Janela temporal analisada",
+          properties: {
+            dataInicial: { type: "string" as const },
+            dataFinal: { type: "string" as const },
+            totalPeriodos: { type: "number" as const }
+          },
+          required: ["dataInicial", "dataFinal", "totalPeriodos"]
+        },
+        analise: {
+          type: "object" as const,
+          description: "Resultado da variação entre o primeiro e o último valor",
+          properties: {
+            valorInicial: { type: "number" as const },
+            valorFinal: { type: "number" as const },
+            diferencaAbsoluta: { type: "number" as const },
+            variacaoPercentual: { type: "number" as const },
+            variacaoFormatada: { type: "string" as const }
+          },
+          required: ["valorInicial", "valorFinal", "variacaoPercentual"]
+        },
+        estatisticas: {
+          type: "object" as const,
+          description: "Estatísticas descritivas dos valores no período",
+          properties: {
+            maximo: { type: "number" as const },
+            minimo: { type: "number" as const },
+            media: { type: "number" as const },
+            amplitude: { type: "number" as const }
+          },
+          required: ["maximo", "minimo", "media", "amplitude"]
+        }
+      },
+      required: ["serie", "periodo", "analise", "estatisticas"]
     }
   },
   {
@@ -830,6 +999,60 @@ export const TOOL_DEFINITIONS = [
         dataFinal: { type: "string" as const, description: "Data final (yyyy-MM-dd ou dd/MM/yyyy)" }
       },
       required: ["codigos", "dataInicial", "dataFinal"]
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        periodo: {
+          type: "object" as const,
+          description: "Janela temporal comparada",
+          properties: {
+            dataInicial: { type: "string" as const },
+            dataFinal: { type: "string" as const }
+          },
+          required: ["dataInicial", "dataFinal"]
+        },
+        totalSeries: { type: "number" as const, description: "Quantidade de séries solicitadas" },
+        seriesComDados: { type: "number" as const, description: "Quantidade de séries com dados no período" },
+        seriesComErro: { type: "number" as const, description: "Quantidade de séries sem dados ou com erro" },
+        ranking: {
+          type: "array" as const,
+          description: "Séries ordenadas pela variação percentual (maior para menor)",
+          items: {
+            type: "object" as const,
+            properties: {
+              posicao: { type: "number" as const, description: "Posição no ranking" },
+              codigo: { type: "number" as const },
+              nome: { type: "string" as const },
+              categoria: { type: "string" as const },
+              periodicidade: { type: "string" as const },
+              totalRegistros: { type: "number" as const },
+              valorInicial: { type: "number" as const },
+              valorFinal: { type: "number" as const },
+              variacaoPercentual: { type: "number" as const },
+              variacaoFormatada: { type: "string" as const },
+              maximo: { type: "number" as const },
+              minimo: { type: "number" as const },
+              media: { type: "number" as const }
+            },
+            required: ["posicao", "codigo", "nome"]
+          }
+        },
+        erros: {
+          type: "array" as const,
+          description: "Séries que não retornaram dados, com o motivo",
+          items: {
+            type: "object" as const,
+            properties: {
+              codigo: { type: "number" as const },
+              nome: { type: "string" as const },
+              erro: { type: "string" as const }
+            },
+            required: ["codigo", "erro"]
+          }
+        }
+      },
+      required: ["periodo", "totalSeries", "seriesComDados", "seriesComErro", "ranking"]
     }
   }
 ];
