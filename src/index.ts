@@ -29,7 +29,7 @@ import {
 // Create MCP server
 const server = new McpServer({
   name: "bcb-br-mcp",
-  version: "1.3.1"
+  version: "1.3.2"
 });
 
 // ==================== OUTPUT SCHEMAS (Zod) ====================

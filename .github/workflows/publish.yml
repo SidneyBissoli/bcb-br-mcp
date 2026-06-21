@@ -1,0 +1,152 @@
+name: Publish to npm and MCP Registry
+
+# Two trigger paths:
+# - release.created: `gh release create vX.Y.Z` publishes the version already
+#   in package.json.
+# - workflow_dispatch: manual run with an optional version input that bumps
+#   package.json before publishing, then creates the matching GitHub release.
+#
+# Job order: build (verification) -> publish (npm with provenance) ->
+# publish-registry (mcp-publisher via GitHub OIDC) -> create-release.
+# The registry publish never gates npm publish.
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (leave empty to use package.json version)'
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm run build
+      - name: Verify package contents
+        run: npm pack --dry-run
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # id-token: write is required for npm --provenance: GitHub Actions mints an
+    # OIDC token that npm uses to sign the SLSA attestation asserting the
+    # package was built from this repo at this commit.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - run: npm run build
+      # --allow-same-version: the version may already be committed in
+      # package.json alongside the change being released.
+      - name: Update version (if provided)
+        if: ${{ github.event.inputs.version != '' }}
+        run: npm version ${{ github.event.inputs.version }} --no-git-tag-version --allow-same-version
+      # npm publish is not idempotent (EPUBLISHCONFLICT on a re-run). Skip when
+      # npm already has this exact version so a re-dispatch doesn't die here.
+      - name: Publish to npm
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "$(npm view bcb-br-mcp@$VERSION version 2>/dev/null || true)" = "$VERSION" ]; then
+            echo "npm already has $VERSION — skipping publish"
+          else
+            npm publish --access public --provenance
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-registry:
+    needs: publish
+    runs-on: ubuntu-latest
+    # id-token: write is required for `mcp-publisher login github-oidc`.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync server.json version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          VERSION="${VERSION#v}"
+          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp
+          mv server.tmp server.json
+          echo "server.json now declares version $VERSION"
+      # The registry validates the npm package exists at the declared version;
+      # npm's index can lag a few seconds. Poll for up to ~100s.
+      - name: Wait for npm to expose the new version
+        run: |
+          VERSION=$(node -p "require('./server.json').version")
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            PUBLISHED=$(npm view bcb-br-mcp@$VERSION version 2>/dev/null || true)
+            if [ "$PUBLISHED" = "$VERSION" ]; then
+              echo "npm version $VERSION confirmed"
+              exit 0
+            fi
+            echo "Attempt $i: npm version $VERSION not yet visible; sleeping 10s"
+            sleep 10
+          done
+          echo "ERROR: npm version $VERSION not visible after 100s"
+          exit 1
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher --help > /dev/null
+      - name: Validate server.json
+        run: ./mcp-publisher validate
+      - name: Authenticate to MCP Registry (GitHub OIDC)
+        run: ./mcp-publisher login github-oidc
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish
+
+  create-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        id: get_version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.get_version.outputs.version }}
+        run: |
+          if gh release view "v${VERSION}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
+            echo "Release v${VERSION} already exists — skipping"
+            exit 0
+          fi
+          gh release create "v${VERSION}" \
+            --target "${GITHUB_SHA}" \
+            --title "Release v${VERSION}" \
+            --notes "See [CHANGELOG.md](https://github.com/SidneyBissoli/bcb-br-mcp/blob/main/CHANGELOG.md) for release notes."
