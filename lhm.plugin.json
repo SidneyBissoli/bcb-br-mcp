@@ -1,0 +1,146 @@
+{
+  "identifier": "sidneybissoli-bcb-br-mcp",
+  "name": "BCB BR MCP Server",
+  "version": "1.3.2",
+  "description": "MCP server for Brazilian Central Bank (SGS/BCB) time series — Selic, IPCA, exchange rates, GDP and 150+ economic indicators, queried live from AI assistants.",
+  "author": "Sidney Bissoli",
+  "authorUrl": "https://github.com/SidneyBissoli",
+  "homepage": "https://github.com/SidneyBissoli/bcb-br-mcp",
+  "icon": "🏦",
+  "category": "data-analytics",
+  "tags": [
+    "bcb",
+    "banco-central",
+    "central-bank",
+    "brazil",
+    "economy",
+    "selic",
+    "ipca",
+    "exchange-rate",
+    "gdp",
+    "time-series",
+    "finance"
+  ],
+  "tools": [
+    {
+      "name": "bcb_serie_valores",
+      "description": "Query values of a BCB time series by code. Returns historical data with date and value, optionally filtered by a date range.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "codigo": { "type": "number", "description": "Series code in SGS/BCB (e.g. 433 for monthly IPCA, 11 for Selic)" },
+          "dataInicial": { "type": "string", "description": "Start date (yyyy-MM-dd or dd/MM/yyyy), optional" },
+          "dataFinal": { "type": "string", "description": "End date (yyyy-MM-dd or dd/MM/yyyy), optional" }
+        },
+        "required": ["codigo"]
+      }
+    },
+    {
+      "name": "bcb_serie_ultimos",
+      "description": "Get the last N values of a BCB time series. Useful for the most recent data.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "codigo": { "type": "number", "description": "Series code in SGS/BCB" },
+          "quantidade": { "type": "number", "description": "How many values to return (1-1000, default 10)" }
+        },
+        "required": ["codigo"]
+      }
+    },
+    {
+      "name": "bcb_serie_metadados",
+      "description": "Get metadata for a BCB time series: name, frequency, category and other details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "codigo": { "type": "number", "description": "Series code in SGS/BCB" }
+        },
+        "required": ["codigo"]
+      }
+    },
+    {
+      "name": "bcb_series_populares",
+      "description": "List 150+ BCB time series with their codes: interest rates, inflation, exchange, GDP, employment, credit and other economic indicators.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "categoria": { "type": "string", "description": "Filter by category (Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, Agregados Monetários, Poupança, Índices de Mercado, Expectativas)" }
+        }
+      }
+    },
+    {
+      "name": "bcb_buscar_serie",
+      "description": "Search the internal catalog by name or description. Accent-insensitive (e.g. 'inflacao' finds 'Inflação').",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "termo": { "type": "string", "description": "Search term (minimum 2 characters)" }
+        },
+        "required": ["termo"]
+      }
+    },
+    {
+      "name": "bcb_indicadores_atuais",
+      "description": "Get the latest values of the key economic indicators: Selic, IPCA, USD PTAX and IBC-Br.",
+      "inputSchema": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "bcb_variacao",
+      "description": "Compute the percentage variation of a series between two dates or over the last N periods. Useful for trend analysis.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "codigo": { "type": "number", "description": "Series code in SGS/BCB" },
+          "dataInicial": { "type": "string", "description": "Start date (yyyy-MM-dd or dd/MM/yyyy). Defaults to the first available value." },
+          "dataFinal": { "type": "string", "description": "End date (yyyy-MM-dd or dd/MM/yyyy). Defaults to the last available value." },
+          "periodos": { "type": "number", "description": "Alternative: variation over the last N periods (ignores dates if provided)" }
+        },
+        "required": ["codigo"]
+      }
+    },
+    {
+      "name": "bcb_comparar",
+      "description": "Compare 2 to 5 time series over the same period. Useful for correlation analysis between indicators.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "codigos": { "type": "array", "items": { "type": "number" }, "description": "Array of 2 to 5 series codes to compare" },
+          "dataInicial": { "type": "string", "description": "Start date (yyyy-MM-dd or dd/MM/yyyy)" },
+          "dataFinal": { "type": "string", "description": "End date (yyyy-MM-dd or dd/MM/yyyy)" }
+        },
+        "required": ["codigos", "dataInicial", "dataFinal"]
+      }
+    }
+  ],
+  "resources": [
+    {
+      "name": "series_populares",
+      "uri": "bcb://series/populares",
+      "description": "Catalog of 150+ popular BCB economic series, organized by category (JSON)"
+    },
+    {
+      "name": "categorias",
+      "uri": "bcb://series/categorias",
+      "description": "List of available categories in the BCB series catalog (JSON)"
+    },
+    {
+      "name": "codigos_principais",
+      "uri": "bcb://series/principais",
+      "description": "Codes of the most-used economic indicators — Selic, IPCA, USD, GDP, etc. (JSON)"
+    }
+  ],
+  "prompts": [
+    {
+      "name": "indicadores_atuais",
+      "description": "Query Brazil's key economic indicators (Selic, IPCA, USD/BRL, IBC-Br)"
+    },
+    {
+      "name": "panorama_economico",
+      "description": "Generate a complete overview of the Brazilian economy with the main indicators"
+    },
+    {
+      "name": "comparar_inflacao",
+      "description": "Compare Brazil's main inflation indices (IPCA, IGP-M, INPC) over the last 12 months"
+    }
+  ]
+}
