@@ -17,6 +17,8 @@ import {
   dispatchTool,
   WORKER_CONFIG
 } from "./tools.js";
+// Version inlined from package.json at build time by esbuild/wrangler (single source of truth)
+import pkg from "../package.json" with { type: "json" };
 
 interface Env {
   BCB_BASE_URL?: string;
@@ -87,7 +89,7 @@ async function handleMcp(request: Request): Promise<Response> {
           capabilities: { tools: {}, prompts: {}, resources: {} },
           serverInfo: {
             name: "bcb-br-mcp",
-            version: "1.3.2"
+            version: pkg.version
           }
         }
       });
@@ -267,7 +269,7 @@ export default {
       return jsonResponse({
         status: "ok",
         service: "bcb-br-mcp",
-        version: "1.3.2",
+        version: pkg.version,
         timestamp: new Date().toISOString()
       });
     }

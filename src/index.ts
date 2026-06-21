@@ -11,6 +11,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { createRequire } from "node:module";
+
+// Version read from package.json (single source of truth — avoids drift)
+const { version: SERVER_VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
 
 import {
   SERIES_POPULARES,
@@ -29,7 +33,7 @@ import {
 // Create MCP server
 const server = new McpServer({
   name: "bcb-br-mcp",
-  version: "1.3.2"
+  version: SERVER_VERSION
 });
 
 // ==================== OUTPUT SCHEMAS (Zod) ====================
