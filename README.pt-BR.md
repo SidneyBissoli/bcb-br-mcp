@@ -15,6 +15,8 @@ Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**
 
 > Se você achou este projeto útil, considere dar uma [estrela no GitHub](https://github.com/SidneyBissoli/bcb-br-mcp). Isso ajuda outras pessoas a descobrirem o projeto!
 
+**Capacidades:** 8 ferramentas (skills) · 3 recursos · 3 prompts — tudo o que um cliente MCP precisa para consultar a API de séries temporais do BCB (SGS).
+
 ## Funcionalidades
 
 - **Consulta de séries históricas** - Busca valores de séries por código com filtro de datas
