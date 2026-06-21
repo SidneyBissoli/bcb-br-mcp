@@ -1,4 +1,4 @@
-# BCB BR MCP Server
+# BCB Brasil MCP Server
 
 [![npm version](https://badge.fury.io/js/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
