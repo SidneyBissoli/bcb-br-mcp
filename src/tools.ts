@@ -16,7 +16,7 @@ export const CONFIG = {
   TIMEOUT_MS: 30000,
   MAX_RETRIES: 3,
   RETRY_DELAY_MS: 1000,
-  USER_AGENT: "bcb-br-mcp/1.3.0"
+  USER_AGENT: "bcb-br-mcp/1.3.1"
 };
 
 // Worker uses shorter timeout (Cloudflare has its own limits)
@@ -24,7 +24,7 @@ export const WORKER_CONFIG = {
   TIMEOUT_MS: 10000,
   MAX_RETRIES: 2,
   RETRY_DELAY_MS: 1000,
-  USER_AGENT: "bcb-br-mcp/1.3.0"
+  USER_AGENT: "bcb-br-mcp/1.3.1"
 };
 
 // ==================== TYPES ====================
@@ -766,6 +766,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "bcb_serie_valores",
     description: "Consulta valores de uma série temporal do BCB por código. Retorna dados históricos com data e valor.",
+    annotations: {
+      title: "Consultar valores da série",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -791,6 +798,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "bcb_serie_ultimos",
     description: "Obtém os últimos N valores de uma série temporal do BCB. Útil para consultar dados mais recentes.",
+    annotations: {
+      title: "Últimos valores da série",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -813,6 +827,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "bcb_serie_metadados",
     description: "Obtém informações/metadados de uma série temporal do BCB. Retorna nome, periodicidade, categoria e outros detalhes.",
+    annotations: {
+      title: "Metadados da série",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -841,6 +862,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "bcb_series_populares",
     description: "Lista 150+ séries temporais do BCB com seus códigos. Inclui juros, inflação, câmbio, PIB, emprego, crédito e outros indicadores econômicos.",
+    annotations: {
+      title: "Listar séries populares",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false
+    },
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -863,6 +891,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "bcb_buscar_serie",
     description: "Busca séries no catálogo interno por nome ou descrição. Aceita termos com ou sem acentos (ex: 'inflacao' encontra 'Inflação').",
+    annotations: {
+      title: "Buscar série no catálogo",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false
+    },
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -898,6 +933,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "bcb_indicadores_atuais",
     description: "Obtém os valores mais recentes dos principais indicadores econômicos: Selic, IPCA, Dólar PTAX e IBC-Br.",
+    annotations: {
+      title: "Indicadores econômicos atuais",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       type: "object" as const,
       properties: {}
@@ -928,6 +970,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "bcb_variacao",
     description: "Calcula a variação percentual de uma série entre duas datas ou nos últimos N períodos. Útil para análise de tendências.",
+    annotations: {
+      title: "Variação percentual da série",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -991,6 +1040,13 @@ export const TOOL_DEFINITIONS = [
   {
     name: "bcb_comparar",
     description: "Compara 2 a 5 séries temporais no mesmo período. Útil para análise de correlação entre indicadores.",
+    annotations: {
+      title: "Comparar séries",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       type: "object" as const,
       properties: {

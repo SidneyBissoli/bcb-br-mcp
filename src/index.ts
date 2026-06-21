@@ -29,7 +29,7 @@ import {
 // Create MCP server
 const server = new McpServer({
   name: "bcb-br-mcp",
-  version: "1.3.0"
+  version: "1.3.1"
 });
 
 // ==================== OUTPUT SCHEMAS (Zod) ====================
@@ -168,6 +168,13 @@ server.registerTool(
   "bcb_serie_valores",
   {
     description: "Consulta valores de uma série temporal do BCB por código. Retorna dados históricos com data e valor.",
+    annotations: {
+      title: "Consultar valores da série",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       codigo: z.number().describe("Código da série no SGS/BCB (ex: 433 para IPCA mensal, 11 para Selic)"),
       dataInicial: z.string().optional().describe("Data inicial no formato yyyy-MM-dd ou dd/MM/yyyy (opcional)"),
@@ -183,6 +190,13 @@ server.registerTool(
   "bcb_serie_ultimos",
   {
     description: "Obtém os últimos N valores de uma série temporal do BCB. Útil para consultar dados mais recentes.",
+    annotations: {
+      title: "Últimos valores da série",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       codigo: z.number().describe("Código da série no SGS/BCB"),
       quantidade: z.number().min(1).max(1000).default(10).describe("Quantidade de valores a retornar (1-1000, padrão: 10)")
@@ -197,6 +211,13 @@ server.registerTool(
   "bcb_serie_metadados",
   {
     description: "Obtém informações/metadados de uma série temporal do BCB. Retorna nome, periodicidade, categoria e outros detalhes.",
+    annotations: {
+      title: "Metadados da série",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       codigo: z.number().describe("Código da série no SGS/BCB")
     },
@@ -210,6 +231,13 @@ server.registerTool(
   "bcb_series_populares",
   {
     description: "Lista 150+ séries temporais do BCB com seus códigos. Inclui juros, inflação, câmbio, PIB, emprego, crédito e outros indicadores econômicos.",
+    annotations: {
+      title: "Listar séries populares",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false
+    },
     inputSchema: {
       categoria: z.string().optional().describe("Filtrar por categoria: Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, Agregados Monetários, Poupança, Índices de Mercado, Expectativas")
     },
@@ -223,6 +251,13 @@ server.registerTool(
   "bcb_buscar_serie",
   {
     description: "Busca séries no catálogo interno por nome ou descrição. Aceita termos com ou sem acentos (ex: 'inflacao' encontra 'Inflação').",
+    annotations: {
+      title: "Buscar série no catálogo",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false
+    },
     inputSchema: {
       termo: z.string().min(2).describe("Termo de busca (mínimo 2 caracteres)")
     },
@@ -236,6 +271,13 @@ server.registerTool(
   "bcb_indicadores_atuais",
   {
     description: "Obtém os valores mais recentes dos principais indicadores econômicos: Selic, IPCA, Dólar PTAX e IBC-Br.",
+    annotations: {
+      title: "Indicadores econômicos atuais",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {},
     outputSchema: indicadoresAtuaisOutput
   },
@@ -247,6 +289,13 @@ server.registerTool(
   "bcb_variacao",
   {
     description: "Calcula a variação percentual de uma série entre duas datas ou nos últimos N períodos. Útil para análise de tendências.",
+    annotations: {
+      title: "Variação percentual da série",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       codigo: z.number().describe("Código da série no SGS/BCB"),
       dataInicial: z.string().optional().describe("Data inicial (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o primeiro valor disponível."),
@@ -263,6 +312,13 @@ server.registerTool(
   "bcb_comparar",
   {
     description: "Compara 2 a 5 séries temporais no mesmo período. Útil para análise de correlação entre indicadores.",
+    annotations: {
+      title: "Comparar séries",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
     inputSchema: {
       codigos: z.array(z.number()).min(2).max(5).describe("Array com 2 a 5 códigos de séries para comparar"),
       dataInicial: z.string().describe("Data inicial (yyyy-MM-dd ou dd/MM/yyyy)"),

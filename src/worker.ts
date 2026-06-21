@@ -87,7 +87,7 @@ async function handleMcp(request: Request): Promise<Response> {
           capabilities: { tools: {}, prompts: {}, resources: {} },
           serverInfo: {
             name: "bcb-br-mcp",
-            version: "1.3.0"
+            version: "1.3.1"
           }
         }
       });
@@ -267,7 +267,7 @@ export default {
       return jsonResponse({
         status: "ok",
         service: "bcb-br-mcp",
-        version: "1.3.0",
+        version: "1.3.1",
         timestamp: new Date().toISOString()
       });
     }
