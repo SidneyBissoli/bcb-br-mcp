@@ -1,6 +1,6 @@
 {
   "identifier": "sidneybissoli-bcb-br-mcp",
-  "name": "BCB BR MCP Server",
+  "name": "Banco Central do Brasil",
   "version": "1.3.2",
   "description": "MCP server for Brazilian Central Bank (SGS/BCB) time series — Selic, IPCA, exchange rates, GDP and 150+ economic indicators, queried live from AI assistants.",
   "author": "Sidney Bissoli",
@@ -28,11 +28,22 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "codigo": { "type": "number", "description": "Series code in SGS/BCB (e.g. 433 for monthly IPCA, 11 for Selic)" },
-          "dataInicial": { "type": "string", "description": "Start date (yyyy-MM-dd or dd/MM/yyyy), optional" },
-          "dataFinal": { "type": "string", "description": "End date (yyyy-MM-dd or dd/MM/yyyy), optional" }
+          "codigo": {
+            "type": "number",
+            "description": "Series code in SGS/BCB (e.g. 433 for monthly IPCA, 11 for Selic)"
+          },
+          "dataInicial": {
+            "type": "string",
+            "description": "Start date (yyyy-MM-dd or dd/MM/yyyy), optional"
+          },
+          "dataFinal": {
+            "type": "string",
+            "description": "End date (yyyy-MM-dd or dd/MM/yyyy), optional"
+          }
         },
-        "required": ["codigo"]
+        "required": [
+          "codigo"
+        ]
       }
     },
     {
@@ -41,10 +52,18 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "codigo": { "type": "number", "description": "Series code in SGS/BCB" },
-          "quantidade": { "type": "number", "description": "How many values to return (1-1000, default 10)" }
+          "codigo": {
+            "type": "number",
+            "description": "Series code in SGS/BCB"
+          },
+          "quantidade": {
+            "type": "number",
+            "description": "How many values to return (1-1000, default 10)"
+          }
         },
-        "required": ["codigo"]
+        "required": [
+          "codigo"
+        ]
       }
     },
     {
@@ -53,9 +72,14 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "codigo": { "type": "number", "description": "Series code in SGS/BCB" }
+          "codigo": {
+            "type": "number",
+            "description": "Series code in SGS/BCB"
+          }
         },
-        "required": ["codigo"]
+        "required": [
+          "codigo"
+        ]
       }
     },
     {
@@ -64,7 +88,10 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "categoria": { "type": "string", "description": "Filter by category (Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, Agregados Monetários, Poupança, Índices de Mercado, Expectativas)" }
+          "categoria": {
+            "type": "string",
+            "description": "Filter by category (Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, Agregados Monetários, Poupança, Índices de Mercado, Expectativas)"
+          }
         }
       }
     },
@@ -74,15 +101,23 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "termo": { "type": "string", "description": "Search term (minimum 2 characters)" }
+          "termo": {
+            "type": "string",
+            "description": "Search term (minimum 2 characters)"
+          }
         },
-        "required": ["termo"]
+        "required": [
+          "termo"
+        ]
       }
     },
     {
       "name": "bcb_indicadores_atuais",
       "description": "Get the latest values of the key economic indicators: Selic, IPCA, USD PTAX and IBC-Br.",
-      "inputSchema": { "type": "object", "properties": {} }
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
     },
     {
       "name": "bcb_variacao",
@@ -90,12 +125,26 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "codigo": { "type": "number", "description": "Series code in SGS/BCB" },
-          "dataInicial": { "type": "string", "description": "Start date (yyyy-MM-dd or dd/MM/yyyy). Defaults to the first available value." },
-          "dataFinal": { "type": "string", "description": "End date (yyyy-MM-dd or dd/MM/yyyy). Defaults to the last available value." },
-          "periodos": { "type": "number", "description": "Alternative: variation over the last N periods (ignores dates if provided)" }
+          "codigo": {
+            "type": "number",
+            "description": "Series code in SGS/BCB"
+          },
+          "dataInicial": {
+            "type": "string",
+            "description": "Start date (yyyy-MM-dd or dd/MM/yyyy). Defaults to the first available value."
+          },
+          "dataFinal": {
+            "type": "string",
+            "description": "End date (yyyy-MM-dd or dd/MM/yyyy). Defaults to the last available value."
+          },
+          "periodos": {
+            "type": "number",
+            "description": "Alternative: variation over the last N periods (ignores dates if provided)"
+          }
         },
-        "required": ["codigo"]
+        "required": [
+          "codigo"
+        ]
       }
     },
     {
@@ -104,11 +153,27 @@
       "inputSchema": {
         "type": "object",
         "properties": {
-          "codigos": { "type": "array", "items": { "type": "number" }, "description": "Array of 2 to 5 series codes to compare" },
-          "dataInicial": { "type": "string", "description": "Start date (yyyy-MM-dd or dd/MM/yyyy)" },
-          "dataFinal": { "type": "string", "description": "End date (yyyy-MM-dd or dd/MM/yyyy)" }
+          "codigos": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "description": "Array of 2 to 5 series codes to compare"
+          },
+          "dataInicial": {
+            "type": "string",
+            "description": "Start date (yyyy-MM-dd or dd/MM/yyyy)"
+          },
+          "dataFinal": {
+            "type": "string",
+            "description": "End date (yyyy-MM-dd or dd/MM/yyyy)"
+          }
         },
-        "required": ["codigos", "dataInicial", "dataFinal"]
+        "required": [
+          "codigos",
+          "dataInicial",
+          "dataFinal"
+        ]
       }
     }
   ],
