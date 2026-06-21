@@ -2,7 +2,7 @@
 
 [![npm version](https://badge.fury.io/js/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
-[![Smithery](https://img.shields.io/badge/Smithery-bcb--br--mcp-orange)](https://smithery.ai/server/@sidneybissoli/bcb-br-mcp)
+[![smithery badge](https://smithery.ai/badge/sidneybissoli/bcb-br-mcp)](https://smithery.ai/servers/sidneybissoli/bcb-br-mcp)
 [![MCP Registry](https://img.shields.io/badge/MCP-Registry-blue)](https://registry.modelcontextprotocol.io)
 [![LobeHub](https://lobehub.com/badge/mcp/sidneybissoli-bcb-br-mcp)](https://lobehub.com/mcp/sidneybissoli-bcb-br-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -43,7 +43,7 @@ Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**
 
 ### Via Smithery (recomendado)
 
-Acesse [bcb-br-mcp no Smithery](https://smithery.ai/server/@sidneybissoli/bcb-br-mcp) e siga as instruções de instalação para o seu cliente MCP.
+Acesse [bcb-br-mcp no Smithery](https://smithery.ai/servers/sidneybissoli/bcb-br-mcp) e siga as instruções de instalação para o seu cliente MCP.
 
 ### Via URL (Claude.ai, Claude Desktop, qualquer cliente MCP)
 
@@ -386,5 +386,5 @@ MIT - veja [LICENSE](LICENSE) para detalhes.
 - [Dados Abertos BCB](https://dadosabertos.bcb.gov.br/)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
 - [MCP Registry](https://registry.modelcontextprotocol.io/)
-- [Smithery: bcb-br-mcp](https://smithery.ai/server/@sidneybissoli/bcb-br-mcp)
+- [Smithery: bcb-br-mcp](https://smithery.ai/servers/sidneybissoli/bcb-br-mcp)
 - [npm: bcb-br-mcp](https://www.npmjs.com/package/bcb-br-mcp)
