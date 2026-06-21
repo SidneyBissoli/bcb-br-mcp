@@ -39,6 +39,16 @@ Query economic and financial indicators such as **Selic** (interest rate), **IPC
 | `bcb_variacao` | Calculate percentage variation between dates or last N periods |
 | `bcb_comparar` | Compare 2 to 5 series over the same period with ranking |
 
+## Resources
+
+Reference catalogs the server exposes as MCP **resources** (read-only contextual data that clients can attach):
+
+| URI | Description |
+|-----|-------------|
+| `bcb://series/populares` | Catalog of 150+ popular BCB economic series, organized by category (JSON) |
+| `bcb://series/categorias` | List of available categories in the series catalog (JSON) |
+| `bcb://series/principais` | Codes of the most-used indicators — Selic, IPCA, USD/BRL, GDP, etc. (JSON) |
+
 ## Installation
 
 ### Via Smithery (recommended)

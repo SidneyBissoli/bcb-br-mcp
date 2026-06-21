@@ -39,6 +39,16 @@ Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**
 | `bcb_variacao` | Calcula variação percentual entre duas datas ou últimos N períodos |
 | `bcb_comparar` | Compara 2 a 5 séries no mesmo período com ranking |
 
+## Recursos
+
+Catálogos de referência que o servidor expõe como **recursos** MCP (dados contextuais de leitura que os clientes podem anexar):
+
+| URI | Descrição |
+|-----|-----------|
+| `bcb://series/populares` | Catálogo de 150+ séries econômicas populares do BCB, organizadas por categoria (JSON) |
+| `bcb://series/categorias` | Lista de categorias disponíveis no catálogo de séries (JSON) |
+| `bcb://series/principais` | Códigos dos indicadores mais usados — Selic, IPCA, Dólar, PIB, etc. (JSON) |
+
 ## Instalação
 
 ### Via Smithery (recomendado)
