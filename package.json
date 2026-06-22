@@ -1,6 +1,6 @@
 {
   "name": "bcb-br-mcp",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "mcpName": "io.github.SidneyBissoli/bcb-br-mcp",
   "description": "MCP Server for Brazilian Central Bank Time Series (SGS/BCB) - Economic and Financial Data",
   "type": "module",

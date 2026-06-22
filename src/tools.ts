@@ -34,7 +34,7 @@ export const WORKER_CONFIG = {
 // A static `import "../package.json"` is avoided on purpose: it breaks tsc's rootDir
 // and createRequire is unavailable in the Worker runtime (no nodejs_compat).
 // The fallback is only used if no entry point injects a version; keep it = package.json.
-let serverVersion = "1.3.2";
+let serverVersion = "1.3.3";
 
 export function setServerVersion(version: string): void {
   serverVersion = version;
