@@ -15,10 +15,14 @@ import {
   TOOL_DEFINITIONS,
   SERIES_POPULARES,
   dispatchTool,
+  setServerVersion,
   WORKER_CONFIG
 } from "./tools.js";
 // Version inlined from package.json at build time by esbuild/wrangler (single source of truth)
 import pkg from "../package.json" with { type: "json" };
+
+// Propagate the package.json version into the shared module (User-Agent, etc.)
+setServerVersion(pkg.version);
 
 interface Env {
   BCB_BASE_URL?: string;

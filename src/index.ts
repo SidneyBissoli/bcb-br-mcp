@@ -18,6 +18,8 @@ const { version: SERVER_VERSION } = createRequire(import.meta.url)("../package.j
 
 import {
   SERIES_POPULARES,
+  TOOL_DESCRIPTIONS,
+  setServerVersion,
   handleSerieValores,
   handleSerieUltimos,
   handleSerieMetadados,
@@ -27,6 +29,9 @@ import {
   handleVariacao,
   handleComparar
 } from "./tools.js";
+
+// Propagate the package.json version into the shared module (User-Agent, etc.)
+setServerVersion(SERVER_VERSION);
 
 // ==================== MCP SERVER ====================
 
@@ -171,7 +176,7 @@ const compararOutput = {
 server.registerTool(
   "bcb_serie_valores",
   {
-    description: "Consulta valores de uma série temporal do BCB por código. Retorna dados históricos com data e valor.",
+    description: TOOL_DESCRIPTIONS.bcb_serie_valores,
     annotations: {
       title: "Consultar valores da série",
       readOnlyHint: true,
@@ -193,7 +198,7 @@ server.registerTool(
 server.registerTool(
   "bcb_serie_ultimos",
   {
-    description: "Obtém os últimos N valores de uma série temporal do BCB. Útil para consultar dados mais recentes.",
+    description: TOOL_DESCRIPTIONS.bcb_serie_ultimos,
     annotations: {
       title: "Últimos valores da série",
       readOnlyHint: true,
@@ -214,7 +219,7 @@ server.registerTool(
 server.registerTool(
   "bcb_serie_metadados",
   {
-    description: "Obtém informações/metadados de uma série temporal do BCB. Retorna nome, periodicidade, categoria e outros detalhes.",
+    description: TOOL_DESCRIPTIONS.bcb_serie_metadados,
     annotations: {
       title: "Metadados da série",
       readOnlyHint: true,
@@ -234,7 +239,7 @@ server.registerTool(
 server.registerTool(
   "bcb_series_populares",
   {
-    description: "Lista 150+ séries temporais do BCB com seus códigos. Inclui juros, inflação, câmbio, PIB, emprego, crédito e outros indicadores econômicos.",
+    description: TOOL_DESCRIPTIONS.bcb_series_populares,
     annotations: {
       title: "Listar séries populares",
       readOnlyHint: true,
@@ -254,7 +259,7 @@ server.registerTool(
 server.registerTool(
   "bcb_buscar_serie",
   {
-    description: "Busca séries no catálogo interno por nome ou descrição. Aceita termos com ou sem acentos (ex: 'inflacao' encontra 'Inflação').",
+    description: TOOL_DESCRIPTIONS.bcb_buscar_serie,
     annotations: {
       title: "Buscar série no catálogo",
       readOnlyHint: true,
@@ -274,7 +279,7 @@ server.registerTool(
 server.registerTool(
   "bcb_indicadores_atuais",
   {
-    description: "Obtém os valores mais recentes dos principais indicadores econômicos: Selic, IPCA, Dólar PTAX e IBC-Br.",
+    description: TOOL_DESCRIPTIONS.bcb_indicadores_atuais,
     annotations: {
       title: "Indicadores econômicos atuais",
       readOnlyHint: true,
@@ -292,7 +297,7 @@ server.registerTool(
 server.registerTool(
   "bcb_variacao",
   {
-    description: "Calcula a variação percentual de uma série entre duas datas ou nos últimos N períodos. Útil para análise de tendências.",
+    description: TOOL_DESCRIPTIONS.bcb_variacao,
     annotations: {
       title: "Variação percentual da série",
       readOnlyHint: true,
@@ -315,7 +320,7 @@ server.registerTool(
 server.registerTool(
   "bcb_comparar",
   {
-    description: "Compara 2 a 5 séries temporais no mesmo período. Útil para análise de correlação entre indicadores.",
+    description: TOOL_DESCRIPTIONS.bcb_comparar,
     annotations: {
       title: "Comparar séries",
       readOnlyHint: true,

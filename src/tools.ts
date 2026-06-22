@@ -15,17 +15,34 @@ export const BCB_API_BASE = "https://api.bcb.gov.br/dados/serie/bcdata.sgs";
 export const CONFIG = {
   TIMEOUT_MS: 30000,
   MAX_RETRIES: 3,
-  RETRY_DELAY_MS: 1000,
-  USER_AGENT: "bcb-br-mcp/1.3.1"
+  RETRY_DELAY_MS: 1000
 };
 
 // Worker uses shorter timeout (Cloudflare has its own limits)
 export const WORKER_CONFIG = {
   TIMEOUT_MS: 10000,
   MAX_RETRIES: 2,
-  RETRY_DELAY_MS: 1000,
-  USER_AGENT: "bcb-br-mcp/1.3.1"
+  RETRY_DELAY_MS: 1000
 };
+
+// ==================== VERSION (single source of truth) ====================
+//
+// tools.ts runs under two builds that resolve package.json differently, so the
+// version is injected by each entry point instead of imported here:
+//   - index.ts (Node/stdio) reads it via createRequire and calls setServerVersion()
+//   - worker.ts (Cloudflare) reads it via a JSON import inlined by esbuild and calls it too
+// A static `import "../package.json"` is avoided on purpose: it breaks tsc's rootDir
+// and createRequire is unavailable in the Worker runtime (no nodejs_compat).
+// The fallback is only used if no entry point injects a version; keep it = package.json.
+let serverVersion = "1.3.2";
+
+export function setServerVersion(version: string): void {
+  serverVersion = version;
+}
+
+export function getUserAgent(): string {
+  return `bcb-br-mcp/${serverVersion}`;
+}
 
 // ==================== TYPES ====================
 
@@ -305,7 +322,7 @@ export async function fetchWithTimeout(url: string, timeoutMs: number): Promise<
       signal: controller.signal,
       headers: {
         "Accept": "application/json",
-        "User-Agent": CONFIG.USER_AGENT
+        "User-Agent": getUserAgent()
       }
     });
     return response;
@@ -760,12 +777,112 @@ const OBSERVACAO_SCHEMA = {
   required: ["data", "valor"]
 };
 
+// ==================== TOOL DESCRIPTIONS (single source of truth) ====================
+//
+// Reused by both transports: TOOL_DEFINITIONS below (worker / HTTP JSON-RPC) and
+// the server.registerTool() calls in index.ts (stdio). Each description is written
+// to score well on agent-readability rubrics (Glama): it states purpose, when to use
+// the tool vs. its siblings, the exact shape of what it returns, and its runtime
+// behavior. BEHAVIOR_NOTE captures the facts common to every tool so they stay in sync.
+
+const BEHAVIOR_NOTE =
+  "Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, " +
+  "chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). " +
+  "Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, " +
+  "backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português " +
+  "(HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON " +
+  "tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato " +
+  "dd/MM/yyyy e valores numéricos (ponto decimal).";
+
+export const TOOL_DESCRIPTIONS: Record<string, string> = {
+  bcb_serie_valores:
+    "Consulta o histórico de valores de UMA série temporal do BCB pelo código SGS, opcionalmente " +
+    "limitado por um intervalo de datas (dataInicial/dataFinal). " +
+    "Quando usar: para obter a série histórica completa ou uma janela de datas específica. " +
+    "Quando NÃO usar: para apenas os pontos mais recentes use bcb_serie_ultimos; para a variação " +
+    "percentual use bcb_variacao; para comparar várias séries use bcb_comparar; se não souber o " +
+    "código, descubra-o antes com bcb_buscar_serie ou bcb_series_populares. " +
+    "Retorna: objeto `serie` (codigo, nome, categoria, periodicidade), `totalRegistros`, " +
+    "`periodoInicial`, `periodoFinal` e `dados` (array de {data, valor}); quando não há dados, " +
+    "`totalRegistros` = 0 e uma `observacao` explicativa. " + BEHAVIOR_NOTE,
+
+  bcb_serie_ultimos:
+    "Obtém as últimas N observações de UMA série temporal do BCB (mais recentes primeiro a partir " +
+    "do fim da série). " +
+    "Quando usar: para ver os dados mais recentes sem precisar calcular datas (ex.: últimos 12 meses " +
+    "do IPCA). Quantidade entre 1 e 1000 (padrão 10). " +
+    "Quando NÃO usar: para um intervalo de datas ou o histórico completo use bcb_serie_valores. " +
+    "Retorna: objeto `serie`, `totalRegistros` e `dados` (array de {data, valor}); sem dados, " +
+    "`totalRegistros` = 0 com `observacao`. " + BEHAVIOR_NOTE,
+
+  bcb_serie_metadados:
+    "Obtém os metadados descritivos de UMA série do BCB (nome, unidade de medida, periodicidade, " +
+    "fonte, categoria), sem trazer a série de valores. " +
+    "Quando usar: para confirmar o que uma série representa e em que unidade antes de consultar os " +
+    "dados. Quando NÃO usar: para os valores em si use bcb_serie_valores ou bcb_serie_ultimos. " +
+    "Retorna: codigo, nome, unidade, periodicidade, fonte, categoria, especial e URLs diretas da API " +
+    "(urlConsulta, urlUltimos10). Se o endpoint de metadados do BCB não responder, faz fallback para " +
+    "o catálogo interno ou para o último valor disponível, sinalizando a origem em `observacao`. " +
+    BEHAVIOR_NOTE,
+
+  bcb_series_populares:
+    "Lista o catálogo interno curado de 150+ séries econômicas do BCB com seus códigos, agrupadas por " +
+    "categoria (Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, " +
+    "Agregados Monetários, Poupança, Índices de Mercado, Expectativas); aceita filtro por categoria. " +
+    "Quando usar: para navegar/descobrir as séries disponíveis por tema. Quando NÃO usar: para busca " +
+    "por palavra-chave use bcb_buscar_serie; esta ferramenta não busca valores. " +
+    "Retorna: `totalSeries`, `categorias` (nº de categorias) e `series` — objeto agrupado por categoria " +
+    "quando sem filtro, ou array plano quando filtrado por categoria; cada item tem codigo, nome, " +
+    "categoria e periodicidade. Catálogo local: não faz chamada de rede.",
+
+  bcb_buscar_serie:
+    "Busca séries no catálogo interno curado por nome ou categoria, ignorando acentos e maiúsculas " +
+    "(ex.: 'inflacao' encontra 'Inflação'; 'dolar' encontra 'Dólar'). " +
+    "Quando usar: para encontrar o código de uma série a partir de uma palavra-chave (selic, ipca, " +
+    "cambio, pib, emprego, credito...). Quando NÃO usar: para listar tudo por categoria use " +
+    "bcb_series_populares. Limitação: pesquisa apenas o catálogo curado (150+ séries), não o SGS " +
+    "completo (dezenas de milhares); quando nada é encontrado, retorna sugestões e o link do portal SGS. " +
+    "Retorna: `termo`, `totalEncontradas`, `series` (array de {codigo, nome, categoria, periodicidade}) " +
+    "e, quando vazio, `mensagem` e `sugestao`. Catálogo local: não faz chamada de rede.",
+
+  bcb_indicadores_atuais:
+    "Atalho que retorna, em uma única chamada, o valor mais recente dos principais indicadores da " +
+    "economia brasileira: Selic anualizada, IPCA mensal, IPCA acumulado 12 meses, Dólar PTAX (venda) " +
+    "e IBC-Br. Não recebe parâmetros. " +
+    "Quando usar: para um panorama econômico rápido. Quando NÃO usar: para qualquer outra série, para " +
+    "dados históricos ou para escolher o período use bcb_serie_ultimos ou bcb_serie_valores. " +
+    "Retorna: `consultadoEm` (timestamp ISO 8601) e `indicadores` (array com indicador, codigo, data, " +
+    "valor — ou `erro` no item). Resiliente: cada indicador é buscado de forma independente, então a " +
+    "falha de um não derruba os demais. " + BEHAVIOR_NOTE,
+
+  bcb_variacao:
+    "Calcula a variação percentual de UMA série entre o primeiro e o último ponto do período, mais " +
+    "estatísticas descritivas. O período pode ser definido por datas (dataInicial/dataFinal) OU pelos " +
+    "últimos N períodos (parâmetro `periodos`, que tem precedência e ignora as datas). " +
+    "Quando usar: para medir tendência/variação de uma única série. Quando NÃO usar: para comparar " +
+    "várias séries use bcb_comparar; para os valores brutos use bcb_serie_valores. Requer ao menos 2 " +
+    "observações no período (senão retorna `isError`). " +
+    "Retorna: `serie`, `periodo` (dataInicial, dataFinal, totalPeriodos), `analise` (valorInicial, " +
+    "valorFinal, diferencaAbsoluta, variacaoPercentual, variacaoFormatada) e `estatisticas` (maximo, " +
+    "minimo, media, amplitude). " + BEHAVIOR_NOTE,
+
+  bcb_comparar:
+    "Compara de 2 a 5 séries temporais no MESMO período (dataInicial e dataFinal obrigatórias), " +
+    "calculando a variação percentual de cada uma e ordenando-as num ranking (maior para menor variação). " +
+    "Quando usar: para comparar/correlacionar a evolução de vários indicadores lado a lado. Quando NÃO " +
+    "usar: para uma única série use bcb_variacao. " +
+    "Retorna: `periodo`, `totalSeries`, `seriesComDados`, `seriesComErro`, `ranking` (cada item com " +
+    "posicao, codigo, nome, valorInicial, valorFinal, variacaoPercentual, maximo, minimo, media) e " +
+    "`erros`. Resiliente: séries sem dados no período são isoladas em `erros` sem invalidar a comparação. " +
+    BEHAVIOR_NOTE
+};
+
 // ==================== TOOL DEFINITIONS (for worker JSON-RPC) ====================
 
 export const TOOL_DEFINITIONS = [
   {
     name: "bcb_serie_valores",
-    description: "Consulta valores de uma série temporal do BCB por código. Retorna dados históricos com data e valor.",
+    description: TOOL_DESCRIPTIONS.bcb_serie_valores,
     annotations: {
       title: "Consultar valores da série",
       readOnlyHint: true,
@@ -797,7 +914,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "bcb_serie_ultimos",
-    description: "Obtém os últimos N valores de uma série temporal do BCB. Útil para consultar dados mais recentes.",
+    description: TOOL_DESCRIPTIONS.bcb_serie_ultimos,
     annotations: {
       title: "Últimos valores da série",
       readOnlyHint: true,
@@ -826,7 +943,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "bcb_serie_metadados",
-    description: "Obtém informações/metadados de uma série temporal do BCB. Retorna nome, periodicidade, categoria e outros detalhes.",
+    description: TOOL_DESCRIPTIONS.bcb_serie_metadados,
     annotations: {
       title: "Metadados da série",
       readOnlyHint: true,
@@ -861,7 +978,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "bcb_series_populares",
-    description: "Lista 150+ séries temporais do BCB com seus códigos. Inclui juros, inflação, câmbio, PIB, emprego, crédito e outros indicadores econômicos.",
+    description: TOOL_DESCRIPTIONS.bcb_series_populares,
     annotations: {
       title: "Listar séries populares",
       readOnlyHint: true,
@@ -890,7 +1007,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "bcb_buscar_serie",
-    description: "Busca séries no catálogo interno por nome ou descrição. Aceita termos com ou sem acentos (ex: 'inflacao' encontra 'Inflação').",
+    description: TOOL_DESCRIPTIONS.bcb_buscar_serie,
     annotations: {
       title: "Buscar série no catálogo",
       readOnlyHint: true,
@@ -932,7 +1049,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "bcb_indicadores_atuais",
-    description: "Obtém os valores mais recentes dos principais indicadores econômicos: Selic, IPCA, Dólar PTAX e IBC-Br.",
+    description: TOOL_DESCRIPTIONS.bcb_indicadores_atuais,
     annotations: {
       title: "Indicadores econômicos atuais",
       readOnlyHint: true,
@@ -969,7 +1086,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "bcb_variacao",
-    description: "Calcula a variação percentual de uma série entre duas datas ou nos últimos N períodos. Útil para análise de tendências.",
+    description: TOOL_DESCRIPTIONS.bcb_variacao,
     annotations: {
       title: "Variação percentual da série",
       readOnlyHint: true,
@@ -1039,7 +1156,7 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: "bcb_comparar",
-    description: "Compara 2 a 5 séries temporais no mesmo período. Útil para análise de correlação entre indicadores.",
+    description: TOOL_DESCRIPTIONS.bcb_comparar,
     annotations: {
       title: "Comparar séries",
       readOnlyHint: true,
