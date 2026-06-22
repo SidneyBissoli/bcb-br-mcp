@@ -19,6 +19,16 @@ Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**
 
 **Capacidades:** 8 ferramentas (skills) · 3 recursos · 3 prompts — tudo o que um cliente MCP precisa para consultar a API de séries temporais do BCB (SGS).
 
+## Veja na prática
+
+Pergunte ao seu assistente, em português:
+
+- *"Qual a taxa Selic atual?"* → `bcb_indicadores_atuais`
+- *"Mostre o IPCA mês a mês em 2024."* → `bcb_serie_valores`
+- *"Qual foi a variação do dólar nos últimos 12 meses?"* → `bcb_variacao`
+
+As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com procedência, não números chutados do treino.
+
 ## Funcionalidades
 
 - **Consulta de séries históricas** - Busca valores de séries por código com filtro de datas

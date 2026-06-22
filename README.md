@@ -19,6 +19,16 @@ Query economic and financial indicators such as **Selic** (interest rate), **IPC
 
 **Capabilities:** 8 tools (skills) · 3 resources · 3 prompts — everything an MCP client needs to query the Brazilian Central Bank (SGS/BCB) time-series API.
 
+## See it in action
+
+Ask your assistant, in plain Portuguese:
+
+- *"Qual a taxa Selic atual?"* → `bcb_indicadores_atuais`
+- *"Mostre o IPCA mês a mês em 2024."* → `bcb_serie_valores`
+- *"Qual foi a variação do dólar nos últimos 12 meses?"* → `bcb_variacao`
+
+The answers come live from the Brazilian Central Bank's SGS API — exact figures with provenance, not numbers guessed from training data.
+
 ## Features
 
 - **Historical data** - Query time series values by code with date filters
