@@ -1,4 +1,4 @@
-# BCB Brasil MCP Server
+# Brazilian Central Bank (BCB) - MCP
 
 [![npm version](https://img.shields.io/npm/v/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
@@ -12,7 +12,7 @@
 
 [Leia em Português](README.pt-BR.md)
 
-MCP (Model Context Protocol) server for accessing the Brazilian Central Bank's time series data (SGS/BCB).
+MCP (Model Context Protocol) server for the **Brazilian Central Bank** (Banco Central do Brasil, **BCB**) time series data (SGS/BCB).
 
 Query economic and financial indicators such as **Selic** (interest rate), **IPCA** (inflation), **exchange rates**, **GDP**, and more, directly from AI assistants like Claude.
 

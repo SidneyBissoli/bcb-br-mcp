@@ -1,4 +1,4 @@
-# BCB BR MCP Server
+# Banco Central do Brasil (BCB) - MCP
 
 [![npm version](https://img.shields.io/npm/v/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
