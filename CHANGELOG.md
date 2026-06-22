@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-06-21
+
+Fixes the MCP Registry publish that failed in 1.3.4.
+
+### Fixed
+- **`server.json` description shortened to ≤100 characters.** The MCP Registry
+  enforces a 100-char limit on `description` and rejected 1.3.4 with HTTP 422.
+  The registry description now reads "Brazilian Central Bank / Banco Central do
+  Brasil (BCB) - SGS time series MCP: Selic, IPCA, FX, GDP" — both names, the
+  acronym and the key indicators within the limit. The longer `package.json`
+  description (used by npm) is unchanged, as npm has no such limit.
+
+> Note: npm 1.3.4 published successfully; only the registry step failed, so
+> this release re-aligns both channels on the same version.
+
 ## [1.3.4] - 2026-06-21
 
 Discoverability release (metadata only; no functional changes).
