@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-06-21
+
+Discoverability release (metadata only; no functional changes).
+
+### Changed
+- **Renamed the display title to "Brazilian Central Bank (BCB) - MCP".** The
+  bare "BCB" acronym is opaque to most users browsing MCP directories (Glama,
+  Smithery, LobeHub), which derive the listing title from the README H1. The
+  title now uses the full institution name plus the acronym so it is
+  recognizable and matches both "Brazilian Central Bank" and "BCB" searches.
+  The Portuguese README uses "Banco Central do Brasil (BCB) - MCP".
+- **Front-loaded both names (EN + PT) and the BCB acronym** in the README intro
+  and in the `package.json` / `server.json` descriptions, which directory
+  search also indexes.
+- **Added exact-phrase keywords**: `banco-central-do-brasil`,
+  `brazilian-central-bank`, `sgs`.
+
+The repository name, npm package and registry id (`bcb-br-mcp`, `bcb_*` tools)
+are intentionally unchanged to preserve installs and the MCP Registry identity.
+
 ## [1.3.3] - 2026-06-21
 
 Tool-definition quality release (no behavioral changes to the data returned).

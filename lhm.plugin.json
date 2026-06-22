@@ -1,7 +1,7 @@
 {
   "identifier": "sidneybissoli-bcb-br-mcp",
   "name": "Banco Central do Brasil - MCP",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "MCP server for Brazilian Central Bank (SGS/BCB) time series — Selic, IPCA, exchange rates, GDP and 150+ economic indicators, queried live from AI assistants.",
   "author": "Sidney Bissoli",
   "authorUrl": "https://github.com/SidneyBissoli",
