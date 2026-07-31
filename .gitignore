@@ -6,3 +6,9 @@ dist/
 .env.local
 *.tsbuildinfo
 .mcpregistry_github_token
+
+# credenciais
+.mcpregistry_registry_token
+
+# artefatos renderizados
+*.html
