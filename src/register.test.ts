@@ -133,9 +133,12 @@ describe("tools/call", () => {
     expect(JSON.parse(text.text)).toEqual(result.structuredContent);
   });
 
+  // `bcb_buscar_serie` era o exemplo aqui até a sessão de D3, quando passou a
+  // consultar o índice do portal; `bcb_series_populares` é a tool que segue
+  // 100% local, e é ela que guarda a garantia.
   it("tool sem rede não dispara fetch", async () => {
     const { client } = await connectedClient();
-    const result = await client.callTool({ name: "bcb_buscar_serie", arguments: { termo: "selic" } });
+    const result = await client.callTool({ name: "bcb_series_populares", arguments: {} });
 
     expect(result.isError).toBeFalsy();
     expect(global.fetch).not.toHaveBeenCalled();

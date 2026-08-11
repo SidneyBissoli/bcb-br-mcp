@@ -27,6 +27,7 @@ import {
   normalizeString,
   type ToolResult
 } from "./tools.js";
+import { _resetCatalogo } from "./catalog.js";
 
 // ==================== fetch mock ====================
 
@@ -70,6 +71,9 @@ function structured(result: ToolResult): Record<string, unknown> {
 
 beforeEach(() => {
   fetchCalls = [];
+  // O índice do portal é cache de módulo: sem zerar, um teste herdaria o
+  // catálogo que outro buscou e a contagem de requisições mentiria.
+  _resetCatalogo();
 });
 
 afterEach(() => {
@@ -294,31 +298,39 @@ describe("bcb_series_populares", () => {
 
 // ==================== bcb_buscar_serie ====================
 
+// MUDANÇA DELIBERADA (sessão de D3, arbitragem 5): a busca deixou de ser
+// puramente local. O baseline antigo — nenhuma chamada de rede, e a mensagem
+// "Nenhuma série encontrada no catálogo interno" — era exatamente a lacuna que
+// o D3 fecha, e está registrada no CHANGELOG. O que continua pinado aqui é o
+// contrato que NÃO podia mudar: a camada curada vem primeiro, com nome e
+// categoria revisados, e toda resposta carrega proveniência do índice.
+// A bateria completa do índice está em `catalog.test.ts`.
 describe("bcb_buscar_serie", () => {
-  it("busca por nome ou categoria dentro do catálogo local", async () => {
+  it("a camada curada continua vindo primeiro, com nome e categoria revisados", async () => {
+    mockFetch([["action/package_list", { success: true, result: ["4390-taxa-de-juros---selic---mensal"] }]]);
+
     const out = structured(await call("bcb_buscar_serie", { termo: "selic" }));
 
-    const series = out.series as Array<{ nome: string; categoria: string }>;
+    const series = out.series as Array<{ nome: string; categoria?: string; origem: string }>;
     expect(out.termo).toBe("selic");
-    expect(out.totalEncontradas).toBe(series.length);
     expect(series.length).toBeGreaterThan(0);
+    expect(series[0].origem).toBe("curado");
     expect(
-      series.every(s => normalizeString(s.nome).includes("selic") || normalizeString(s.categoria).includes("selic"))
+      series
+        .filter(s => s.origem === "curado")
+        .every(s => normalizeString(s.nome).includes("selic") || normalizeString(s.categoria ?? "").includes("selic"))
     ).toBe(true);
-    expect(fetchCalls).toEqual([]);
+    expect(out.catalogo).toBeDefined();
   });
 
-  it("termo sem correspondência devolve mensagem + sugestão (a lacuna que o D3 vai fechar)", async () => {
+  it("termo sem correspondência deixou de afirmar inexistência", async () => {
+    mockFetch([["action/package_list", { success: true, result: ["4390-taxa-de-juros---selic---mensal"] }]]);
+
     const out = structured(await call("bcb_buscar_serie", { termo: "zzz-inexistente" }));
 
-    expect(out).toEqual({
-      termo: "zzz-inexistente",
-      totalEncontradas: 0,
-      series: [],
-      mensagem:
-        "Nenhuma série encontrada no catálogo interno. Use o portal SGS do BCB para buscar outras séries: https://www3.bcb.gov.br/sgspub/",
-      sugestao: "Tente termos como: selic, ipca, dolar, cambio, pib, inflacao, credito, emprego"
-    });
+    expect(out.totalEncontradas).toBe(0);
+    expect(out.series).toEqual([]);
+    expect(out.mensagem).toContain("não é prova de inexistência");
   });
 });
 
@@ -561,6 +573,7 @@ describe("dispatchTool", () => {
   });
 
   it("toda resposta de sucesso carrega structuredContent E o espelho em texto", async () => {
+    mockFetch([["action/package_list", { success: true, result: ["4390-taxa-de-juros---selic---mensal"] }]]);
     const result = await call("bcb_buscar_serie", { termo: "selic" });
 
     expect(result.structuredContent).toBeDefined();

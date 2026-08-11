@@ -27,12 +27,13 @@ afterEach(() => {
 });
 
 describe("buildServer (worker)", () => {
-  it("expõe a superfície completa do pacote pai (8 tools, 3 resources, 3 prompts)", async () => {
+  // 8 tools do SGS + 3 do Focus + 2 de câmbio, acrescentadas na sessão de D3.
+  it("expõe a superfície completa do pacote pai (13 tools, 3 resources, 3 prompts)", async () => {
     const client = await connect(buildServer());
     const { tools } = await client.listTools();
     const { resources } = await client.listResources();
     const { prompts } = await client.listPrompts();
-    expect(tools).toHaveLength(8);
+    expect(tools).toHaveLength(13);
     expect(resources).toHaveLength(3);
     expect(prompts).toHaveLength(3);
     await client.close();

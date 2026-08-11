@@ -1,92 +1,58 @@
 /**
- * BCB BR MCP Server — Shared Tools Logic
- * Extracted from index.ts to be shared between stdio (index.ts) and HTTP (worker.ts) transports.
+ * BCB BR MCP Server — tools do SGS + montagem do catálogo canônico de tools.
+ *
+ * Os primitivos (fetch, config, versão, tipos, `sealDeep`) moraram aqui até a
+ * sessão de D3 e foram para `shared.ts` quando o servidor passou a falar com
+ * três APIs. Este módulo os RE-EXPORTA porque o worker, os testes e o
+ * `register.ts` importam desses nomes daqui desde a fundação.
  *
  * Author: Sidney Bissoli
  * License: MIT
  */
 
+import { obterCatalogo, buscarSeries } from "./catalog.js";
+import { FOCUS_TOOL_DEFINITIONS, dispatchFocusTool } from "./focus.js";
+import { CAMBIO_TOOL_DEFINITIONS, dispatchCambioTool } from "./cambio.js";
+import {
+  CONFIG,
+  calculateVariation,
+  erroResult,
+  fetchBcbApi,
+  formatDateForApi,
+  mensagemDeErro,
+  normalizeString,
+  sealDeep,
+  structuredResult,
+  type SerieMetadados,
+  type SeriePopular,
+  type SerieValor,
+  type ToolResult
+} from "./shared.js";
+
+export {
+  CONFIG,
+  WORKER_CONFIG,
+  calculateVariation,
+  erroResult,
+  fetchBcbApi,
+  fetchWithTimeout,
+  formatDateForApi,
+  getUserAgent,
+  mensagemDeErro,
+  normalizeString,
+  sealDeep,
+  setServerVersion,
+  sleep,
+  structuredResult,
+  type SerieMetadados,
+  type SeriePopular,
+  type SerieValor,
+  type ToolResult
+} from "./shared.js";
+
 // ==================== CONSTANTS ====================
 
 export const BCB_API_BASE = "https://api.bcb.gov.br/dados/serie/bcdata.sgs";
-
-export const CONFIG = {
-  TIMEOUT_MS: 30000,
-  MAX_RETRIES: 3,
-  RETRY_DELAY_MS: 1000
-};
-
-// Worker uses shorter timeout (Cloudflare has its own limits)
-export const WORKER_CONFIG = {
-  TIMEOUT_MS: 10000,
-  MAX_RETRIES: 2,
-  RETRY_DELAY_MS: 1000
-};
-
-// ==================== VERSION (single source of truth) ====================
-//
-// tools.ts runs under two builds that resolve package.json differently, so the
-// version is injected by each entry point instead of imported here:
-//   - index.ts (Node/stdio) reads it via createRequire and calls setServerVersion()
-//   - worker.ts (Cloudflare) reads it via a JSON import inlined by esbuild and calls it too
-// A static `import "../package.json"` is avoided on purpose: it breaks tsc's rootDir
-// and createRequire is unavailable in the Worker runtime (no nodejs_compat).
-// The fallback is only used if no entry point injects a version; keep it = package.json.
-let serverVersion = "1.3.5";
-
-export function setServerVersion(version: string): void {
-  serverVersion = version;
-}
-
-export function getUserAgent(): string {
-  return `bcb-br-mcp/${serverVersion}`;
-}
-
-// ==================== TYPES ====================
-
-export interface SerieValor {
-  data: string;
-  valor: string;
-}
-
-export interface SerieMetadados {
-  codigo: number;
-  nome: string;
-  unidade: string;
-  periodicidade: string;
-  fonte: string;
-  especial: boolean;
-}
-
-export interface SeriePopular {
-  codigo: number;
-  nome: string;
-  categoria: string;
-  periodicidade: string;
-}
-
-export interface ToolResult {
-  [key: string]: unknown;
-  content: Array<{ type: "text"; text: string }>;
-  structuredContent?: Record<string, unknown>;
-  isError?: boolean;
-}
-
-// ==================== OUTPUT HELPER ====================
-
-/**
- * Builds a ToolResult that satisfies an MCP tool's outputSchema:
- * the same payload is exposed as machine-readable structuredContent and,
- * for backward compatibility, serialized into a TextContent block.
- */
-function structuredResult(payload: Record<string, unknown>): ToolResult {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
-    structuredContent: payload
-  };
-}
-
-// ==================== SERIES CATALOG ====================
 
 export const SERIES_POPULARES: SeriePopular[] = [
   // ==================== JUROS E TAXAS ====================
@@ -283,92 +249,6 @@ export const SERIES_POPULARES: SeriePopular[] = [
   { codigo: 29040, nome: "Expectativa Câmbio - Mediana - Próximo ano", categoria: "Expectativas", periodicidade: "Semanal" }
 ];
 
-// ==================== UTILITY FUNCTIONS ====================
-
-export function normalizeString(str: string): string {
-  return str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-export function formatDateForApi(dateStr: string): string {
-  if (dateStr.includes("-")) {
-    const [year, month, day] = dateStr.split("-");
-    return `${day}/${month}/${year}`;
-  }
-  return dateStr;
-}
-
-export function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-export async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "Accept": "application/json",
-        "User-Agent": getUserAgent()
-      }
-    });
-    return response;
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-export async function fetchBcbApi(
-  url: string,
-  timeoutMs: number = CONFIG.TIMEOUT_MS,
-  maxRetries: number = CONFIG.MAX_RETRIES
-): Promise<unknown> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetchWithTimeout(url, timeoutMs);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error(`Série não encontrada ou sem dados para o período solicitado`);
-        }
-        throw new Error(`Erro na API do BCB: ${response.status} ${response.statusText}`);
-      }
-
-      return response.json();
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-
-      if (lastError.message.includes("não encontrada")) {
-        throw lastError;
-      }
-
-      const isTimeout = lastError.name === "AbortError" ||
-        lastError.message.includes("aborted") ||
-        lastError.message.includes("timeout");
-
-      if (attempt < maxRetries) {
-        const delayMs = CONFIG.RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-        const reason = isTimeout ? "timeout" : "erro";
-        console.error(`Tentativa ${attempt}/${maxRetries} falhou (${reason}). Aguardando ${delayMs}ms...`);
-        await sleep(delayMs);
-      }
-    }
-  }
-
-  throw new Error(`Falha após ${maxRetries} tentativas: ${lastError?.message || "Erro desconhecido"}`);
-}
-
-export function calculateVariation(valorInicial: number, valorFinal: number): number {
-  if (valorInicial === 0) return 0;
-  return ((valorFinal - valorInicial) / Math.abs(valorInicial)) * 100;
-}
-
 // ==================== TOOL HANDLERS ====================
 
 export async function handleSerieValores(
@@ -546,27 +426,60 @@ export async function handleSeriesPopulares(
   }
 }
 
+/**
+ * Busca real: catálogo curado (camada de destaque) + índice do Portal de Dados
+ * Abertos do BCB, servido de cache de 24 h com renovação bloqueante (ver
+ * `catalog.ts`). A tool NUNCA afirma que uma série não existe: o índice cobre os
+ * datasets do portal nomeados por código, que não são o SGS inteiro.
+ */
 export async function handleBuscarSerie(
-  args: { termo: string }
+  args: { termo: string; limite?: number },
+  timeoutMs?: number,
+  maxRetries?: number
 ): Promise<ToolResult> {
   try {
-    const termoNorm = normalizeString(args.termo);
-    const encontradas = SERIES_POPULARES.filter(s =>
-      normalizeString(s.nome).includes(termoNorm) ||
-      normalizeString(s.categoria).includes(termoNorm)
-    );
+    const limite = args.limite ?? 20;
+    const { snapshot, aviso } = await obterCatalogo(timeoutMs, maxRetries);
+    const { total, series } = buscarSeries(args.termo, SERIES_POPULARES, snapshot?.entradas ?? null, limite);
 
-    if (encontradas.length === 0) {
-      return structuredResult({
-        termo: args.termo,
-        totalEncontradas: 0,
-        series: [],
-        mensagem: "Nenhuma série encontrada no catálogo interno. Use o portal SGS do BCB para buscar outras séries: https://www3.bcb.gov.br/sgspub/",
-        sugestao: "Tente termos como: selic, ipca, dolar, cambio, pib, inflacao, credito, emprego"
-      });
+    const catalogo = snapshot
+      ? {
+          origem: "Portal de Dados Abertos do BCB (CKAN) + catálogo curado local",
+          obtidoEm: snapshot.obtidoEm,
+          seriesIndexadas: snapshot.entradas.length,
+          cobertura:
+            `O índice cobre ${snapshot.entradas.length} séries identificadas por código no portal de dados ` +
+            "abertos, o que NÃO é o SGS inteiro (o portal SGS expõe mais séries). Não encontrar aqui não " +
+            "significa que a série não exista: confirme em https://www3.bcb.gov.br/sgspub/ ou consulte o " +
+            "código diretamente com bcb_serie_metadados."
+        }
+      : {
+          origem: "catálogo curado local",
+          seriesIndexadas: SERIES_POPULARES.length,
+          cobertura:
+            `A busca usou apenas o catálogo curado (${SERIES_POPULARES.length} séries) porque o índice do ` +
+            "portal de dados abertos não estava disponível. Não encontrar aqui não significa que a série não " +
+            "exista: confirme em https://www3.bcb.gov.br/sgspub/."
+        };
+
+    const payload: Record<string, unknown> = {
+      termo: args.termo,
+      totalEncontradas: total,
+      series,
+      catalogo
+    };
+
+    if (series.length < total) payload.observacao = `Exibindo ${series.length} de ${total} séries; aumente 'limite' ou refine o termo.`;
+    if (aviso) payload.avisos = [aviso];
+
+    if (total === 0) {
+      payload.mensagem =
+        "Nenhuma série casou com o termo no catálogo curado nem no índice do portal de dados abertos. " +
+        "Isso não é prova de inexistência — veja 'catalogo.cobertura'.";
+      payload.sugestao = "Tente termos mais gerais (selic, ipca, dolar, cambio, pib, credito, emprego) ou o código da série.";
     }
 
-    return structuredResult({ termo: args.termo, totalEncontradas: encontradas.length, series: encontradas });
+    return structuredResult(payload);
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao buscar séries: ${error instanceof Error ? error.message : String(error)}` }],
@@ -827,14 +740,21 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "categoria e periodicidade. Catálogo local: não faz chamada de rede.",
 
   bcb_buscar_serie:
-    "Busca séries no catálogo interno curado por nome ou categoria, ignorando acentos e maiúsculas " +
-    "(ex.: 'inflacao' encontra 'Inflação'; 'dolar' encontra 'Dólar'). " +
-    "Quando usar: para encontrar o código de uma série a partir de uma palavra-chave (selic, ipca, " +
-    "cambio, pib, emprego, credito...). Quando NÃO usar: para listar tudo por categoria use " +
-    "bcb_series_populares. Limitação: pesquisa apenas o catálogo curado (150+ séries), não o SGS " +
-    "completo (dezenas de milhares); quando nada é encontrado, retorna sugestões e o link do portal SGS. " +
-    "Retorna: `termo`, `totalEncontradas`, `series` (array de {codigo, nome, categoria, periodicidade}) " +
-    "e, quando vazio, `mensagem` e `sugestao`. Catálogo local: não faz chamada de rede.",
+    "Busca séries do BCB por palavra-chave (ou pelo código) em DUAS camadas: o catálogo curado local de " +
+    "150+ séries, que vem primeiro e com nome revisado, e o índice do Portal de Dados Abertos do BCB, " +
+    "com milhares de séries identificadas por código. Ignora acentos e maiúsculas ('inflacao' encontra " +
+    "'Inflação'); vários termos são combinados com E ('ipca servicos'). " +
+    "Quando usar: para descobrir o código de uma série antes de consultar valores. Quando NÃO usar: para " +
+    "navegar tudo por categoria use bcb_series_populares; para valores use bcb_serie_valores. " +
+    "Retorna: `termo`, `totalEncontradas`, `series` (cada item com codigo, nome, origem — 'curado' ou " +
+    "'indice' — e, no índice, `dataset` com a página do portal), `catalogo` (origem, obtidoEm, " +
+    "seriesIndexadas, cobertura) e, quando aplicável, `observacao`, `avisos`, `mensagem` e `sugestao`. " +
+    "Cobertura: o índice NÃO é o SGS inteiro, portanto não encontrar aqui não prova que a série não " +
+    "exista — o campo `catalogo.cobertura` diz isso explicitamente em toda resposta. " +
+    "Comportamento de rede: o índice é servido de cache com validade de 24 h e a renovação é feita pela " +
+    "primeira busca após o vencimento (uma requisição ao portal, ~1 s); as demais buscas não tocam a rede. " +
+    "Se o portal estiver fora, a busca degrada para o catálogo curado (ou para o último índice obtido) e " +
+    "sinaliza em `avisos`, sempre com a data de obtenção visível.",
 
   bcb_indicadores_atuais:
     "Atalho que retorna, em uma única chamada, o valor mais recente dos principais indicadores da " +
@@ -1027,12 +947,25 @@ const RAW_TOOL_DEFINITIONS = [
       readOnlyHint: true,
       destructiveHint: false,
       idempotentHint: true,
-      openWorldHint: false
+      // Passou a true na sessão de D3: a busca deixou de ser puramente local e
+      // consulta o índice do portal de dados abertos (com cache de 24 h).
+      openWorldHint: true
     },
     inputSchema: {
       type: "object" as const,
       properties: {
-        termo: { type: "string" as const, description: "Termo de busca (mínimo 2 caracteres)", minLength: 2 }
+        termo: {
+          type: "string" as const,
+          description: "Termo de busca (mínimo 2 caracteres) ou o código da série. Vários termos são combinados com E.",
+          minLength: 2
+        },
+        limite: {
+          type: "number" as const,
+          description: "Máximo de séries a devolver (1-100, padrão: 20). `totalEncontradas` traz o total antes do corte.",
+          default: 20,
+          minimum: 1,
+          maximum: 100
+        }
       },
       required: ["termo"]
     },
@@ -1040,16 +973,48 @@ const RAW_TOOL_DEFINITIONS = [
       type: "object" as const,
       properties: {
         termo: { type: "string" as const, description: "Termo pesquisado" },
-        totalEncontradas: { type: "number" as const, description: "Quantidade de séries encontradas" },
+        totalEncontradas: { type: "number" as const, description: "Quantidade de séries encontradas, antes do corte por `limite`" },
         series: {
           type: "array" as const,
-          description: "Séries que correspondem ao termo",
-          items: SERIE_REF_SCHEMA
+          description: "Séries que correspondem ao termo — as do catálogo curado primeiro",
+          items: {
+            type: "object" as const,
+            properties: {
+              codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
+              nome: { type: "string" as const, description: "Nome da série (revisado quando `origem` = curado; derivado do slug do portal quando = indice)" },
+              categoria: { type: "string" as const, description: "Categoria econômica (só no catálogo curado)" },
+              periodicidade: { type: "string" as const, description: "Periodicidade (só no catálogo curado)" },
+              origem: {
+                type: "string" as const,
+                enum: ["curado", "indice"],
+                description: "Camada de onde veio o achado"
+              },
+              dataset: { type: "string" as const, description: "Página do dataset no portal de dados abertos (só quando `origem` = indice)" }
+            },
+            required: ["codigo", "nome", "origem"]
+          }
+        },
+        catalogo: {
+          type: "object" as const,
+          description: "Proveniência do índice usado na busca",
+          properties: {
+            origem: { type: "string" as const, description: "Camadas consultadas" },
+            obtidoEm: { type: "string" as const, description: "Timestamp ISO 8601 em que o índice do portal foi obtido" },
+            seriesIndexadas: { type: "number" as const, description: "Quantidade de séries no índice consultado" },
+            cobertura: { type: "string" as const, description: "Limite explícito de cobertura do índice" }
+          },
+          required: ["origem", "seriesIndexadas", "cobertura"]
+        },
+        observacao: { type: "string" as const, description: "Aviso de corte quando há mais resultados que `limite`" },
+        avisos: {
+          type: "array" as const,
+          description: "Avisos de degradação (índice vencido ou indisponível)",
+          items: { type: "string" as const }
         },
         mensagem: { type: "string" as const, description: "Mensagem exibida quando nada é encontrado" },
         sugestao: { type: "string" as const, description: "Sugestões de termos alternativos" }
       },
-      required: ["termo", "totalEncontradas", "series"]
+      required: ["termo", "totalEncontradas", "series", "catalogo"]
     }
   },
   {
@@ -1249,24 +1214,17 @@ const RAW_TOOL_DEFINITIONS = [
 ];
 
 /**
- * Seals every object node of a JSON Schema (`additionalProperties: false`),
- * recursively. Zod sealed objects by construction, so the stdio channel always
- * advertised sealed schemas; doing it here in one place keeps that guarantee
- * after the migration and extends it to the HTTP channel, which never had it.
+ * Catálogo canônico das tools, na ordem em que o `tools/list` publica: primeiro
+ * as 8 do SGS (ordem preservada desde a fundação — mexer nela move a superfície
+ * sem motivo), depois as 3 do Focus e as 2 de câmbio, que a sessão de D3
+ * acrescentou. O selo (`additionalProperties: false`) é aplicado num lugar só,
+ * para todas.
  */
-function sealDeep<T>(schema: T): T {
-  if (Array.isArray(schema)) return schema.map(sealDeep) as unknown as T;
-  if (schema === null || typeof schema !== "object") return schema;
-
-  const node = schema as Record<string, unknown>;
-  const sealedEntries = Object.fromEntries(Object.entries(node).map(([k, v]) => [k, sealDeep(v)]));
-
-  return (node.type === "object" && node.properties !== undefined
-    ? { ...sealedEntries, additionalProperties: false }
-    : sealedEntries) as unknown as T;
-}
-
-export const TOOL_DEFINITIONS = RAW_TOOL_DEFINITIONS.map(tool => ({
+export const TOOL_DEFINITIONS = [
+  ...RAW_TOOL_DEFINITIONS,
+  ...FOCUS_TOOL_DEFINITIONS,
+  ...CAMBIO_TOOL_DEFINITIONS
+].map(tool => ({
   ...tool,
   inputSchema: sealDeep(tool.inputSchema),
   outputSchema: sealDeep(tool.outputSchema)
@@ -1355,6 +1313,14 @@ export async function dispatchTool(
   timeoutMs?: number,
   maxRetries?: number
 ): Promise<ToolResult> {
+  // As tools das outras duas APIs despacham nos próprios módulos; cada um
+  // devolve null quando a tool não é dele, e o SGS segue abaixo.
+  const focus = dispatchFocusTool(toolName, args, timeoutMs, maxRetries);
+  if (focus) return focus;
+
+  const cambio = dispatchCambioTool(toolName, args, timeoutMs, maxRetries);
+  if (cambio) return cambio;
+
   switch (toolName) {
     case "bcb_serie_valores":
       return handleSerieValores(args as { codigo: number; dataInicial?: string; dataFinal?: string }, timeoutMs, maxRetries);
@@ -1368,7 +1334,7 @@ export async function dispatchTool(
     case "bcb_series_populares":
       return handleSeriesPopulares(args as { categoria?: string });
     case "bcb_buscar_serie":
-      return handleBuscarSerie(args as { termo: string });
+      return handleBuscarSerie(args as { termo: string; limite?: number }, timeoutMs, maxRetries);
     case "bcb_indicadores_atuais":
       return handleIndicadoresAtuais({} as Record<string, never>, timeoutMs, maxRetries);
     case "bcb_variacao":

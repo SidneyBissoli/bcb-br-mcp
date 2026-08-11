@@ -18,7 +18,7 @@ Query economic and financial indicators such as **Selic** (interest rate), **IPC
 
 > If you find this project useful, please consider giving it a [star on GitHub](https://github.com/SidneyBissoli/bcb-br-mcp). It helps others discover the project!
 
-**Capabilities:** 8 tools (skills) · 3 resources · 3 prompts — everything an MCP client needs to query the Brazilian Central Bank (SGS/BCB) time-series API.
+**Capabilities:** 13 tools (skills) · 3 resources · 3 prompts — everything an MCP client needs to query the Brazilian Central Bank: SGS/BCB time series, the **Focus** market-expectations survey and **PTAX** exchange rates.
 
 ## See it in action
 
@@ -27,6 +27,9 @@ Ask your assistant, in plain Portuguese:
 - *"Qual a taxa Selic atual?"* → `bcb_indicadores_atuais`
 - *"Mostre o IPCA mês a mês em 2024."* → `bcb_serie_valores`
 - *"Qual foi a variação do dólar nos últimos 12 meses?"* → `bcb_variacao`
+- *"O que o mercado espera do IPCA em 2027?"* → `bcb_focus_expectativas`
+- *"Qual a Selic esperada na próxima reunião do Copom?"* → `bcb_focus_selic`
+- *"Qual foi a PTAX de fechamento do euro na sexta?"* → `bcb_cambio_cotacao`
 
 The answers come live from the Brazilian Central Bank's SGS API — exact figures with provenance, not numbers guessed from training data.
 
@@ -40,6 +43,8 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 - **Current indicators** - Latest values for key economic indicators
 - **Variation calculation** - Percentage change between periods with statistics
 - **Series comparison** - Compare multiple series over the same period
+- **Focus survey** - Market expectations (mean, median, std. deviation, min, max, respondents) for IPCA, GDP, FX and more, by monthly/quarterly/annual horizon or rolling 12/24-month inflation, plus Selic by Copom meeting
+- **PTAX exchange rates** - Official closing quotes for any currency the BCB publishes, single day or date range
 
 ## Available Tools
 
@@ -53,6 +58,11 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 | `bcb_indicadores_atuais` | Latest values: Selic, IPCA, USD/BRL, IBC-Br |
 | `bcb_variacao` | Calculate percentage variation between dates or last N periods |
 | `bcb_comparar` | Compare 2 to 5 series over the same period with ranking |
+| `bcb_focus_expectativas` | Focus survey expectations for one indicator, horizon as a parameter (monthly, quarterly, annual, rolling 12m/24m inflation); `top5` flag |
+| `bcb_focus_selic` | Focus expectations for the Selic rate, by Copom meeting (R1/2026 form) |
+| `bcb_focus_referencias` | Which indicators and reference dates exist in the Focus survey (exact strings) |
+| `bcb_cambio_cotacao` | PTAX quote for a currency (USD by default), single day or date range |
+| `bcb_cambio_moedas` | Currencies with quotes published by the BCB |
 
 ## Resources
 
@@ -329,11 +339,26 @@ The SGS database contains over 18,000 time series. To find codes for other serie
 
 ### Smart Search
 
-The `bcb_buscar_serie` tool normalizes search terms, allowing you to find series even without Portuguese accents:
+`bcb_buscar_serie` searches two layers: the curated catalog of 150+ series (which ranks first, with reviewed
+names) and the index of the BCB Open Data Portal, with thousands of series identified by code. Terms are
+accent- and case-insensitive, and several terms are combined with AND:
 
 - `"inflacao"` → finds "Inflação"
 - `"cambio"` → finds "Câmbio"
-- `"credito"` → finds "Crédito"
+- `"ipca servicos"` → both terms must match
+
+The portal index is served from a 24-hour cache, renewed by the first search after it expires (one request to
+the portal, only metadata — series codes and names, never observations). Every answer carries
+`catalogo.cobertura`: the index is **not** the whole SGS, so not finding a series here is not proof it does not
+exist.
+
+### Data source and licence
+
+Data obtained from the Banco Central do Brasil (SGS / Olinda-Expectativas / PTAX), published under the
+**Open Data Commons Open Database License (ODbL) v1.0** — https://opendatacommons.org/licenses/odbl/.
+Exchange-rate answers pass through the BCB's own liability disclaimer verbatim; cross-currency parities are
+**not** compiled by the BCB — they come from an information agency (Refinitiv) and are redistributed by the
+BCB, and the tools say so.
 
 ## Development
 
