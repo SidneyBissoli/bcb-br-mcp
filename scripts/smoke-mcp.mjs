@@ -199,9 +199,93 @@ try {
     `${dados.length} obs; última = ${dados.at(-1)?.data} ${dados.at(-1)?.valor}`
   );
 
-  // ---------- as 5 tools de D3, contra a origem ----------
-
   const call = (name, args) => client.rpc("tools/call", { name, arguments: args });
+
+  // ---------- D1: os limites do SGS, contra a origem ----------
+  //
+  // Estes checks só valem se a origem participar: o 406 da janela decenal e o 400
+  // do teto de 20 são a razão de existir do chunking, e nenhum mock prova que a
+  // fatia funciona de verdade. Ver `bcb/docs/04-limites-sgs-medidos.md`.
+
+  // Janela de 15 anos em série DIÁRIA (dólar): sem chunking, isto é 406.
+  const longa = await call("bcb_serie_valores", {
+    codigo: 1, dataInicial: "2010-01-01", dataFinal: "2024-12-31"
+  });
+  const longaOut = longa.result?.structuredContent;
+  checkUpstream(
+    "bcb_serie_valores atravessa 15 anos de série diária (a origem recusa >10 em uma janela)",
+    longa.result,
+    `${longaOut?.totalRegistros} obs em ${longaOut?.chunking?.janelas} janelas`
+  );
+  if (!longa.result?.isError) {
+    check("  → a resposta declara o chunking", longaOut?.chunking?.janelas >= 5);
+    check(
+      "  → o período cobre a janela pedida de ponta a ponta",
+      longaOut?.periodoInicial?.endsWith("/2010") && longaOut?.periodoFinal?.endsWith("/2024"),
+      `${longaOut?.periodoInicial} a ${longaOut?.periodoFinal}`
+    );
+    // Emenda sem duplicata: nenhuma data repetida entre fatias.
+    const datas = (longaOut?.dados ?? []).map(d => d.data);
+    check("  → as fatias foram fundidas sem data repetida", new Set(datas).size === datas.length);
+    check("  → ~250 observações por ano de série diária", datas.length > 3000 && datas.length < 4200, `${datas.length} obs`);
+  }
+
+  // Teto de 20 do endpoint nativo: 60 pontos só sai por janela de datas.
+  const acima = await call("bcb_serie_ultimos", { codigo: 433, quantidade: 60 });
+  const acimaOut = acima.result?.structuredContent;
+  checkUpstream(
+    "bcb_serie_ultimos entrega 60 pontos (a origem limita o endpoint nativo a 20)",
+    acima.result,
+    `${acimaOut?.totalRegistros} obs; última = ${acimaOut?.dados?.at(-1)?.data}`
+  );
+  if (!acima.result?.isError) {
+    check("  → devolveu os 60 pedidos", acimaOut?.totalRegistros === 60);
+    check("  → em ordem crescente de data", (() => {
+      const anos = (acimaOut?.dados ?? []).map(d => Number(d.data.slice(6)));
+      return anos.every((a, i) => i === 0 || a >= anos[i - 1]);
+    })());
+  }
+
+  // Periodicidade inferida onde a fonte não publica metadados (endpoint 404).
+  const meta = await call("bcb_serie_metadados", { codigo: 24369 });
+  const metaOut = meta.result?.structuredContent;
+  checkUpstream("bcb_serie_metadados sem endpoint de metadados na origem", meta.result, `${metaOut?.periodicidade}`);
+  if (!meta.result?.isError) {
+    check("  → traz o último valor e uma periodicidade", !!metaOut?.ultimoValor && !!metaOut?.periodicidade);
+  }
+
+  // Harmonização: IPCA mensal composto em ano fechado, marcado como derivado.
+  const harm = await call("bcb_serie_valores", {
+    codigo: 433, dataInicial: "2024-01-01", dataFinal: "2024-12-31",
+    frequencia: "anual", agregacao: "acumulada"
+  });
+  const harmOut = harm.result?.structuredContent;
+  checkUpstream("bcb_serie_valores harmoniza IPCA mensal em anual", harm.result, `${harmOut?.dados?.[0]?.valor}% em 2024`);
+  if (!harm.result?.isError) {
+    check("  → um ponto, agregando 12 observações", harmOut?.dados?.length === 1 && harmOut?.dados?.[0]?.observacoes === 12);
+    check("  → marcado como derivado, com nota", harmOut?.harmonizacao?.derived === true && !!harmOut?.harmonizacao?.nota);
+    // IPCA de 2024 fechou em 4,83% — a composição tem de chegar perto disso, e a
+    // soma simples (4,73) não chegaria.
+    check(
+      "  → composição geométrica, não soma simples",
+      Math.abs((harmOut?.dados?.[0]?.valor ?? 0) - 4.83) < 0.05,
+      `${harmOut?.dados?.[0]?.valor}`
+    );
+  }
+
+  // Periodicidade misturada: o aviso existe para não deixar o modelo comparar
+  // uma série diária com uma mensal como se fossem a mesma grade.
+  const misto = await call("bcb_comparar", {
+    codigos: [1, 433], dataInicial: "2024-01-01", dataFinal: "2024-12-31"
+  });
+  const mistoOut = misto.result?.structuredContent;
+  checkUpstream("bcb_comparar avisa sobre periodicidades diferentes", misto.result, `${mistoOut?.seriesComDados} séries`);
+  if (!misto.result?.isError) {
+    check("  → aviso presente com as duas periodicidades", (mistoOut?.aviso ?? "").includes("periodicidades diferentes"));
+    check("  → estatística marcada como derivada", mistoOut?.derivacao?.derived === true);
+  }
+
+  // ---------- as 5 tools de D3, contra a origem ----------
 
   // Focus consolidado: o horizonte escolhe o recurso, e a URL da consulta prova qual.
   const anual = await call("bcb_focus_expectativas", { indicador: "IPCA", horizonte: "anual", referencia: "2027" });

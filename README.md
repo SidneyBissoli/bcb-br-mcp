@@ -41,8 +41,15 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 - **Popular series catalog** - 150+ economic indicators organized in 12 categories
 - **Smart search** - Find series by keyword (accent-insensitive)
 - **Current indicators** - Latest values for key economic indicators
+- **Long periods, handled** - The BCB API caps daily series at a 10-year window
+  (HTTP 406) and refuses open windows; requests are sliced, fetched and merged
+  automatically, so a 15-year daily query just works
+- **Frequency harmonisation** - Resample a series to monthly, quarterly or annual
+  with an explicit convention, including geometric compounding for series that
+  already are percentage changes (monthly IPCA into annual IPCA)
 - **Variation calculation** - Percentage change between periods with statistics
-- **Series comparison** - Compare multiple series over the same period
+- **Series comparison** - Compare multiple series over the same period, with a
+  warning when their periodicities differ
 - **Focus survey** - Market expectations (mean, median, std. deviation, min, max, respondents) for IPCA, GDP, FX and more, by monthly/quarterly/annual horizon or rolling 12/24-month inflation, plus Selic by Copom meeting
 - **PTAX exchange rates** - Official closing quotes for any currency the BCB publishes, single day or date range
 
@@ -50,9 +57,9 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 
 | Tool | Description |
 |------|-------------|
-| `bcb_serie_valores` | Query series values by code and date range |
-| `bcb_serie_ultimos` | Get the last N values of a series |
-| `bcb_serie_metadados` | Get series metadata (name, frequency, source) |
+| `bcb_serie_valores` | Query series values by code and date range; slices long windows automatically and can harmonise the series to a coarser frequency |
+| `bcb_serie_ultimos` | Get the last N values of a series (any N — the upstream cap of 20 is worked around) |
+| `bcb_serie_metadados` | Get series metadata (name, frequency, category, last value) |
 | `bcb_series_populares` | List popular series grouped by category |
 | `bcb_buscar_serie` | Search series by name or description (accent-insensitive) |
 | `bcb_indicadores_atuais` | Latest values: Selic, IPCA, USD/BRL, IBC-Br |
@@ -334,8 +341,34 @@ The SGS database contains over 18,000 time series. To find codes for other serie
 ### Robustness
 
 - **Timeout**: 30 seconds per request (prevents hanging)
-- **Auto-retry**: 3 attempts with exponential backoff (1s, 2s, 4s)
+- **Auto-retry**: 3 attempts with exponential backoff (1s, 2s, 4s) for transient
+  failures; client errors (4xx) are not retried, since they are deterministic
 - **Error handling**: Clear error messages
+
+### Working around the SGS limits
+
+Measured against the live API, not inferred from documentation:
+
+- A **date window over 10 years on a daily series** is refused with HTTP **406**,
+  and so is an open window (no `dataInicial`, or no dates at all). The limit
+  applies to the *implicit* window: with no `dataFinal` the API assumes today.
+  Requests are sliced into windows of up to **3 years**, fetched with bounded
+  concurrency and merged in date order without duplicating the seams; the response
+  reports it in `chunking`. The slice is 3 years rather than the allowed 10 because
+  a 10-year daily window costs 10–20 s upstream and may be cut off around 30 s.
+- **`dados/ultimos/N` is capped at 20** by the API, in every periodicity. Above 20,
+  the server infers the series' periodicity and fetches by date window instead.
+- **There is no per-series metadata endpoint** (`/metadados` answers 404). Frequency
+  is inferred from the spacing of the observations and flagged with
+  `periodicidadeInferida`; unit of measure is not available from any source.
+
+### Derived values
+
+Anything this server computes — variation, descriptive statistics, harmonised
+series — is marked `derived: true` and carries a note with the conventions used.
+Statistics come from [`@sbissoli/mcp-stats`](https://www.npmjs.com/package/@sbissoli/mcp-stats).
+A value published by the BCB is always returned verbatim; only computed values are
+rounded (to 4 decimals).
 
 ### Smart Search
 

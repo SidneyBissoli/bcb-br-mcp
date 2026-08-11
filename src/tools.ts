@@ -13,6 +13,19 @@
 import { obterCatalogo, buscarSeries } from "./catalog.js";
 import { FOCUS_TOOL_DEFINITIONS, dispatchFocusTool } from "./focus.js";
 import { CAMBIO_TOOL_DEFINITIONS, dispatchCambioTool } from "./cambio.js";
+import { DERIVACAO_ESTATISTICA, arredondarDerivado, estatisticasDaSerie } from "./stats.js";
+import {
+  ROTULO_PERIODICIDADE,
+  TETO_ULTIMOS,
+  buscarSerieSgs,
+  buscarUltimosSgs,
+  harmonizar,
+  inferirPeriodicidade,
+  type Agregacao,
+  type FrequenciaAlvo,
+  type Periodicidade,
+  type ResultadoSerie
+} from "./series.js";
 import {
   CONFIG,
   calculateVariation,
@@ -28,6 +41,15 @@ import {
   type SerieValor,
   type ToolResult
 } from "./shared.js";
+
+export {
+  ROTULO_PERIODICIDADE,
+  TETO_ULTIMOS,
+  buscarSerieSgs,
+  buscarUltimosSgs,
+  harmonizar,
+  inferirPeriodicidade
+} from "./series.js";
 
 export {
   CONFIG,
@@ -251,40 +273,100 @@ export const SERIES_POPULARES: SeriePopular[] = [
 
 // ==================== TOOL HANDLERS ====================
 
+/**
+ * Bloco `serie` das respostas do SGS.
+ *
+ * A periodicidade vinha do catálogo curado ou saía "Desconhecida" — e sai
+ * "Desconhecida" para a esmagadora maioria das séries, porque a curadoria cobre
+ * ~150 de milhares. Como a origem NÃO tem endpoint de metadados
+ * (404 medido, `bcb/docs/04`), a periodicidade agora é inferida do espaçamento
+ * das observações que já vieram, e o campo `periodicidadeInferida` diz quando o
+ * valor é nosso e não da fonte.
+ */
+function refSerie(codigo: number, periodicidade: Periodicidade | null): Record<string, unknown> {
+  const info = SERIES_POPULARES.find(s => s.codigo === codigo);
+  const inferida = !info?.periodicidade && periodicidade !== null;
+
+  return {
+    codigo,
+    nome: info?.nome || `Série ${codigo}`,
+    categoria: info?.categoria || "Desconhecida",
+    periodicidade: info?.periodicidade || (periodicidade ? ROTULO_PERIODICIDADE[periodicidade] : "Desconhecida"),
+    ...(inferida ? { periodicidadeInferida: true } : {})
+  };
+}
+
+/** Campos de transparência da consulta: só aparecem quando houve o que contar. */
+function blocoRede(resultado: ResultadoSerie): Record<string, unknown> {
+  return {
+    ...(resultado.chunking ? { chunking: resultado.chunking } : {}),
+    ...(resultado.janelaAplicada ? { janelaAplicada: resultado.janelaAplicada } : {})
+  };
+}
+
 export async function handleSerieValores(
-  args: { codigo: number; dataInicial?: string; dataFinal?: string },
+  args: {
+    codigo: number;
+    dataInicial?: string;
+    dataFinal?: string;
+    frequencia?: FrequenciaAlvo;
+    agregacao?: Agregacao;
+  },
   timeoutMs?: number,
   maxRetries?: number
 ): Promise<ToolResult> {
   try {
-    let url = `${BCB_API_BASE}.${args.codigo}/dados?formato=json`;
-    if (args.dataInicial) url += `&dataInicial=${formatDateForApi(args.dataInicial)}`;
-    if (args.dataFinal) url += `&dataFinal=${formatDateForApi(args.dataFinal)}`;
+    const resultado = await buscarSerieSgs(
+      {
+        codigo: args.codigo,
+        dataInicial: args.dataInicial ? formatDateForApi(args.dataInicial) : undefined,
+        dataFinal: args.dataFinal ? formatDateForApi(args.dataFinal) : undefined
+      },
+      timeoutMs,
+      maxRetries
+    );
 
-    const data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
-    const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
-    const serie = {
-      codigo: args.codigo,
-      nome: serieInfo?.nome || `Série ${args.codigo}`,
-      categoria: serieInfo?.categoria || "Desconhecida",
-      periodicidade: serieInfo?.periodicidade || "Desconhecida"
-    };
+    const serie = refSerie(args.codigo, resultado.periodicidade);
+    const observacoes = resultado.observacoes;
 
-    if (!Array.isArray(data) || data.length === 0) {
+    if (observacoes.length === 0) {
       return structuredResult({
         serie,
         totalRegistros: 0,
         dados: [],
-        observacao: `Nenhum dado encontrado para a série ${args.codigo} no período solicitado.`
+        observacao: `Nenhum dado encontrado para a série ${args.codigo} no período solicitado.`,
+        ...blocoRede(resultado)
+      });
+    }
+
+    const dados = observacoes.map(d => ({ data: d.data, valor: parseFloat(d.valor) }));
+
+    if (args.frequencia) {
+      const h = harmonizar(dados, args.frequencia, args.agregacao ?? "ultimo", resultado.periodicidade);
+      return structuredResult({
+        serie,
+        totalRegistros: h.dados.length,
+        periodoInicial: h.dados[0]?.data,
+        periodoFinal: h.dados[h.dados.length - 1]?.data,
+        dados: h.dados,
+        harmonizacao: {
+          frequencia: h.frequencia,
+          agregacao: h.agregacao,
+          observacoesOriginais: dados.length,
+          derived: true,
+          nota: h.nota
+        },
+        ...blocoRede(resultado)
       });
     }
 
     return structuredResult({
       serie,
-      totalRegistros: data.length,
-      periodoInicial: data[0].data,
-      periodoFinal: data[data.length - 1].data,
-      dados: data.map(d => ({ data: d.data, valor: parseFloat(d.valor) }))
+      totalRegistros: dados.length,
+      periodoInicial: observacoes[0].data,
+      periodoFinal: observacoes[observacoes.length - 1].data,
+      dados,
+      ...blocoRede(resultado)
     });
   } catch (error) {
     return {
@@ -300,29 +382,26 @@ export async function handleSerieUltimos(
   maxRetries?: number
 ): Promise<ToolResult> {
   try {
-    const url = `${BCB_API_BASE}.${args.codigo}/dados/ultimos/${args.quantidade}?formato=json`;
-    const data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
-    const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
-    const serie = {
-      codigo: args.codigo,
-      nome: serieInfo?.nome || `Série ${args.codigo}`,
-      categoria: serieInfo?.categoria || "Desconhecida",
-      periodicidade: serieInfo?.periodicidade || "Desconhecida"
-    };
+    // O endpoint nativo tem teto de 20 em TODA periodicidade (medido); acima
+    // disso a busca é feita por janela de datas. Ver `series.ts`.
+    const resultado = await buscarUltimosSgs(args.codigo, args.quantidade, timeoutMs, maxRetries);
+    const serie = refSerie(args.codigo, resultado.periodicidade);
 
-    if (!Array.isArray(data) || data.length === 0) {
+    if (resultado.observacoes.length === 0) {
       return structuredResult({
         serie,
         totalRegistros: 0,
         dados: [],
-        observacao: `Nenhum dado encontrado para a série ${args.codigo}.`
+        observacao: `Nenhum dado encontrado para a série ${args.codigo}.`,
+        ...blocoRede(resultado)
       });
     }
 
     return structuredResult({
       serie,
-      totalRegistros: data.length,
-      dados: data.map(d => ({ data: d.data, valor: parseFloat(d.valor) }))
+      totalRegistros: resultado.observacoes.length,
+      dados: resultado.observacoes.map(d => ({ data: d.data, valor: parseFloat(d.valor) })),
+      ...blocoRede(resultado)
     });
   } catch (error) {
     return {
@@ -332,61 +411,59 @@ export async function handleSerieUltimos(
   }
 }
 
+/**
+ * Metadados de uma série do SGS — sem endpoint de metadados.
+ *
+ * MUDANÇA DELIBERADA DO D1. A versão anterior chamava
+ * `bcdata.sgs.{codigo}/metadados?formato=json` em toda invocação e tratava a
+ * falha como exceção. Medição de 11/08/2026 (`bcb/docs/04`): **esse endpoint não
+ * existe** — responde 404 `{"error":"endpoint not found!"}`, e as variantes
+ * também. Ou seja, o caminho "metadados da API" era código morto que gastava uma
+ * requisição por chamada, e o que o usuário sempre recebeu foi o fallback.
+ *
+ * O que substitui: os últimos valores servem de sonda (uma requisição, ~80 ms) e
+ * dão a **periodicidade por inferência** — que é justamente o que faltava para
+ * as milhares de séries fora da curadoria. `unidade` e `especial` saíram do
+ * contrato porque nenhuma fonte disponível os publica; anunciar campo que nunca
+ * chega é pior do que não anunciar.
+ */
 export async function handleSerieMetadados(
   args: { codigo: number },
   timeoutMs?: number,
   maxRetries?: number
 ): Promise<ToolResult> {
+  const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
+  const urlConsulta = `${BCB_API_BASE}.${args.codigo}/dados?formato=json`;
+  const urlUltimos10 = `${BCB_API_BASE}.${args.codigo}/dados/ultimos/10?formato=json`;
+
   try {
-    const metadataUrl = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${args.codigo}/metadados?formato=json`;
+    const resultado = await buscarUltimosSgs(args.codigo, TETO_ULTIMOS, timeoutMs, maxRetries);
+    const observacoes = resultado.observacoes;
 
-    try {
-      const metadata = await fetchBcbApi(metadataUrl, timeoutMs, maxRetries) as SerieMetadados;
-      const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
-
-      return structuredResult({
-        codigo: metadata.codigo || args.codigo,
-        nome: metadata.nome || serieInfo?.nome || `Série ${args.codigo}`,
-        unidade: metadata.unidade || "Não informada",
-        periodicidade: metadata.periodicidade || serieInfo?.periodicidade || "Não informada",
-        fonte: metadata.fonte || "Banco Central do Brasil",
-        categoria: serieInfo?.categoria || "Não categorizada",
-        especial: metadata.especial || false,
-        urlConsulta: `${BCB_API_BASE}.${args.codigo}/dados?formato=json`,
-        urlUltimos10: `${BCB_API_BASE}.${args.codigo}/dados/ultimos/10?formato=json`
-      });
-    } catch {
-      const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
-
-      if (serieInfo) {
-        return structuredResult({
-          codigo: args.codigo,
-          nome: serieInfo.nome,
-          periodicidade: serieInfo.periodicidade,
-          categoria: serieInfo.categoria,
-          fonte: "Banco Central do Brasil",
-          urlConsulta: `${BCB_API_BASE}.${args.codigo}/dados?formato=json`,
-          urlUltimos10: `${BCB_API_BASE}.${args.codigo}/dados/ultimos/10?formato=json`,
-          observacao: "Metadados obtidos do catálogo interno"
-        });
-      }
-
-      const url = `${BCB_API_BASE}.${args.codigo}/dados/ultimos/1?formato=json`;
-      const data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
-
-      if (Array.isArray(data) && data.length > 0) {
-        return structuredResult({
-          codigo: args.codigo,
-          nome: `Série ${args.codigo}`,
-          fonte: "Banco Central do Brasil",
-          ultimoValor: { data: data[0].data, valor: parseFloat(data[0].valor) },
-          urlConsulta: `${BCB_API_BASE}.${args.codigo}/dados?formato=json`,
-          observacao: "Série encontrada, mas metadados detalhados não disponíveis"
-        });
-      }
-
+    if (observacoes.length === 0 && !serieInfo) {
       throw new Error("Série não encontrada");
     }
+
+    const ultima = observacoes[observacoes.length - 1];
+    const periodicidadeCatalogo = serieInfo?.periodicidade;
+    const periodicidadeInferida = resultado.periodicidade
+      ? ROTULO_PERIODICIDADE[resultado.periodicidade]
+      : undefined;
+
+    return structuredResult({
+      codigo: args.codigo,
+      nome: serieInfo?.nome || `Série ${args.codigo}`,
+      periodicidade: periodicidadeCatalogo || periodicidadeInferida || "Não informada",
+      ...(!periodicidadeCatalogo && periodicidadeInferida ? { periodicidadeInferida: true } : {}),
+      categoria: serieInfo?.categoria || "Não categorizada",
+      fonte: "Banco Central do Brasil",
+      ...(ultima ? { ultimoValor: { data: ultima.data, valor: parseFloat(ultima.valor) } } : {}),
+      urlConsulta,
+      urlUltimos10,
+      observacao: serieInfo
+        ? "Nome e categoria vêm do catálogo curado do servidor; a API do SGS não publica endpoint de metadados."
+        : "Série fora do catálogo curado: nome genérico. A API do SGS não publica endpoint de metadados, então a periodicidade é inferida do espaçamento das observações."
+    });
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao consultar metadados da série ${args.codigo}: ${error instanceof Error ? error.message : String(error)}` }],
@@ -533,17 +610,22 @@ export async function handleVariacao(
   maxRetries?: number
 ): Promise<ToolResult> {
   try {
-    let data: SerieValor[];
+    // `periodos` mantém a precedência sobre as datas (comportamento de sempre).
+    // O que mudou: acima de 20 períodos a consulta não falha mais, e janela
+    // diária larga é fatiada em vez de estourar o tempo. Ver `series.ts`.
+    const resultado = args.periodos && args.periodos > 1
+      ? await buscarUltimosSgs(args.codigo, args.periodos, timeoutMs, maxRetries)
+      : await buscarSerieSgs(
+          {
+            codigo: args.codigo,
+            dataInicial: args.dataInicial ? formatDateForApi(args.dataInicial) : undefined,
+            dataFinal: args.dataFinal ? formatDateForApi(args.dataFinal) : undefined
+          },
+          timeoutMs,
+          maxRetries
+        );
 
-    if (args.periodos && args.periodos > 1) {
-      const url = `${BCB_API_BASE}.${args.codigo}/dados/ultimos/${args.periodos}?formato=json`;
-      data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
-    } else {
-      let url = `${BCB_API_BASE}.${args.codigo}/dados?formato=json`;
-      if (args.dataInicial) url += `&dataInicial=${formatDateForApi(args.dataInicial)}`;
-      if (args.dataFinal) url += `&dataFinal=${formatDateForApi(args.dataFinal)}`;
-      data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
-    }
+    const data: SerieValor[] = resultado.observacoes;
 
     if (!Array.isArray(data) || data.length < 2) {
       return {
@@ -557,26 +639,22 @@ export async function handleVariacao(
     const valorFinal = parseFloat(data[data.length - 1].valor);
     const variacao = calculateVariation(valorInicial, valorFinal);
     const diferencaAbsoluta = valorFinal - valorInicial;
-    const valores = data.map(d => parseFloat(d.valor));
-    const maximo = Math.max(...valores);
-    const minimo = Math.min(...valores);
-    const media = valores.reduce((a, b) => a + b, 0) / valores.length;
+    // Motor comum da Fase 0 (arbitragem 4). A convenção de arredondamento e o
+    // porquê de os extremos saírem verbatim moram em `stats.ts`.
+    const { maximo, minimo, media, amplitude } = estatisticasDaSerie(data.map(d => parseFloat(d.valor)));
 
     return structuredResult({
       serie: { codigo: args.codigo, nome: serieInfo?.nome || `Série ${args.codigo}`, categoria: serieInfo?.categoria || "Desconhecida" },
       periodo: { dataInicial: data[0].data, dataFinal: data[data.length - 1].data, totalPeriodos: data.length },
       analise: {
         valorInicial, valorFinal,
-        diferencaAbsoluta: Number(diferencaAbsoluta.toFixed(4)),
-        variacaoPercentual: Number(variacao.toFixed(4)),
+        diferencaAbsoluta: arredondarDerivado(diferencaAbsoluta),
+        variacaoPercentual: arredondarDerivado(variacao),
         variacaoFormatada: `${variacao >= 0 ? "+" : ""}${variacao.toFixed(2)}%`
       },
-      estatisticas: {
-        maximo: Number(maximo.toFixed(4)),
-        minimo: Number(minimo.toFixed(4)),
-        media: Number(media.toFixed(4)),
-        amplitude: Number((maximo - minimo).toFixed(4))
-      }
+      estatisticas: { maximo, minimo, media, amplitude },
+      derivacao: DERIVACAO_ESTATISTICA,
+      ...blocoRede(resultado)
     });
   } catch (error) {
     return {
@@ -587,45 +665,78 @@ export async function handleVariacao(
 }
 
 export async function handleComparar(
-  args: { codigos: number[]; dataInicial: string; dataFinal: string },
+  args: {
+    codigos: number[];
+    dataInicial: string;
+    dataFinal: string;
+    frequencia?: FrequenciaAlvo;
+    agregacao?: Agregacao;
+  },
   timeoutMs?: number,
   maxRetries?: number
 ): Promise<ToolResult> {
   try {
+    const periodicidades = new Map<number, string>();
+    let harmonizacao: Record<string, unknown> | undefined;
+
     const resultados = await Promise.all(
       args.codigos.map(async (codigo) => {
+        const serieInfo = SERIES_POPULARES.find(s => s.codigo === codigo);
         try {
-          let url = `${BCB_API_BASE}.${codigo}/dados?formato=json`;
-          url += `&dataInicial=${formatDateForApi(args.dataInicial)}`;
-          url += `&dataFinal=${formatDateForApi(args.dataFinal)}`;
+          // Concorrência 1 por série: as séries já são buscadas em paralelo entre
+          // si, e o portal pede parcimônia. Sem isto, 5 séries fatiadas em 4
+          // janelas cada poriam 20 requisições em voo ao mesmo tempo.
+          const resultado = await buscarSerieSgs(
+            {
+              codigo,
+              dataInicial: formatDateForApi(args.dataInicial),
+              dataFinal: formatDateForApi(args.dataFinal)
+            },
+            timeoutMs,
+            maxRetries,
+            1
+          );
 
-          const data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
-          const serieInfo = SERIES_POPULARES.find(s => s.codigo === codigo);
+          const data = resultado.observacoes;
 
-          if (!Array.isArray(data) || data.length === 0) {
+          if (data.length === 0) {
             return { codigo, nome: serieInfo?.nome || `Série ${codigo}`, erro: "Sem dados no período" };
           }
 
-          const valores = data.map(d => parseFloat(d.valor));
+          const ref = refSerie(codigo, resultado.periodicidade);
+          periodicidades.set(codigo, String(ref.periodicidade));
+
+          let observacoes = data.map(d => ({ data: d.data, valor: parseFloat(d.valor) }));
+
+          if (args.frequencia) {
+            const h = harmonizar(observacoes, args.frequencia, args.agregacao ?? "ultimo", resultado.periodicidade);
+            observacoes = h.dados.map(d => ({ data: d.data, valor: d.valor }));
+            harmonizacao = {
+              frequencia: h.frequencia,
+              agregacao: h.agregacao,
+              derived: true,
+              nota: h.nota
+            };
+          }
+
+          const valores = observacoes.map(o => o.valor);
           const valorInicial = valores[0];
           const valorFinal = valores[valores.length - 1];
           const variacao = calculateVariation(valorInicial, valorFinal);
+          const { maximo, minimo, media } = estatisticasDaSerie(valores);
 
           return {
             codigo,
             nome: serieInfo?.nome || `Série ${codigo}`,
             categoria: serieInfo?.categoria || "Desconhecida",
-            periodicidade: serieInfo?.periodicidade || "Desconhecida",
-            totalRegistros: data.length,
+            periodicidade: String(ref.periodicidade),
+            totalRegistros: observacoes.length,
             valorInicial, valorFinal,
-            variacaoPercentual: Number(variacao.toFixed(4)),
+            variacaoPercentual: arredondarDerivado(variacao),
             variacaoFormatada: `${variacao >= 0 ? "+" : ""}${variacao.toFixed(2)}%`,
-            maximo: Math.max(...valores),
-            minimo: Math.min(...valores),
-            media: Number((valores.reduce((a, b) => a + b, 0) / valores.length).toFixed(4))
+            maximo, minimo, media
           };
         } catch (err) {
-          const serieInfo = SERIES_POPULARES.find(s => s.codigo === codigo);
           return { codigo, nome: serieInfo?.nome || `Série ${codigo}`, erro: err instanceof Error ? err.message : "Erro desconhecido" };
         }
       })
@@ -640,13 +751,27 @@ export async function handleComparar(
       return varB - varA;
     });
 
+    // Periodicidade misturada é a armadilha silenciosa desta tool: comparar a
+    // variação de uma série diária com a de uma mensal alinha pontos que não são
+    // comparáveis, e o resultado parece perfeitamente saudável. O aviso é campo
+    // de topo (não entra nos itens do ranking) e some quando não se aplica.
+    const distintas = [...new Set(periodicidades.values())].filter(p => p !== "Desconhecida");
+    const aviso = !args.frequencia && distintas.length > 1
+      ? `As séries comparadas têm periodicidades diferentes (${distintas.join(", ")}): a variação de cada uma ` +
+        `foi calculada na grade da própria série, então os números não são diretamente comparáveis. ` +
+        `Use o parâmetro \`frequencia\` (mensal, trimestral ou anual) para harmonizá-las antes da comparação.`
+      : undefined;
+
     return structuredResult({
       periodo: { dataInicial: formatDateForApi(args.dataInicial), dataFinal: formatDateForApi(args.dataFinal) },
       totalSeries: args.codigos.length,
       seriesComDados: seriesComDados.length,
       seriesComErro: seriesComErro.length,
       ranking: seriesOrdenadas.map((s, i) => ({ posicao: i + 1, ...s })),
-      erros: seriesComErro.length > 0 ? seriesComErro : []
+      erros: seriesComErro.length > 0 ? seriesComErro : [],
+      derivacao: DERIVACAO_ESTATISTICA,
+      ...(harmonizacao ? { harmonizacao } : {}),
+      ...(aviso ? { aviso } : {})
     });
   } catch (error) {
     return {
@@ -671,6 +796,24 @@ const SERIE_REF_SCHEMA = {
   required: ["codigo", "nome"]
 };
 
+// Variante para as tools que CONSULTAM série: quando o código está fora da
+// curadoria, a periodicidade é inferida do espaçamento das observações (a API do
+// SGS não publica metadados). `bcb_series_populares` segue com o fragmento acima
+// de propósito — ele lista o catálogo curado, onde nada é inferido, e anunciar um
+// campo que a tool nunca produz seria sujar a superfície.
+const SERIE_REF_CONSULTADA_SCHEMA = {
+  ...SERIE_REF_SCHEMA,
+  properties: {
+    ...SERIE_REF_SCHEMA.properties,
+    periodicidadeInferida: {
+      type: "boolean" as const,
+      description:
+        "Presente e true quando a periodicidade foi inferida do espaçamento das observações, e não lida " +
+        "do catálogo — a API do SGS não publica metadados de série."
+    }
+  }
+};
+
 // Shared fragment: a single observation (date + numeric value).
 const OBSERVACAO_SCHEMA = {
   type: "object" as const,
@@ -679,6 +822,100 @@ const OBSERVACAO_SCHEMA = {
     valor: { type: "number" as const, description: "Valor numérico da observação" }
   },
   required: ["data", "valor"]
+};
+
+// Observação que pode ser bruta OU agregada: quando a resposta é harmonizada,
+// cada ponto carrega quantas observações de origem entraram nele. Declarar o
+// campo como opcional aqui é o que permite os dois casos passarem pelo mesmo
+// contrato — os schemas são selados (`additionalProperties: false`), então campo
+// não declarado invalidaria a resposta inteira.
+const OBSERVACAO_OU_AGREGADO_SCHEMA = {
+  ...OBSERVACAO_SCHEMA,
+  properties: {
+    ...OBSERVACAO_SCHEMA.properties,
+    observacoes: {
+      type: "number" as const,
+      description: "Só em resposta harmonizada: observações de origem agregadas neste ponto"
+    }
+  }
+};
+
+// Transparência da consulta: aparece quando o servidor precisou fatiar a janela
+// (limite de 10 anos em série diária, erro 406) ou fechar uma janela aberta.
+const CHUNKING_SCHEMA = {
+  type: "object" as const,
+  description:
+    "Presente quando a consulta foi fatiada em várias requisições à origem, por causa do limite de " +
+    "10 anos por janela em séries diárias. As fatias são fundidas e ordenadas antes de responder.",
+  properties: {
+    janelas: { type: "number" as const, description: "Quantidade de janelas consultadas" },
+    fatiaAnos: { type: "number" as const, description: "Largura máxima de cada janela, em anos" }
+  },
+  required: ["janelas", "fatiaAnos"]
+};
+
+const JANELA_APLICADA_SCHEMA = {
+  type: "object" as const,
+  description:
+    "Presente quando o período pedido estava aberto numa série diária e o servidor aplicou uma janela " +
+    "própria (a origem recusa janela aberta em série diária com HTTP 406).",
+  properties: {
+    dataInicial: { type: "string" as const, description: "Início da janela efetivamente consultada (dd/MM/yyyy)" },
+    dataFinal: { type: "string" as const, description: "Fim da janela efetivamente consultada (dd/MM/yyyy)" },
+    motivo: { type: "string" as const, description: "Por que a janela foi aplicada e como pedir outra" }
+  },
+  required: ["dataInicial", "dataFinal", "motivo"]
+};
+
+// Marca de derivação das tools quantitativas: separa o que o BCB publica do que
+// este servidor calcula. Ver `stats.ts` para as convenções.
+const DERIVACAO_SCHEMA = {
+  type: "object" as const,
+  description: "Origem dos números calculados: o que é derivado, por qual motor e com quais convenções",
+  properties: {
+    derived: { type: "boolean" as const, description: "Sempre true: há número calculado nesta resposta" },
+    motor: { type: "string" as const, description: "Componente que computou a estatística" },
+    nota: { type: "string" as const, description: "Convenções de cálculo e arredondamento, em prosa" }
+  },
+  required: ["derived", "motor", "nota"]
+};
+
+const HARMONIZACAO_SCHEMA = {
+  type: "object" as const,
+  description:
+    "Presente quando `frequencia` foi informada: descreve a reamostragem aplicada. Valor DERIVADO — " +
+    "calculado por este servidor, não publicado pelo Banco Central.",
+  properties: {
+    frequencia: { type: "string" as const, enum: ["mensal", "trimestral", "anual"], description: "Frequência de destino" },
+    agregacao: {
+      type: "string" as const,
+      enum: ["ultimo", "primeiro", "media", "soma", "acumulada"],
+      description: "Convenção usada para agregar os valores de cada período"
+    },
+    observacoesOriginais: { type: "number" as const, description: "Observações antes da agregação" },
+    derived: { type: "boolean" as const, description: "Sempre true: o valor é derivado, não publicado pela fonte" },
+    nota: { type: "string" as const, description: "Descrição em prosa do que foi calculado" }
+  },
+  required: ["frequencia", "agregacao", "derived", "nota"]
+};
+
+// Parâmetros de harmonização, iguais em `bcb_serie_valores` e `bcb_comparar`.
+const FREQUENCIA_INPUT = {
+  type: "string" as const,
+  enum: ["mensal", "trimestral", "anual"],
+  description:
+    "Opcional: reamostra a série para esta frequência antes de responder (só agrega para períodos MAIORES; " +
+    "pedir frequência mais fina que a da série é recusado). Útil para comparar séries de periodicidades diferentes."
+};
+
+const AGREGACAO_INPUT = {
+  type: "string" as const,
+  enum: ["ultimo", "primeiro", "media", "soma", "acumulada"],
+  default: "ultimo",
+  description:
+    "Como agregar os valores de cada período quando `frequencia` é informada. `ultimo` (padrão) serve a nível " +
+    "de preço, taxa e índice; `soma` a fluxo; `acumulada` a séries que JÁ SÃO variação percentual (IPCA mensal, " +
+    "por exemplo), compondo geometricamente — somar 12 variações mensais NÃO dá a inflação do ano."
 };
 
 // ==================== TOOL DESCRIPTIONS (single source of truth) ====================
@@ -708,7 +945,14 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "código, descubra-o antes com bcb_buscar_serie ou bcb_series_populares. " +
     "Retorna: objeto `serie` (codigo, nome, categoria, periodicidade), `totalRegistros`, " +
     "`periodoInicial`, `periodoFinal` e `dados` (array de {data, valor}); quando não há dados, " +
-    "`totalRegistros` = 0 e uma `observacao` explicativa. " + BEHAVIOR_NOTE,
+    "`totalRegistros` = 0 e uma `observacao` explicativa. " +
+    "Períodos longos: a API do BCB limita séries DIÁRIAS a 10 anos por consulta e recusa janela aberta " +
+    "(HTTP 406). Isso é tratado automaticamente — a janela é fatiada em requisições de até 3 anos e o " +
+    "resultado vem fundido e ordenado, com `chunking` na resposta dizendo quantas janelas foram usadas; " +
+    "se o período pedido estava aberto numa série diária, `janelaAplicada` diz qual janela foi usada e por quê. " +
+    "Harmonização: `frequencia` (mensal|trimestral|anual) reamostra a série antes de responder, com a " +
+    "convenção escolhida em `agregacao`; a resposta traz `harmonizacao` com `derived: true` e a nota do cálculo. " +
+    BEHAVIOR_NOTE,
 
   bcb_serie_ultimos:
     "Obtém as últimas N observações de UMA série temporal do BCB (mais recentes primeiro a partir " +
@@ -717,16 +961,21 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "do IPCA). Quantidade entre 1 e 1000 (padrão 10). " +
     "Quando NÃO usar: para um intervalo de datas ou o histórico completo use bcb_serie_valores. " +
     "Retorna: objeto `serie`, `totalRegistros` e `dados` (array de {data, valor}); sem dados, " +
-    "`totalRegistros` = 0 com `observacao`. " + BEHAVIOR_NOTE,
+    "`totalRegistros` = 0 com `observacao`. " +
+    "Acima de 20: o endpoint nativo do BCB rejeita N > 20 em qualquer periodicidade, então o servidor " +
+    "descobre a periodicidade da série e busca por janela de datas, devolvendo os N últimos pontos. " +
+    BEHAVIOR_NOTE,
 
   bcb_serie_metadados:
-    "Obtém os metadados descritivos de UMA série do BCB (nome, unidade de medida, periodicidade, " +
-    "fonte, categoria), sem trazer a série de valores. " +
-    "Quando usar: para confirmar o que uma série representa e em que unidade antes de consultar os " +
-    "dados. Quando NÃO usar: para os valores em si use bcb_serie_valores ou bcb_serie_ultimos. " +
-    "Retorna: codigo, nome, unidade, periodicidade, fonte, categoria, especial e URLs diretas da API " +
-    "(urlConsulta, urlUltimos10). Se o endpoint de metadados do BCB não responder, faz fallback para " +
-    "o catálogo interno ou para o último valor disponível, sinalizando a origem em `observacao`. " +
+    "Obtém a descrição de UMA série do BCB (nome, periodicidade, categoria, fonte e último valor), sem " +
+    "trazer a série histórica. " +
+    "Quando usar: para confirmar o que uma série representa e com que frequência é publicada antes de " +
+    "consultar os dados. Quando NÃO usar: para os valores em si use bcb_serie_valores ou bcb_serie_ultimos. " +
+    "Retorna: codigo, nome, periodicidade, categoria, fonte, `ultimoValor` e URLs diretas da API " +
+    "(urlConsulta, urlUltimos10). " +
+    "Limite da fonte: a API do SGS NÃO publica endpoint de metadados por série — não há unidade de medida " +
+    "disponível. Nome e categoria vêm do catálogo curado do servidor (150+ séries) e, fora dele, a " +
+    "periodicidade é inferida do espaçamento das observações, sinalizada por `periodicidadeInferida`. " +
     BEHAVIOR_NOTE,
 
   bcb_series_populares:
@@ -775,7 +1024,10 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "observações no período (senão retorna `isError`). " +
     "Retorna: `serie`, `periodo` (dataInicial, dataFinal, totalPeriodos), `analise` (valorInicial, " +
     "valorFinal, diferencaAbsoluta, variacaoPercentual, variacaoFormatada) e `estatisticas` (maximo, " +
-    "minimo, media, amplitude). " + BEHAVIOR_NOTE,
+    "minimo, media, amplitude). " +
+    "Períodos longos são tratados automaticamente: janela diária acima de 10 anos é fatiada (a API do BCB " +
+    "responde 406) e `periodos` acima de 20 é atendido por janela de datas; `chunking` e `janelaAplicada` " +
+    "aparecem na resposta quando isso acontece. " + BEHAVIOR_NOTE,
 
   bcb_comparar:
     "Compara de 2 a 5 séries temporais no MESMO período (dataInicial e dataFinal obrigatórias), " +
@@ -785,6 +1037,10 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "Retorna: `periodo`, `totalSeries`, `seriesComDados`, `seriesComErro`, `ranking` (cada item com " +
     "posicao, codigo, nome, valorInicial, valorFinal, variacaoPercentual, maximo, minimo, media) e " +
     "`erros`. Resiliente: séries sem dados no período são isoladas em `erros` sem invalidar a comparação. " +
+    "Periodicidades diferentes: comparar uma série diária com uma mensal alinha pontos que não são " +
+    "comparáveis, e a resposta avisa isso em `aviso`; informe `frequencia` (mensal|trimestral|anual) para " +
+    "harmonizar todas na mesma grade antes de comparar, escolhendo a convenção em `agregacao`. " +
+    "Janelas longas em séries diárias são fatiadas automaticamente (limite de 10 anos da API do BCB). " +
     BEHAVIOR_NOTE
 };
 
@@ -815,18 +1071,23 @@ const RAW_TOOL_DEFINITIONS = [
       properties: {
         codigo: { type: "number" as const, description: "Código da série no SGS/BCB (ex: 433 para IPCA mensal, 11 para Selic)" },
         dataInicial: { type: "string" as const, description: "Data inicial no formato yyyy-MM-dd ou dd/MM/yyyy (opcional)" },
-        dataFinal: { type: "string" as const, description: "Data final no formato yyyy-MM-dd ou dd/MM/yyyy (opcional)" }
+        dataFinal: { type: "string" as const, description: "Data final no formato yyyy-MM-dd ou dd/MM/yyyy (opcional)" },
+        frequencia: FREQUENCIA_INPUT,
+        agregacao: AGREGACAO_INPUT
       },
       required: ["codigo"]
     },
     outputSchema: {
       type: "object" as const,
       properties: {
-        serie: SERIE_REF_SCHEMA,
+        serie: SERIE_REF_CONSULTADA_SCHEMA,
         totalRegistros: { type: "number" as const, description: "Quantidade de observações retornadas" },
         periodoInicial: { type: "string" as const, description: "Data da primeira observação" },
         periodoFinal: { type: "string" as const, description: "Data da última observação" },
-        dados: { type: "array" as const, description: "Observações históricas", items: OBSERVACAO_SCHEMA },
+        dados: { type: "array" as const, description: "Observações históricas", items: OBSERVACAO_OU_AGREGADO_SCHEMA },
+        harmonizacao: HARMONIZACAO_SCHEMA,
+        chunking: CHUNKING_SCHEMA,
+        janelaAplicada: JANELA_APLICADA_SCHEMA,
         observacao: { type: "string" as const, description: "Mensagem informativa (ex.: quando não há dados)" }
       },
       required: ["serie", "totalRegistros", "dados"]
@@ -848,7 +1109,9 @@ const RAW_TOOL_DEFINITIONS = [
         codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
         quantidade: {
           type: "number" as const,
-          description: "Quantidade de valores a retornar (1-1000, padrão: 10)",
+          description:
+            "Quantidade de valores a retornar (1-1000, padrão: 10). A API do BCB tem teto de 20 no endpoint " +
+            "nativo; acima disso o servidor busca por janela de datas e devolve os N últimos.",
           default: 10,
           minimum: 1,
           maximum: 1000
@@ -859,9 +1122,10 @@ const RAW_TOOL_DEFINITIONS = [
     outputSchema: {
       type: "object" as const,
       properties: {
-        serie: SERIE_REF_SCHEMA,
+        serie: SERIE_REF_CONSULTADA_SCHEMA,
         totalRegistros: { type: "number" as const, description: "Quantidade de observações retornadas" },
         dados: { type: "array" as const, description: "Observações mais recentes", items: OBSERVACAO_SCHEMA },
+        chunking: CHUNKING_SCHEMA,
         observacao: { type: "string" as const, description: "Mensagem informativa (ex.: quando não há dados)" }
       },
       required: ["serie", "totalRegistros", "dados"]
@@ -889,12 +1153,14 @@ const RAW_TOOL_DEFINITIONS = [
       properties: {
         codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
         nome: { type: "string" as const, description: "Nome da série" },
-        unidade: { type: "string" as const, description: "Unidade de medida" },
         periodicidade: { type: "string" as const, description: "Periodicidade da série" },
+        periodicidadeInferida: {
+          type: "boolean" as const,
+          description: "Presente e true quando a periodicidade foi inferida do espaçamento das observações"
+        },
         fonte: { type: "string" as const, description: "Fonte dos dados" },
         categoria: { type: "string" as const, description: "Categoria econômica" },
-        especial: { type: "boolean" as const, description: "Indica se é uma série especial" },
-        ultimoValor: { ...OBSERVACAO_SCHEMA, description: "Última observação disponível (quando metadados detalhados não existem)" },
+        ultimoValor: { ...OBSERVACAO_SCHEMA, description: "Última observação disponível" },
         urlConsulta: { type: "string" as const, description: "URL da API do BCB para consulta completa" },
         urlUltimos10: { type: "string" as const, description: "URL da API do BCB para os últimos 10 valores" },
         observacao: { type: "string" as const, description: "Observação sobre a origem dos metadados" }
@@ -1076,7 +1342,12 @@ const RAW_TOOL_DEFINITIONS = [
           type: "string" as const,
           description: "Data final (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o último valor disponível."
         },
-        periodos: { type: "number" as const, description: "Alternativa: calcular variação dos últimos N períodos (ignora datas se informado)" }
+        periodos: {
+          type: "number" as const,
+          description:
+            "Alternativa: calcular variação dos últimos N períodos (ignora datas se informado). Acima de 20 " +
+            "o servidor busca por janela de datas, porque o endpoint nativo do BCB tem esse teto."
+        }
       },
       required: ["codigo"]
     },
@@ -1126,9 +1397,12 @@ const RAW_TOOL_DEFINITIONS = [
             amplitude: { type: "number" as const }
           },
           required: ["maximo", "minimo", "media", "amplitude"]
-        }
+        },
+        derivacao: DERIVACAO_SCHEMA,
+        chunking: CHUNKING_SCHEMA,
+        janelaAplicada: JANELA_APLICADA_SCHEMA
       },
-      required: ["serie", "periodo", "analise", "estatisticas"]
+      required: ["serie", "periodo", "analise", "estatisticas", "derivacao"]
     }
   },
   {
@@ -1152,7 +1426,9 @@ const RAW_TOOL_DEFINITIONS = [
           maxItems: 5
         },
         dataInicial: { type: "string" as const, description: "Data inicial (yyyy-MM-dd ou dd/MM/yyyy)" },
-        dataFinal: { type: "string" as const, description: "Data final (yyyy-MM-dd ou dd/MM/yyyy)" }
+        dataFinal: { type: "string" as const, description: "Data final (yyyy-MM-dd ou dd/MM/yyyy)" },
+        frequencia: FREQUENCIA_INPUT,
+        agregacao: AGREGACAO_INPUT
       },
       required: ["codigos", "dataInicial", "dataFinal"]
     },
@@ -1206,9 +1482,17 @@ const RAW_TOOL_DEFINITIONS = [
             },
             required: ["codigo", "erro"]
           }
+        },
+        derivacao: DERIVACAO_SCHEMA,
+        harmonizacao: HARMONIZACAO_SCHEMA,
+        aviso: {
+          type: "string" as const,
+          description:
+            "Presente quando as séries comparadas têm periodicidades diferentes e nenhuma harmonização foi " +
+            "pedida — os números do ranking, nesse caso, não são diretamente comparáveis entre si."
         }
       },
-      required: ["periodo", "totalSeries", "seriesComDados", "seriesComErro", "ranking", "erros"]
+      required: ["periodo", "totalSeries", "seriesComDados", "seriesComErro", "ranking", "erros", "derivacao"]
     }
   }
 ];
@@ -1323,7 +1607,13 @@ export async function dispatchTool(
 
   switch (toolName) {
     case "bcb_serie_valores":
-      return handleSerieValores(args as { codigo: number; dataInicial?: string; dataFinal?: string }, timeoutMs, maxRetries);
+      return handleSerieValores(
+        args as {
+          codigo: number; dataInicial?: string; dataFinal?: string;
+          frequencia?: FrequenciaAlvo; agregacao?: Agregacao;
+        },
+        timeoutMs, maxRetries
+      );
     case "bcb_serie_ultimos":
       return handleSerieUltimos(
         { codigo: args.codigo as number, quantidade: (args.quantidade as number) || 10 },
@@ -1340,7 +1630,13 @@ export async function dispatchTool(
     case "bcb_variacao":
       return handleVariacao(args as { codigo: number; dataInicial?: string; dataFinal?: string; periodos?: number }, timeoutMs, maxRetries);
     case "bcb_comparar":
-      return handleComparar(args as { codigos: number[]; dataInicial: string; dataFinal: string }, timeoutMs, maxRetries);
+      return handleComparar(
+        args as {
+          codigos: number[]; dataInicial: string; dataFinal: string;
+          frequencia?: FrequenciaAlvo; agregacao?: Agregacao;
+        },
+        timeoutMs, maxRetries
+      );
     default:
       return {
         content: [{ type: "text" as const, text: `Tool não encontrada: ${toolName}` }],

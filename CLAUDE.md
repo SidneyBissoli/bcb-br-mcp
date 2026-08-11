@@ -8,9 +8,10 @@ An MCP server, published to npm as `bcb-br-mcp`, exposing three public APIs of
 the Brazilian Central Bank as 13 tools over STDIO and Streamable HTTP: the SGS
 time series (Selic, IPCA, FX, GDP and 150+ indicators), the **Focus**
 market-expectations survey (Olinda OData) and **PTAX** exchange rates. Pure
-TypeScript, ESM, one runtime dependency: `@modelcontextprotocol/server` (MCP SDK
-v2). No database; the only state is module-level — the curated series catalog and
-the 24-hour cache of the Open Data Portal index (metadata only).
+TypeScript, ESM, two runtime dependencies: `@modelcontextprotocol/server` (MCP SDK
+v2) and `@sbissoli/mcp-stats` (motor de estatística do portfólio). No database;
+the only state is module-level — the curated series catalog and the 24-hour cache
+of the Open Data Portal index (metadata only).
 
 Two consumer channels, both in production and both protected:
 
@@ -61,7 +62,9 @@ trouxe a segunda e a terceira API):
 
 | Módulo | Responsabilidade |
 |:--|:--|
-| `src/shared.ts` | Primitivos sem dependência: fetch com timeout/retry, config, versão, tipos, `structuredResult`/`erroResult`, `sealDeep`. Não importa ninguém — é o que impede ciclo. `tools.ts` re-exporta tudo, porque worker e testes importam desses nomes de lá desde a fundação. |
+| `src/shared.ts` | Primitivos sem dependência: fetch com timeout/retry, config, versão, tipos, `structuredResult`/`erroResult`, `sealDeep`, `ErroHttpBcb` (erro com o status preservado — é o que permite casar o 406). Não importa ninguém — é o que impede ciclo. `tools.ts` re-exporta tudo, porque worker e testes importam desses nomes de lá desde a fundação. |
+| `src/series.ts` | Engenharia de série do SGS (D1): inferência de periodicidade, fatiamento de janela, busca com chunking, contorno do teto de 20 e harmonização de frequências. Concentra os limites medidos da origem. |
+| `src/stats.ts` | Adaptador do `@sbissoli/mcp-stats` (D2) e a convenção de arredondamento única do servidor. |
 | `src/tools.ts` | Tools do SGS + montagem do catálogo canônico + `dispatchTool`. |
 | `src/catalog.ts` | Índice do Portal de Dados Abertos (CKAN) para a busca real: cache de 24 h, renovação bloqueante, só metadados. |
 | `src/olinda.ts` | Tradução do OData: montagem de URL, literais, datas, `consultarOData`. Concentra as pegadinhas da fonte. |
@@ -131,13 +134,22 @@ landing page. O contador `legacy_root_post` em `/metrics` mede quem ainda usa.
   o feliz caminho: recusa de `referencia` nos horizontes rolantes, Top 5 barrado
   onde a fonte não publica, filtro sempre presente na URL, contagem client-side,
   formato MM-DD-YYYY da PTAX, disclaimer literal e qualificação da paridade.
-- `src/tools.characterization.test.ts` — baseline do comportamento pré-migração
-  das 8 tools do SGS, valor a valor, com `global.fetch` mockado (nunca rede). **Não
-  relaxe estas asserções para fazer um refactor passar**: `bcb_variacao` e
-  `bcb_comparar` são o gate registrado da migração ao `@sbissoli/mcp-stats`
-  (arbitragem 4 da fase) — a migração só passa se cada diferença for nenhuma ou
-  explicável. Repare que as duas tools usam convenções de arredondamento
-  DIFERENTES entre si hoje; isso está pinado de propósito.
+- `src/series.test.ts` — o motor do D1: inferência de periodicidade pela mediana
+  dos espaçamentos, fatiamento sem sobreposição nem buraco, fusão sem duplicata na
+  emenda, caminho reativo do 406, janela aplicada em série diária sem
+  `dataInicial`, contorno do teto de 20 e harmonização (inclusive a recusa de
+  desagregar).
+- `src/tools.series.test.ts` — o que disso CHEGA ao cliente pelas tools: o
+  `chunking` anunciado, o `aviso` de periodicidade misturada em `bcb_comparar`, a
+  harmonização com marca de derivação.
+- `src/tools.characterization.test.ts` — baseline do comportamento das 8 tools do
+  SGS, valor a valor, com `global.fetch` mockado (nunca rede). **Não relaxe estas
+  asserções para fazer um refactor passar.** `bcb_variacao` e `bcb_comparar` foram
+  o gate da migração ao `@sbissoli/mcp-stats` (arbitragem 4): a migração produziu
+  exatamente duas diferenças, as duas explicadas no cabeçalho da seção do gate, e
+  `bcb_comparar` não mudou em valor nenhum. A convenção de arredondamento agora é
+  única e mora em `src/stats.ts`: observação da fonte sai verbatim, número
+  calculado sai com 4 casas.
 - `src/output-contract.test.ts` — valida o `structuredContent` de TODA tool contra
   o `outputSchema` anunciado, com o mesmo validador que o servidor usa na entrada.
   Existe porque a validação de saída em runtime é permissiva de propósito
@@ -217,9 +229,23 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
 - **A fonte é irregular nos nomes dos recursos**, e não é erro de digitação:
   `ExpectativaMercadoMensais` e `ExpectativaMercadoTop5Trimestral` são singulares;
   o resto é plural. Existe Top 5 nos CINCO horizontes, não só no mensal e no anual.
-- **Limite de 10 anos do SGS** vale só para séries **diárias**, e o erro é
-  **406** (não 400/404) — o tratamento ainda não existe, está no escopo do D1.
-- **`ultimos/N` tem teto de 20** no upstream, embora o schema anuncie até 1000.
+- **Limite de 10 anos do SGS** vale só para séries **diárias** e o erro é **406**
+  (não 400/404). A fronteira é exata ao dia e o limite é INCLUSIVO (10 anos justos
+  passam), e vale sobre a janela **implícita**: sem `dataFinal` a origem assume
+  hoje; sem `dataInicial`, o começo da série — e aí recusa. Tratado em
+  `series.ts`, reativamente: quem afirma que a série é diária é o próprio 406.
+- **Janela LEGAL também precisa ser fatiada.** Dez anos de série diária custam
+  10–20 s (~4–8 ms por observação) e há corte por volta de 30 s que devolve
+  **200 com HTML**. O worker tem timeout de 10 s, ou seja: uma janela que a origem
+  aceita não completa no canal hospedado. Por isso a fatia é de **3 anos** (~2,6 s)
+  e não de 10. Não "otimize" isso para menos requisições sem reler `bcb/docs/04`.
+- **`ultimos/N` tem teto de 20 em TODA periodicidade** (não só nas diárias — a
+  mensal 433 também devolve 400), embora o schema anuncie até 1000. Acima de 20,
+  `series.ts` cumpre a promessa por janela de datas.
+- **Não existe endpoint de metadados por série**: `bcdata.sgs.{n}/metadados`
+  responde **404 `endpoint not found!`**, em todas as variantes de rota. A
+  periodicidade sai da inferência pelo espaçamento das datas, e `unidade` não sai
+  de lugar nenhum. Não reintroduza a chamada.
 - **Renomear o worker quebraria a URL**: ele se chama `bcb` desde a origem e é
   isso que define `bcb.sidneybissoli.workers.dev`.
 - **Propagação da Cloudflare serve isolates mistos** por alguns segundos após o

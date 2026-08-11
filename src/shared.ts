@@ -33,7 +33,7 @@ export const WORKER_CONFIG = {
 // A static `import "../package.json"` is avoided on purpose: it breaks tsc's rootDir
 // and createRequire is unavailable in the Worker runtime (no nodejs_compat).
 // The fallback is only used if no entry point injects a version; keep it = package.json.
-let serverVersion = "1.3.5";
+let serverVersion = "1.5.0";
 
 export function setServerVersion(version: string): void {
   serverVersion = version;
@@ -117,6 +117,25 @@ export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/**
+ * Erro HTTP da origem com o status PRESERVADO.
+ *
+ * Existe porque o D1 precisa casar um status específico: o SGS recusa janela
+ * maior que 10 anos em série diária com **406**, e essa é a informação que
+ * dispara o chunking. Antes disto o status só existia dentro do texto da
+ * mensagem, e casar por substring de mensagem é frágil. As mensagens seguem
+ * idênticas — só o objeto de erro ficou mais informativo.
+ */
+export class ErroHttpBcb extends Error {
+  readonly status: number;
+
+  constructor(status: number, mensagem: string) {
+    super(mensagem);
+    this.name = "ErroHttpBcb";
+    this.status = status;
+  }
+}
+
 export async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -148,16 +167,33 @@ export async function fetchBcbApi(
 
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error(`Série não encontrada ou sem dados para o período solicitado`);
+          throw new ErroHttpBcb(404, `Série não encontrada ou sem dados para o período solicitado`);
         }
-        throw new Error(`Erro na API do BCB: ${response.status} ${response.statusText}`);
+        throw new ErroHttpBcb(response.status, `Erro na API do BCB: ${response.status} ${response.statusText}`);
       }
 
-      return response.json();
+      try {
+        return await response.json();
+      } catch {
+        // Medido em 11/08/2026 (`bcb/docs/04`): uma janela diária larga pode ser
+        // cortada por volta de 30 s e voltar 200 com a página institucional em
+        // HTML. Sem esta mensagem o usuário recebia um erro de parsing cru.
+        throw new Error(
+          "Resposta da API do BCB não é JSON — a origem provavelmente cortou a consulta por tempo. " +
+          "Janelas longas em séries diárias fazem isso; reduza o período solicitado."
+        );
+      }
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
       if (lastError.message.includes("não encontrada")) {
+        throw lastError;
+      }
+
+      // Erro de cliente (4xx) é determinístico: repetir só gasta tempo e
+      // requisição. O 406 da janela decenal é o caso que importa — quem chama
+      // precisa dele de volta rápido para fatiar a janela e tentar de novo.
+      if (lastError instanceof ErroHttpBcb && lastError.status >= 400 && lastError.status < 500) {
         throw lastError;
       }
 

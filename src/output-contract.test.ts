@@ -202,3 +202,154 @@ describe("structuredContent obedece ao outputSchema anunciado", () => {
     expect(TOOL_DEFINITIONS).toHaveLength(13);
   });
 });
+
+// ==================== campos do D1/D2 ====================
+//
+// Os casos acima passam por um mock único e nunca acionam os campos que a sessão
+// de D1+D2 acrescentou. Estes acionam: `chunking`, `janelaAplicada`,
+// `harmonizacao` (que muda a FORMA dos itens de `dados`, acrescentando
+// `observacoes` a cada ponto), `aviso`, `derivacao` e `periodicidadeInferida`.
+// O risco é o mesmo de sempre: schema selado (`additionalProperties: false`)
+// recusa campo não declarado, e o Inspector rejeita a resposta INTEIRA.
+
+/** Observações diárias em dias corridos, do jeito que o SGS as devolve. */
+function diarias(inicioIso: string, n: number): Array<{ data: string; valor: string }> {
+  const t0 = Date.parse(`${inicioIso}T00:00:00Z`);
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(t0 + i * 86400000);
+    return {
+      data: `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`,
+      valor: String(i + 1)
+    };
+  });
+}
+
+const MENSAIS_12 = Array.from({ length: 12 }, (_, i) => ({
+  data: `01/${String(i + 1).padStart(2, "0")}/2024`,
+  valor: String(0.2 + i / 100)
+}));
+
+function mockRotas(rotas: Array<[string, unknown]>): void {
+  global.fetch = vi.fn(async (input: string | URL | Request) => {
+    const url = String(input);
+    const hit = rotas.find(([m]) => url.includes(m));
+    if (!hit) throw new Error(`URL não roteada: ${url}`);
+    const corpo = hit[1] as Record<string, unknown>;
+    if (corpo && typeof corpo === "object" && "__status" in corpo) {
+      return { ok: false, status: corpo.__status as number, statusText: "Erro", json: async () => ({}) } as unknown as Response;
+    }
+    return { ok: true, status: 200, statusText: "OK", json: async () => hit[1] } as unknown as Response;
+  }) as unknown as typeof fetch;
+}
+
+async function validar(nome: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const definicao = TOOL_DEFINITIONS.find(t => t.name === nome);
+  const resultado = await dispatchTool(nome, args, 5000, 1);
+
+  expect(resultado.isError, `${nome} devolveu erro: ${resultado.content?.[0]?.text}`).toBeUndefined();
+
+  const veredicto = validador.getValidator(definicao!.outputSchema as never)(resultado.structuredContent);
+  expect(veredicto.valid, `${nome}: ${veredicto.errorMessage}`).toBe(true);
+
+  return resultado.structuredContent as Record<string, unknown>;
+}
+
+describe("campos acrescentados pelo D1/D2 obedecem ao schema", () => {
+  it("bcb_serie_valores harmonizada: itens de `dados` com `observacoes` + bloco `harmonizacao`", async () => {
+    mockRotas([["bcdata.sgs.433/dados", MENSAIS_12]]);
+
+    const out = await validar("bcb_serie_valores", { codigo: 433, frequencia: "anual", agregacao: "acumulada" });
+
+    expect(out.harmonizacao).toBeDefined();
+    expect((out.dados as Array<Record<string, unknown>>)[0].observacoes).toBe(12);
+  });
+
+  it("bcb_serie_valores fatiada: bloco `chunking`", async () => {
+    mockRotas([
+      ["dados/ultimos/20", { __status: 500 }],
+      ["dataInicial=01/01/2005&dataFinal=01/01/2025", { __status: 406 }],
+      ["dataInicial", diarias("2005-01-03", 5)]
+    ]);
+
+    const out = await validar("bcb_serie_valores", { codigo: 1, dataInicial: "01/01/2005", dataFinal: "01/01/2025" });
+
+    expect(out.chunking).toBeDefined();
+  });
+
+  it("bcb_serie_valores com janela aplicada: bloco `janelaAplicada`", async () => {
+    mockRotas([
+      ["dados/ultimos/20", { __status: 500 }],
+      ["dataInicial", diarias("2016-08-11", 5)],
+      ["bcdata.sgs.1/dados?formato=json", { __status: 406 }]
+    ]);
+
+    const out = await validar("bcb_serie_valores", { codigo: 1 });
+
+    expect(out.janelaAplicada).toBeDefined();
+    expect(out.chunking).toBeDefined();
+  });
+
+  it("bcb_serie_ultimos acima do teto de 20: bloco `chunking`", async () => {
+    mockRotas([
+      ["dados/ultimos/20", diarias("2026-07-15", 20)],
+      ["dataInicial", diarias("2025-01-01", 500)]
+    ]);
+
+    // 1000 pontos diários ≈ 6,4 anos de janela, que passa da fatia de 3 anos e
+    // portanto fatia. O mock devolve a MESMA janela em cada fatia, então a fusão
+    // deduplica e sobram os 500 pontos distintos — o que importa aqui é o
+    // contrato da resposta, não a contagem.
+    const out = await validar("bcb_serie_ultimos", { codigo: 1, quantidade: 1000 });
+
+    expect(out.chunking).toBeDefined();
+    expect(out.totalRegistros).toBe(500);
+  });
+
+  it("bcb_serie_metadados fora da curadoria: `periodicidadeInferida`", async () => {
+    mockRotas([["bcdata.sgs.99999/dados/ultimos/20", MENSAIS_12]]);
+
+    const out = await validar("bcb_serie_metadados", { codigo: 99999 });
+
+    expect(out.periodicidadeInferida).toBe(true);
+  });
+
+  it("bcb_variacao: bloco `derivacao` (e `chunking` quando fatia)", async () => {
+    mockRotas([
+      ["dados/ultimos/20", { __status: 500 }],
+      ["dataInicial=01/01/2005&dataFinal=01/01/2025", { __status: 406 }],
+      ["dataInicial", diarias("2005-01-03", 5)]
+    ]);
+
+    const out = await validar("bcb_variacao", { codigo: 1, dataInicial: "01/01/2005", dataFinal: "01/01/2025" });
+
+    expect(out.derivacao).toBeDefined();
+    expect(out.chunking).toBeDefined();
+  });
+
+  it("bcb_comparar com periodicidades diferentes: campo `aviso`", async () => {
+    mockRotas([
+      ["bcdata.sgs.1/dados", diarias("2024-01-02", 10)],
+      ["bcdata.sgs.433/dados", MENSAIS_12]
+    ]);
+
+    const out = await validar("bcb_comparar", { codigos: [1, 433], dataInicial: "01/01/2024", dataFinal: "31/12/2024" });
+
+    expect(out.aviso).toBeDefined();
+    expect(out.derivacao).toBeDefined();
+  });
+
+  it("bcb_comparar harmonizada: bloco `harmonizacao`", async () => {
+    mockRotas([
+      ["bcdata.sgs.1/dados", diarias("2024-01-02", 10)],
+      ["bcdata.sgs.433/dados", MENSAIS_12]
+    ]);
+
+    const out = await validar("bcb_comparar", {
+      codigos: [1, 433], dataInicial: "01/01/2024", dataFinal: "31/12/2024",
+      frequencia: "trimestral", agregacao: "media"
+    });
+
+    expect(out.harmonizacao).toBeDefined();
+    expect(out.aviso).toBeUndefined();
+  });
+});

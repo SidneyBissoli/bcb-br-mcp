@@ -5,7 +5,72 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.0] - 2026-08-11
+
+The SGS limits, handled. Three of them were measured against the live API before
+any code was written, and two turned out to be **defects that had always been
+there**: `quantidade`/`periodos` above 20 never worked, and the per-series
+metadata endpoint does not exist at all.
+
+### Added
+- **Automatic window chunking for daily series.** The BCB API caps a date window
+  at 10 years for daily series (HTTP **406**) and refuses an open window
+  altogether. Requests are now sliced into windows of up to 3 years, fetched with
+  bounded concurrency and merged in date order, with no duplicate at the seams.
+  The response reports it in `chunking`. The slice is 3 years rather than the
+  allowed 10 because a 10-year daily window costs 10–20 s at the origin and can be
+  cut off around 30 s — a window the API *accepts* would not complete over the
+  hosted transport, whose timeout is 10 s.
+- **Declared window instead of an error** when the period is left open on a daily
+  series: the server applies the widest window the source itself allows and says
+  what it did, and how to ask for another period, in `janelaAplicada`.
+- **Frequency harmonisation** in `bcb_serie_valores` and `bcb_comparar` via
+  `frequencia` (`mensal`, `trimestral`, `anual`) and `agregacao` (`ultimo`,
+  `primeiro`, `media`, `soma`, `acumulada`). `acumulada` compounds geometrically,
+  which is the only correct aggregation for series that already are percentage
+  changes — summing twelve monthly IPCA readings does not give the year's
+  inflation. Harmonised responses carry `derived: true` and a note.
+- **Inferred periodicity** from the spacing of the returned observations, flagged
+  by `periodicidadeInferida`. This is what replaces the metadata endpoint that
+  does not exist, and it means series outside the curated catalog finally report a
+  frequency instead of "Desconhecida".
+- **`derivacao` block** in `bcb_variacao` and `bcb_comparar`, separating what the
+  BCB publishes from what this server computes, with the rounding conventions
+  spelled out.
+- **`aviso` in `bcb_comparar`** when the compared series have different
+  periodicities — the ranking numbers are not comparable across different grids,
+  and that used to be silent.
+
+### Fixed
+- **`bcb_serie_ultimos` above 20 values.** The input schema advertised up to 1000
+  while the upstream endpoint rejects any N above 20 **in every periodicity** (not
+  only daily, as previously documented). Above 20, the server now discovers the
+  series' periodicity and fetches by date window, delivering the N requested
+  points. Same fix for `periodos` in `bcb_variacao`.
+- **`bcb_serie_metadados` no longer calls a dead endpoint.**
+  `bcdata.sgs.{code}/metadados` answers 404 `endpoint not found!` — as do the
+  route variants — so every invocation wasted a request and always fell through to
+  the fallback. The tool now spends its single request on the last values, which
+  double as the periodicity probe.
+- Non-JSON responses from the origin (the institutional HTML page served with
+  status 200 when a heavy query is cut off) now produce an explanatory error
+  instead of a raw parsing failure.
+- Client errors (4xx) are no longer retried three times with backoff. They are
+  deterministic, and the 406 in particular needs to come back fast so the window
+  can be sliced.
+
+### Changed
+- **Statistics are now computed by `@sbissoli/mcp-stats`** (the portfolio's shared
+  engine) instead of two divergent hand-rolled implementations. Output field names
+  and structure are unchanged. One rounding convention now applies to both tools:
+  **a value published by the BCB is returned verbatim, a value computed here is
+  rounded to 4 decimals.** Practical effect: `bcb_comparar` is unchanged, and
+  `bcb_variacao` stops rounding `estatisticas.maximo`/`minimo` — rounding an
+  observation invented a number the source never published.
+- `bcb_serie_metadados` no longer advertises `unidade` or `especial` in its output
+  schema. No available source publishes them, and no client ever received them.
+
+## [1.4.1] - 2026-08-11
 
 Two new APIs and a real series search. The server stops being an SGS wrapper: it
 now covers the **Focus** market-expectations survey and **PTAX** exchange rates

@@ -38,16 +38,23 @@ As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com pro
 - **Catálogo de séries populares** - Lista de 150+ indicadores econômicos organizados em 12 categorias
 - **Busca inteligente** - Encontra séries por termo de busca (com ou sem acentos)
 - **Indicadores atuais** - Valores mais recentes dos principais indicadores econômicos
+- **Períodos longos resolvidos** - A API do BCB limita séries diárias a uma janela
+  de 10 anos (HTTP 406) e recusa janela aberta; a consulta é fatiada, buscada e
+  fundida automaticamente, então pedir 15 anos de série diária simplesmente funciona
+- **Harmonização de frequências** - Reamostra a série para mensal, trimestral ou
+  anual com convenção explícita, inclusive composição geométrica para séries que já
+  são variação percentual (IPCA mensal virando IPCA anual)
 - **Cálculo de variação** - Variação percentual entre períodos com estatísticas
-- **Comparação de séries** - Compara múltiplas séries no mesmo período
+- **Comparação de séries** - Compara múltiplas séries no mesmo período, com aviso
+  quando as periodicidades diferem
 
 ## Ferramentas Disponíveis
 
 | Ferramenta | Descrição |
 |------------|-----------|
-| `bcb_serie_valores` | Consulta valores de uma série por código e período |
-| `bcb_serie_ultimos` | Obtém os últimos N valores de uma série |
-| `bcb_serie_metadados` | Retorna informações/metadados de uma série |
+| `bcb_serie_valores` | Consulta valores de uma série por código e período; fatia janelas longas automaticamente e pode harmonizar a série para uma frequência mais grossa |
+| `bcb_serie_ultimos` | Obtém os últimos N valores de uma série (qualquer N — o teto de 20 da origem é contornado) |
+| `bcb_serie_metadados` | Retorna nome, periodicidade, categoria e último valor de uma série |
 | `bcb_series_populares` | Lista séries populares agrupadas por categoria |
 | `bcb_buscar_serie` | Busca séries por nome ou descrição (aceita termos sem acento) |
 | `bcb_indicadores_atuais` | Valores mais recentes: Selic, IPCA, Dólar, IBC-Br |
@@ -319,8 +326,34 @@ O SGS possui mais de 18.000 séries temporais. Para encontrar o código de outra
 ### Robustez
 
 - **Timeout**: 30 segundos por requisição (evita travamentos)
-- **Retry automático**: 3 tentativas com backoff exponencial (1s, 2s, 4s)
+- **Retry automático**: 3 tentativas com backoff exponencial (1s, 2s, 4s) em falha
+  transitória; erro de cliente (4xx) não é repetido, porque é determinístico
 - **Tratamento de erros**: Mensagens claras em português
+
+### Contornando os limites do SGS
+
+Tudo abaixo foi **medido** contra a API ao vivo, não inferido da documentação:
+
+- Uma **janela maior que 10 anos em série diária** é recusada com HTTP **406**, e
+  janela aberta (sem `dataInicial`, ou sem data nenhuma) também. O limite vale sobre
+  a janela *implícita*: sem `dataFinal`, a API assume hoje. A consulta é fatiada em
+  janelas de até **3 anos**, buscada com concorrência limitada e fundida em ordem de
+  data sem duplicar as emendas; a resposta informa isso em `chunking`. A fatia é de
+  3 anos, e não dos 10 permitidos, porque uma janela diária decenal custa 10–20 s na
+  origem e pode ser cortada por volta de 30 s.
+- **`dados/ultimos/N` tem teto de 20** na API, em qualquer periodicidade. Acima de
+  20, o servidor infere a periodicidade da série e busca por janela de datas.
+- **Não existe endpoint de metadados por série** (`/metadados` responde 404). A
+  periodicidade é inferida do espaçamento das observações e marcada com
+  `periodicidadeInferida`; unidade de medida não está disponível em fonte nenhuma.
+
+### Valores derivados
+
+Todo número que este servidor calcula — variação, estatísticas descritivas, série
+harmonizada — vem marcado com `derived: true` e uma nota com as convenções usadas.
+A estatística é do [`@sbissoli/mcp-stats`](https://www.npmjs.com/package/@sbissoli/mcp-stats).
+Valor publicado pelo BCB sai sempre verbatim; só o que é calculado é arredondado
+(em 4 casas).
 
 ### Busca Inteligente
 

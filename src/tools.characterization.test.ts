@@ -205,63 +205,64 @@ describe("bcb_serie_ultimos", () => {
 
 // ==================== bcb_serie_metadados ====================
 
+// MUDANÇA DELIBERADA (sessão de D1): o baseline antigo pinava três caminhos em
+// torno de `bcdata.sgs.{codigo}/metadados?formato=json`, e um deles — "usa os
+// metadados da API quando disponíveis" — MOCKAVA 200 num endpoint que **não
+// existe**. Medição de 11/08/2026 (`bcb/docs/04`): 404 `endpoint not found!`, nas
+// três variantes de rota. A suíte estava verde sobre uma ficção, e em produção a
+// tool gastava uma requisição por chamada para cair sempre no mesmo fallback.
+// O que passa a ser pinado: UMA requisição (`ultimos/20`, que também serve de
+// sonda de periodicidade), e a honestidade sobre a origem de cada campo.
+// `unidade` e `especial` saíram do contrato porque nenhuma fonte os publica.
 describe("bcb_serie_metadados", () => {
-  it("usa os metadados da API quando disponíveis", async () => {
-    mockFetch([
-      [
-        "bcdata.sgs.433/metadados",
-        { codigo: 433, nome: "IPCA", unidade: "%", periodicidade: "mensal", fonte: "IBGE", especial: false }
-      ]
+  const mensais20 = Array.from({ length: 20 }, (_, i) => ({
+    data: `01/${String((i % 12) + 1).padStart(2, "0")}/${2025 + Math.floor(i / 12)}`,
+    valor: String(i)
+  }));
+
+  it("não chama endpoint de metadados: uma requisição só, a dos últimos valores", async () => {
+    mockFetch([["bcdata.sgs.433/dados/ultimos/20", mensais20]]);
+
+    const out = structured(await call("bcb_serie_metadados", { codigo: 433 }));
+
+    expect(fetchCalls).toEqual([
+      "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/20?formato=json"
     ]);
-
-    const out = structured(await call("bcb_serie_metadados", { codigo: 433 }));
-
-    expect(out).toEqual({
-      codigo: 433,
-      nome: "IPCA",
-      unidade: "%",
-      periodicidade: "mensal",
-      fonte: "IBGE",
-      categoria: "Inflação",
-      especial: false,
-      urlConsulta: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json",
-      urlUltimos10: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/10?formato=json"
-    });
-  });
-
-  it("metadados indisponíveis + série no catálogo => fallback ao catálogo interno", async () => {
-    mockFetch([["bcdata.sgs.433/metadados", { __status: 500, __statusText: "Server Error" }]]);
-
-    const out = structured(await call("bcb_serie_metadados", { codigo: 433 }));
-
+    expect(fetchCalls.some(u => u.includes("/metadados"))).toBe(false);
     expect(out).toEqual({
       codigo: 433,
       nome: "IPCA - Variação mensal",
       periodicidade: "Mensal",
       categoria: "Inflação",
       fonte: "Banco Central do Brasil",
+      ultimoValor: { data: mensais20[19].data, valor: 19 },
       urlConsulta: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json",
       urlUltimos10: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/10?formato=json",
-      observacao: "Metadados obtidos do catálogo interno"
+      observacao:
+        "Nome e categoria vêm do catálogo curado do servidor; a API do SGS não publica endpoint de metadados."
     });
   });
 
-  it("metadados indisponíveis + série fora do catálogo => sonda o último valor", async () => {
-    mockFetch([
-      ["bcdata.sgs.99999/metadados", { __status: 500 }],
-      ["bcdata.sgs.99999/dados/ultimos/1", [{ data: "01/01/2020", valor: "7.5" }]]
-    ]);
+  it("série fora do catálogo ganha periodicidade inferida, marcada como inferida", async () => {
+    mockFetch([["bcdata.sgs.99999/dados/ultimos/20", mensais20]]);
 
     const out = structured(await call("bcb_serie_metadados", { codigo: 99999 }));
 
-    expect(out).toEqual({
-      codigo: 99999,
-      nome: "Série 99999",
-      fonte: "Banco Central do Brasil",
-      ultimoValor: { data: "01/01/2020", valor: 7.5 },
-      urlConsulta: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.99999/dados?formato=json",
-      observacao: "Série encontrada, mas metadados detalhados não disponíveis"
-    });
+    expect(out.nome).toBe("Série 99999");
+    expect(out.categoria).toBe("Não categorizada");
+    expect(out.periodicidade).toBe("Mensal");
+    expect(out.periodicidadeInferida).toBe(true);
+    expect(out.ultimoValor).toEqual({ data: mensais20[19].data, valor: 19 });
+    expect(out.observacao).toContain("inferida do espaçamento");
+  });
+
+  it("série inexistente e fora do catálogo continua sendo isError", async () => {
+    mockFetch([["bcdata.sgs.99999/dados/ultimos/20", []]]);
+
+    const result = await call("bcb_serie_metadados", { codigo: 99999 });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toBe("Erro ao consultar metadados da série 99999: Série não encontrada");
   });
 });
 
@@ -360,6 +361,23 @@ describe("bcb_indicadores_atuais", () => {
 });
 
 // ==================== bcb_variacao — GATE da arbitragem 4 ====================
+//
+// MIGRAÇÃO EXECUTADA (sessão de D1+D2). O motor passou a ser o
+// `@sbissoli/mcp-stats`. O gate cobrou o que devia cobrar: contra o baseline
+// gravado antes, a migração produziu EXATAMENTE DUAS diferenças, as duas
+// previstas e explicáveis — e `bcb_comparar` não mudou em valor nenhum.
+//
+//  1. O bloco `derivacao` passou a existir. Era o ganho anunciado pela
+//     arbitragem 4 ("ganhando de brinde a marcação derived que falta").
+//  2. `estatisticas.maximo` e `.minimo` saem VERBATIM da fonte, sem
+//     `toFixed(4)`. A divergência entre as duas tools (variacao arredondava os
+//     extremos, comparar não) exigia escolher uma convenção; escolheu-se não
+//     arredondar observação publicada pelo Banco Central, o que também alinha os
+//     extremos com `valorInicial`/`valorFinal`, que nunca foram arredondados.
+//     Fundamento e regra completa em `src/stats.ts`.
+//
+// Todo o resto segue pinado valor a valor: variação, diferença, média, amplitude,
+// formatação, período e o erro de dados insuficientes.
 
 describe("bcb_variacao (gate mcp-stats)", () => {
   it("números redondos: variação, extremos, média e amplitude", async () => {
@@ -386,7 +404,12 @@ describe("bcb_variacao (gate mcp-stats)", () => {
         variacaoPercentual: -10,
         variacaoFormatada: "-10.00%"
       },
-      estatisticas: { maximo: 110, minimo: 90, media: 100, amplitude: 20 }
+      estatisticas: { maximo: 110, minimo: 90, media: 100, amplitude: 20 },
+      derivacao: {
+        derived: true,
+        motor: "@sbissoli/mcp-stats",
+        nota: expect.stringContaining("calculadas por este servidor") as unknown as string
+      }
     });
   });
 
@@ -404,15 +427,13 @@ describe("bcb_variacao (gate mcp-stats)", () => {
 
     const out = structured(await call("bcb_variacao", { codigo: 99999 }));
 
-    // ATENÇÃO — inconsistência REAL do código atual, registrada de propósito:
-    // aqui em `bcb_variacao` os QUATRO campos de estatística passam por
-    // Number(x.toFixed(4)), inclusive os extremos; já em `bcb_comparar` os
-    // extremos saem crus (Math.max/Math.min) e só a média é arredondada.
-    // As duas tools, portanto, NÃO usam a mesma convenção entre si. A migração
-    // ao mcp-stats terá de escolher uma — e essa escolha é uma diferença
-    // "explicável", não uma quebra silenciosa.
+    // A CONVENÇÃO UNIFICADA, medida: observação da fonte sai verbatim, número
+    // calculado sai com 4 casas. Antes da migração, `maximo` saía 3.3333 aqui e
+    // cru em `bcb_comparar`; agora as duas tools respondem igual, e a que mudou
+    // foi esta. `minimo` já era exato, então não se move; média e amplitude
+    // continuam idênticas ao baseline.
     expect(out.estatisticas).toEqual({
-      maximo: 3.3333, // 3.333333 -> arredondado aqui (≠ bcb_comparar)
+      maximo: 3.333333, // verbatim (era 3.3333 antes da migração)
       minimo: 1.005,
       media: 2.1153, // média bruta = 2.1152776666...
       amplitude: 2.3283 // (3.333333 - 1.005) = 2.328333 -> 2.3283

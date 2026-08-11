@@ -66,3 +66,21 @@ diff <(python -m json.tool baselines/surface-stdio-1.3.5.json) <(python -m json.
 Toda diferença precisa ser deliberada e constar da lista de mudanças da sessão.
 A convergência dos dois transectos num contrato só (o do stdio, que é o mais
 forte) É uma mudança deliberada desta fundação — não uma regressão.
+
+## Baseline vigente: `surface-stdio-d1-d2.json` (sessão de D1+D2)
+
+13 tools, 3 resources, 3 prompts — a contagem não mudou, e a **ordem também
+não**. As diferenças contra `surface-stdio-d3-verificada.json` são cinco tools, e
+todas foram deliberadas:
+
+| Tool | O que mudou |
+|:--|:--|
+| `bcb_serie_valores` | entrada: `frequencia` + `agregacao`; saída: `harmonizacao`, `chunking`, `janelaAplicada`, `serie.periodicidadeInferida`, e os itens de `dados` admitem `observacoes` |
+| `bcb_serie_ultimos` | entrada: descrição de `quantidade` diz o teto real da origem; saída: `chunking`, `serie.periodicidadeInferida` |
+| `bcb_serie_metadados` | saída: **saíram** `unidade` e `especial` (nenhuma fonte os publica), entrou `periodicidadeInferida` |
+| `bcb_variacao` | entrada: descrição de `periodos`; saída: `derivacao`, `chunking`, `janelaAplicada` |
+| `bcb_comparar` | entrada: `frequencia` + `agregacao`; saída: `derivacao`, `harmonizacao`, `aviso` |
+
+`bcb_series_populares` ficou byte-idêntica de propósito: ela lista o catálogo
+curado, onde nada é inferido, então segue com o fragmento `SERIE_REF_SCHEMA`
+original em vez do fragmento das tools que consultam série.
