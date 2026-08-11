@@ -34,29 +34,49 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      # Enquanto o CLOUDFLARE_API_TOKEN não estiver cadastrado nos secrets do
+      # repositório, o deploy é PULADO em vez de falhar: um main vermelho por
+      # credencial ausente esconde falhas de verdade. O deploy segue possível
+      # manualmente (`cd worker && npx wrangler deploy` com login local).
+      - name: Verificar credencial da Cloudflare
+        id: cf
+        run: |
+          if [ -n "${{ secrets.CLOUDFLARE_API_TOKEN }}" ]; then
+            echo "ok=true" >> $GITHUB_OUTPUT
+          else
+            echo "ok=false" >> $GITHUB_OUTPUT
+            echo "::warning::CLOUDFLARE_API_TOKEN ausente — deploy pulado. Cadastre o secret para ligar o deploy contínuo."
+          fi
 
-      - uses: actions/setup-node@v4
+      - if: steps.cf.outputs.ok == 'true'
+        uses: actions/checkout@v4
+
+      - if: steps.cf.outputs.ok == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       # O worker importa ../../dist/*.js do pacote pai e resolve o SDK do
       # node_modules da raiz (cópia única) — a raiz vem primeiro.
-      - name: Install + typecheck + build (raiz)
+      - if: steps.cf.outputs.ok == 'true'
+        name: Install + typecheck + build (raiz)
         run: |
           npm ci
           npm run typecheck
           npm run build
 
-      - name: Install (worker)
+      - if: steps.cf.outputs.ok == 'true'
+        name: Install (worker)
         run: npm ci
         working-directory: worker
 
-      - name: Typecheck (worker)
+      - if: steps.cf.outputs.ok == 'true'
+        name: Typecheck (worker)
         run: npm run typecheck
         working-directory: worker
 
-      - name: Deploy via Wrangler
+      - if: steps.cf.outputs.ok == 'true'
+        name: Deploy via Wrangler
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -65,7 +85,8 @@ jobs:
 
       # Fecha o ciclo: se o deploy subir um worker quebrado, o job falha aqui e
       # não em silêncio na próxima vez que alguém abrir o endpoint.
-      - name: Smoke em produção
+      - if: steps.cf.outputs.ok == 'true'
+        name: Smoke em produção
         run: |
           sleep 20
           node scripts/smoke-mcp.mjs
