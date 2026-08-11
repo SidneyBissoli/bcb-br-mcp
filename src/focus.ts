@@ -56,8 +56,14 @@ interface RecursoFocus {
 
 /**
  * Mapa horizonte -> recurso OData. É o ÚNICO lugar que conhece os nomes dos
- * recursos: se a fonte renomear ou passar a oferecer Top 5 onde hoje não há, a
+ * recursos: se a fonte renomear ou deixar de oferecer Top 5 em algum horizonte, a
  * correção é uma linha aqui.
+ *
+ * Os nomes foram lidos do documento de serviço do OData contra a origem, não
+ * supostos. Repare na irregularidade da fonte, que é real e não erro de digitação:
+ * o mensal é `ExpectativaMercadoMensais` (singular) e o Top 5 trimestral é
+ * `ExpectativaMercadoTop5Trimestral` (singular nas duas pontas), enquanto todo o
+ * resto é plural.
  */
 export const RECURSOS: Record<Horizonte, RecursoFocus> = {
   mensal: {
@@ -68,7 +74,7 @@ export const RECURSOS: Record<Horizonte, RecursoFocus> = {
   },
   trimestral: {
     consenso: "ExpectativasMercadoTrimestrais",
-    top5: null,
+    top5: "ExpectativaMercadoTop5Trimestral",
     campoReferencia: "DataReferencia",
     formatoReferencia: "T/yyyy (ex.: 3/2026)"
   },
@@ -80,17 +86,20 @@ export const RECURSOS: Record<Horizonte, RecursoFocus> = {
   },
   inflacao_12m: {
     consenso: "ExpectativasMercadoInflacao12Meses",
-    top5: null,
+    top5: "ExpectativasMercadoTop5Inflacao12Meses",
     campoReferencia: null,
     formatoReferencia: null
   },
   inflacao_24m: {
     consenso: "ExpectativasMercadoInflacao24Meses",
-    top5: null,
+    top5: "ExpectativasMercadoTop5Inflacao24Meses",
     campoReferencia: null,
     formatoReferencia: null
   }
 };
+
+/** Recurso de Selic, fora do mapa de horizontes porque o eixo é a reunião do Copom. */
+export const RECURSO_SELIC = { consenso: "ExpectativasMercadoSelic", top5: "ExpectativasMercadoTop5Selic" } as const;
 
 const HORIZONTES = Object.keys(RECURSOS) as Horizonte[];
 const HORIZONTES_ROLANTES: Horizonte[] = ["inflacao_12m", "inflacao_24m"];
@@ -114,33 +123,54 @@ export interface ExpectativaNormalizada {
   suavizada?: boolean | null;
   /** Só no Top 5: tipo de cálculo publicado pela fonte. */
   tipoCalculo?: string | null;
+  /** Só no Top 5 da Selic: único recurso da fonte que publica este campo. */
+  coeficienteVariacao?: number | null;
+}
+
+/**
+ * Lê o primeiro nome presente. Existe porque a fonte NÃO é uniforme na caixa dos
+ * campos: `ExpectativasMercadoTop5Selic` publica `indicador`, `reuniao`, `media`,
+ * `mediana`, `desvioPadrao`, `minimo` e `maximo` em caixa baixa, enquanto todos os
+ * outros doze recursos usam inicial maiúscula. Verificado contra a origem.
+ */
+function primeiroCampo(linha: Record<string, unknown>, ...nomes: string[]): unknown {
+  for (const nome of nomes) if (linha[nome] !== undefined) return linha[nome];
+  return undefined;
 }
 
 /**
  * Normaliza uma linha do OData. Defensivo de propósito: os recursos não têm o
- * mesmo conjunto de campos, e o alvo aparece como `DataReferencia` (calendário)
- * ou `Reuniao` (Selic).
+ * mesmo conjunto de campos, o alvo aparece como `DataReferencia` (calendário) ou
+ * `Reuniao` (Selic), e a caixa dos nomes varia entre recursos.
  */
 export function normalizarExpectativa(linha: Record<string, unknown>): ExpectativaNormalizada {
   const normalizada: ExpectativaNormalizada = {
-    indicador: textoOuNulo(linha.Indicador),
-    indicadorDetalhe: textoOuNulo(linha.IndicadorDetalhe),
-    coletadoEm: textoOuNulo(linha.Data),
-    referencia: textoOuNulo(linha.DataReferencia) ?? textoOuNulo(linha.Reuniao),
-    media: numeroOuNulo(linha.Media),
-    mediana: numeroOuNulo(linha.Mediana),
-    desvioPadrao: numeroOuNulo(linha.DesvioPadrao),
-    minimo: numeroOuNulo(linha.Minimo),
-    maximo: numeroOuNulo(linha.Maximo),
-    respondentes: numeroOuNulo(linha.numeroRespondentes),
-    baseCalculo: numeroOuNulo(linha.baseCalculo)
+    indicador: textoOuNulo(primeiroCampo(linha, "Indicador", "indicador")),
+    indicadorDetalhe: textoOuNulo(primeiroCampo(linha, "IndicadorDetalhe", "indicadorDetalhe")),
+    coletadoEm: textoOuNulo(primeiroCampo(linha, "Data", "data")),
+    referencia:
+      textoOuNulo(primeiroCampo(linha, "DataReferencia", "dataReferencia")) ??
+      textoOuNulo(primeiroCampo(linha, "Reuniao", "reuniao")),
+    media: numeroOuNulo(primeiroCampo(linha, "Media", "media")),
+    mediana: numeroOuNulo(primeiroCampo(linha, "Mediana", "mediana")),
+    desvioPadrao: numeroOuNulo(primeiroCampo(linha, "DesvioPadrao", "desvioPadrao")),
+    minimo: numeroOuNulo(primeiroCampo(linha, "Minimo", "minimo")),
+    maximo: numeroOuNulo(primeiroCampo(linha, "Maximo", "maximo")),
+    respondentes: numeroOuNulo(primeiroCampo(linha, "numeroRespondentes", "NumeroRespondentes")),
+    baseCalculo: numeroOuNulo(primeiroCampo(linha, "baseCalculo", "BaseCalculo"))
   };
 
-  if (linha.Suavizada !== undefined) {
-    const bruto = textoOuNulo(linha.Suavizada);
+  const suavizada = primeiroCampo(linha, "Suavizada", "suavizada");
+  if (suavizada !== undefined) {
+    const bruto = textoOuNulo(suavizada);
     normalizada.suavizada = bruto === null ? null : bruto.toUpperCase().startsWith("S");
   }
-  if (linha.tipoCalculo !== undefined) normalizada.tipoCalculo = textoOuNulo(linha.tipoCalculo);
+
+  const tipoCalculo = primeiroCampo(linha, "tipoCalculo", "TipoCalculo");
+  if (tipoCalculo !== undefined) normalizada.tipoCalculo = textoOuNulo(tipoCalculo);
+
+  const coeficiente = primeiroCampo(linha, "coeficienteVariacao", "CoeficienteVariacao");
+  if (coeficiente !== undefined) normalizada.coeficienteVariacao = numeroOuNulo(coeficiente);
 
   return normalizada;
 }
@@ -309,7 +339,7 @@ export async function handleFocusSelic(
   if (args.reuniao !== undefined) filtro.push(`Reuniao eq ${odataString(args.reuniao)}`);
 
   const url = montarUrlOData(EXPECTATIVAS_ODATA, {
-    recurso: args.top5 === true ? "ExpectativasMercadoTop5Selic" : "ExpectativasMercadoSelic",
+    recurso: args.top5 === true ? RECURSO_SELIC.top5 : RECURSO_SELIC.consenso,
     filtro,
     top: OLINDA_MAX_LINHAS
   });
@@ -354,83 +384,231 @@ export async function handleFocusSelic(
 
 // ==================== bcb_focus_referencias ====================
 
-export interface ArgsReferencias {
-  indicador?: string;
-  horizonte?: Horizonte;
+/** Escopos de descoberta: os cinco horizontes mais a Selic, que é tool própria. */
+export type EscopoReferencias = Horizonte | "selic";
+
+const ESCOPOS: EscopoReferencias[] = [...HORIZONTES, "selic"];
+
+/** Janela de coleta da descoberta. O Focus é coletado em todo dia útil, então
+ * quinze dias sempre contêm coletas — e a lista de referências muda devagar. */
+const JANELA_REFERENCIAS_DIAS = 15;
+
+interface PlanoEscopo {
+  escopo: EscopoReferencias;
+  tool: string;
+  recurso: string;
+  campoReferencia: string | null;
+  formatoReferencia: string | null;
+  temTop5: boolean;
 }
 
+function planoDoEscopo(escopo: EscopoReferencias): PlanoEscopo {
+  if (escopo === "selic") {
+    return {
+      escopo,
+      tool: "bcb_focus_selic",
+      recurso: RECURSO_SELIC.consenso,
+      campoReferencia: "Reuniao",
+      formatoReferencia: "RN/yyyy (ex.: R1/2027 = 1ª reunião do Copom de 2027)",
+      temTop5: true
+    };
+  }
+  const recurso = RECURSOS[escopo];
+  return {
+    escopo,
+    tool: "bcb_focus_expectativas",
+    recurso: recurso.consenso,
+    campoReferencia: recurso.campoReferencia,
+    formatoReferencia: recurso.formatoReferencia,
+    temTop5: recurso.top5 !== null
+  };
+}
+
+/**
+ * Ordena referências em ordem CRONOLÓGICA, não lexicográfica. Sem isso o mensal
+ * sai "01/2027, 01/2028, 02/2027", que é ruído para quem lê a lista. Os quatro
+ * formatos da fonte reduzem ao mesmo par (ano, posição dentro do ano):
+ * `MM/yyyy`, `T/yyyy`, `RN/yyyy` e `yyyy`.
+ */
+function chaveCronologica(referencia: string): [number, number] {
+  const composta = /^R?(\d{1,2})\/(\d{4})$/.exec(referencia);
+  if (composta) return [Number(composta[2]), Number(composta[1])];
+  if (/^\d{4}$/.test(referencia)) return [Number(referencia), 0];
+  return [Number.MAX_SAFE_INTEGER, 0];
+}
+
+function ordenarReferencias(referencias: string[]): string[] {
+  return [...referencias].sort((a, b) => {
+    const [anoA, posA] = chaveCronologica(a);
+    const [anoB, posB] = chaveCronologica(b);
+    return anoA - anoB || posA - posB || a.localeCompare(b);
+  });
+}
+
+export interface ArgsReferencias {
+  indicador?: string;
+  horizonte?: EscopoReferencias;
+}
+
+/**
+ * Descobre os textos EXATOS de indicador e de referência, por horizonte.
+ *
+ * O desenho consulta os próprios recursos de expectativa — e não o recurso
+ * `DatasReferencia`, que o nome sugere e que foi descartado com o spike contra a
+ * origem: ele publica `Indicador`, `periodo`, `DataReferencia1` e
+ * `DataReferencia2` (não existe `DataReferencia`), cobre 11 indicadores contra os
+ * 26 do recurso anual, não separa por horizonte e, para o IPCA, para em 12/2026
+ * enquanto as expectativas mensais já carregam referência 07/2028. É um calendário
+ * de datas de referência, não um índice das referências consultáveis.
+ *
+ * A quebra POR HORIZONTE é o ponto: o conjunto de indicadores varia muito entre
+ * eles (9 no mensal contra 26 no anual), e pedir um indicador no horizonte errado
+ * — "PIB Total" no mensal, por exemplo — é justamente o modo mais comum de a
+ * consulta voltar vazia sem explicação.
+ */
 export async function handleFocusReferencias(
   args: ArgsReferencias,
   timeoutMs?: number,
   maxRetries?: number
 ): Promise<ToolResult> {
-  if (args.horizonte !== undefined && !RECURSOS[args.horizonte]) {
-    return erroResult(`Horizonte inválido: "${args.horizonte}". Use um destes: ${HORIZONTES.join(", ")}.`);
+  if (args.horizonte !== undefined && !ESCOPOS.includes(args.horizonte)) {
+    return erroResult(`Horizonte inválido: "${args.horizonte}". Use um destes: ${ESCOPOS.join(", ")}.`);
   }
 
-  const filtro: string[] = [];
-  if (args.indicador !== undefined) filtro.push(`Indicador eq ${odataString(args.indicador)}`);
+  const escopos = args.horizonte !== undefined ? [args.horizonte] : ESCOPOS;
+  const dataFinal = hojeIso();
+  const dataInicial = somarDiasIso(dataFinal, -JANELA_REFERENCIAS_DIAS);
 
-  const url = montarUrlOData(EXPECTATIVAS_ODATA, {
-    recurso: "DatasReferencia",
-    filtro,
-    top: OLINDA_MAX_LINHAS
+  const consultas = escopos.map(escopo => {
+    const plano = planoDoEscopo(escopo);
+    // Filtro por construção, como em toda tool desta camada; `$select` corta o
+    // payload em ~4x (medido), porque aqui só interessam dois campos.
+    const filtro = [`Data ge ${odataString(dataInicial)}`, `Data le ${odataString(dataFinal)}`];
+    if (args.indicador !== undefined) filtro.push(`Indicador eq ${odataString(args.indicador)}`);
+
+    const url = montarUrlOData(EXPECTATIVAS_ODATA, {
+      recurso: plano.recurso,
+      select: plano.campoReferencia ? ["Indicador", plano.campoReferencia] : ["Indicador"],
+      filtro,
+      top: OLINDA_MAX_LINHAS
+    });
+    return { plano, url };
   });
 
-  try {
-    const linhas = await consultarOData(url, timeoutMs, maxRetries);
+  const respostas = await Promise.allSettled(
+    consultas.map(c => consultarOData(c.url, timeoutMs, maxRetries))
+  );
 
-    const indicadores = [...new Set(linhas.map(l => textoOuNulo(l.Indicador)).filter((v): v is string => v !== null))].sort();
-    const referencias = [
-      ...new Set(linhas.map(l => textoOuNulo(l.DataReferencia)).filter((v): v is string => v !== null))
+  const indicadoresUniao = new Set<string>();
+  const referenciasUniao = new Set<string>();
+  const falhas: Array<{ horizonte: string; erro: string }> = [];
+  let totalRegistros = 0;
+
+  const horizontes = consultas.map(({ plano, url }, i) => {
+    const resposta = respostas[i];
+    const linhas = resposta.status === "fulfilled" ? resposta.value : [];
+    if (resposta.status === "rejected") {
+      falhas.push({ horizonte: plano.escopo, erro: mensagemDeErro(resposta.reason) });
+    }
+
+    const indicadores = [
+      ...new Set(linhas.map(l => textoOuNulo(l.Indicador ?? l.indicador)).filter((v): v is string => v !== null))
     ].sort();
+    const referencias = plano.campoReferencia
+      ? ordenarReferencias([
+          ...new Set(
+            linhas
+              .map(l => textoOuNulo(l[plano.campoReferencia as string] ?? l[(plano.campoReferencia as string).toLowerCase()]))
+              .filter((v): v is string => v !== null)
+          )
+        ])
+      : [];
 
-    const horizontes = HORIZONTES.map(h => ({
-      horizonte: h,
-      formatoReferencia: RECURSOS[h].formatoReferencia,
-      exigeReferencia: RECURSOS[h].campoReferencia !== null,
-      temTop5: RECURSOS[h].top5 !== null
-    }));
+    indicadores.forEach(v => indicadoresUniao.add(v));
+    referencias.forEach(v => referenciasUniao.add(v));
+    totalRegistros += linhas.length;
 
-    return structuredResult({
-      filtro: { indicador: args.indicador ?? null, horizonte: args.horizonte ?? null },
+    return {
+      horizonte: plano.escopo,
+      tool: plano.tool,
+      formatoReferencia: plano.formatoReferencia,
+      exigeReferencia: plano.campoReferencia !== null && plano.escopo !== "selic",
+      temTop5: plano.temTop5,
       indicadores,
       referencias,
-      horizontes,
-      totalRegistros: linhas.length,
       urlConsulta: url,
-      consultadoEm: new Date().toISOString(),
-      observacao:
-        "Os nomes de indicador e as referências são sensíveis ao texto exato: copie daqui para " +
-        "bcb_focus_expectativas. Expectativa de Selic por reunião do Copom fica em bcb_focus_selic."
-    });
-  } catch (error) {
-    return erroResult(`Erro ao consultar referências do Focus: ${mensagemDeErro(error)}`);
+      disponivel: resposta.status === "fulfilled"
+    };
+  });
+
+  // Só é erro se NADA respondeu: com a origem instável, meia resposta ainda é útil.
+  if (falhas.length === escopos.length) {
+    return erroResult(`Erro ao consultar referências do Focus: ${falhas[0].erro}`);
   }
+
+  const payload: Record<string, unknown> = {
+    filtro: { indicador: args.indicador ?? null, horizonte: args.horizonte ?? null },
+    janela: { dataInicial, dataFinal },
+    indicadores: [...indicadoresUniao].sort(),
+    referencias: ordenarReferencias([...referenciasUniao]),
+    horizontes,
+    totalRegistros,
+    consultadoEm: new Date().toISOString(),
+    observacao:
+      "Os nomes de indicador e as referências são sensíveis ao texto EXATO: copie daqui para " +
+      "bcb_focus_expectativas (ou para bcb_focus_selic, no caso das reuniões do Copom). Repare que o conjunto " +
+      "de indicadores muda por horizonte — pedir um indicador no horizonte em que a fonte não o publica é a " +
+      "causa mais comum de resposta vazia. As listas refletem as coletas dos últimos " +
+      `${JANELA_REFERENCIAS_DIAS} dias.`
+  };
+
+  if (falhas.length > 0) {
+    payload.falhas = falhas;
+    payload.observacaoFalhas =
+      `${falhas.length} de ${escopos.length} horizontes não responderam nesta consulta; os demais estão completos. ` +
+      "Horizontes com `disponivel: false` têm listas vazias por indisponibilidade, não por ausência de dado.";
+  }
+  if (args.indicador !== undefined && indicadoresUniao.size === 0 && falhas.length === 0) {
+    payload.observacaoFalhas =
+      `Nenhum horizonte publica o indicador "${args.indicador}" nos últimos ${JANELA_REFERENCIAS_DIAS} dias. ` +
+      "Chame esta tool SEM `indicador` para ver a lista de nomes publicados por horizonte.";
+  }
+
+  return structuredResult(payload);
 }
 
 // ==================== SCHEMAS ====================
 
+/**
+ * Todo campo aqui é anulável de propósito, e o schema precisa dizer isso: os
+ * treze recursos da fonte não publicam o mesmo conjunto de campos (o Top 5 não
+ * traz `numeroRespondentes` nem `baseCalculo`, os rolantes não têm referência), e
+ * a normalização devolve `null` em vez de omitir — nulo é a informação de que a
+ * fonte não publica aquilo ali. Anunciar `type: "string"` e servir `null` quebra
+ * cliente que valida `structuredContent` contra o `outputSchema`, como a spec
+ * manda e como o Inspector faz.
+ */
 const ESTATISTICAS_PROPS = {
-  indicador: { type: "string" as const, description: "Indicador conforme publicado pela fonte" },
-  indicadorDetalhe: { type: "string" as const, description: "Detalhe do indicador, quando a fonte publica" },
-  coletadoEm: { type: "string" as const, description: "Data da coleta das expectativas (yyyy-MM-dd)" },
-  referencia: { type: "string" as const, description: "Alvo da expectativa (data de referência ou reunião do Copom); nulo nos horizontes rolantes" },
-  media: { type: "number" as const, description: "Média das expectativas" },
-  mediana: { type: "number" as const, description: "Mediana das expectativas" },
-  desvioPadrao: { type: "number" as const, description: "Desvio padrão das expectativas" },
-  minimo: { type: "number" as const, description: "Menor expectativa informada" },
-  maximo: { type: "number" as const, description: "Maior expectativa informada" },
-  respondentes: { type: "number" as const, description: "Número de instituições respondentes" },
-  baseCalculo: { type: "number" as const, description: "Base de cálculo usada pela fonte" }
+  indicador: { type: ["string", "null"] as const, description: "Indicador conforme publicado pela fonte" },
+  indicadorDetalhe: { type: ["string", "null"] as const, description: "Detalhe do indicador, quando a fonte publica" },
+  coletadoEm: { type: ["string", "null"] as const, description: "Data da coleta das expectativas (yyyy-MM-dd)" },
+  referencia: { type: ["string", "null"] as const, description: "Alvo da expectativa (data de referência ou reunião do Copom); nulo nos horizontes rolantes" },
+  media: { type: ["number", "null"] as const, description: "Média das expectativas" },
+  mediana: { type: ["number", "null"] as const, description: "Mediana das expectativas" },
+  desvioPadrao: { type: ["number", "null"] as const, description: "Desvio padrão das expectativas" },
+  minimo: { type: ["number", "null"] as const, description: "Menor expectativa informada" },
+  maximo: { type: ["number", "null"] as const, description: "Maior expectativa informada" },
+  respondentes: { type: ["number", "null"] as const, description: "Número de instituições respondentes; nulo no Top 5, que a fonte não acompanha deste campo" },
+  baseCalculo: { type: ["number", "null"] as const, description: "Base de cálculo usada pela fonte; nulo no Top 5" }
 };
 
 const EXPECTATIVA_ITEM_SCHEMA = {
   type: "object" as const,
   properties: {
     ...ESTATISTICAS_PROPS,
-    suavizada: { type: "boolean" as const, description: "Só nos horizontes rolantes: indica a série suavizada" },
-    tipoCalculo: { type: "string" as const, description: "Só no Top 5: tipo de cálculo publicado pela fonte" }
+    suavizada: { type: ["boolean", "null"] as const, description: "Só nos horizontes rolantes: indica a série suavizada" },
+    tipoCalculo: { type: ["string", "null"] as const, description: "Só no Top 5: tipo de cálculo publicado pela fonte" },
+    coeficienteVariacao: { type: ["number", "null"] as const, description: "Só no Top 5 da Selic: único recurso da fonte que publica este campo" }
   },
   required: ["indicador", "coletadoEm", "mediana"]
 };
@@ -455,8 +633,9 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
       "use bcb_focus_selic; para o valor REALIZADO (não esperado) use bcb_serie_valores. " +
       "Regras do contrato: `referencia` é obrigatória nos horizontes de calendário (mensal, trimestral, anual) " +
       "e recusada nos rolantes; `suavizada` só vale nos rolantes; `top5: true` traz as expectativas das cinco " +
-      "instituições mais assertivas e existe apenas nos horizontes mensal e anual. Se não souber o texto exato " +
-      "do indicador ou da referência, chame bcb_focus_referencias primeiro. " +
+      "instituições mais assertivas e existe nos cinco horizontes. Se não souber o texto exato do indicador ou " +
+      "da referência, chame bcb_focus_referencias primeiro — o conjunto de indicadores MUDA por horizonte, e " +
+      "pedir um indicador no horizonte em que a fonte não o publica é a causa mais comum de resposta vazia. " +
       "Retorna: `indicador`, `horizonte`, `base` (consenso|top5), `filtro` (referencia, dataInicial, dataFinal, " +
       "janelaPadrao, suavizada), `totalRegistros`, `expectativas` (array normalizado), `urlConsulta`, " +
       "`consultadoEm` e, quando aplicável, `observacao`. Sem datas, a janela padrão é de 30 dias. " +
@@ -481,7 +660,7 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         dataInicial: { type: "string" as const, description: "Início da janela de COLETA (yyyy-MM-dd ou dd/MM/yyyy). Padrão: 30 dias antes do fim." },
         dataFinal: { type: "string" as const, description: "Fim da janela de COLETA (yyyy-MM-dd ou dd/MM/yyyy). Padrão: hoje." },
-        top5: { type: "boolean" as const, description: "Expectativas do Top 5 em vez do consenso (só mensal e anual)", default: false },
+        top5: { type: "boolean" as const, description: "Expectativas do Top 5 (as cinco instituições mais assertivas) em vez do consenso; existe nos cinco horizontes", default: false },
         suavizada: { type: "boolean" as const, description: "Só nos horizontes rolantes: série suavizada (true) ou não suavizada (false)" },
         limite: { type: "number" as const, description: "Máximo de coletas a devolver (1-500, padrão 50)", default: 50, minimum: 1, maximum: 500 }
       },
@@ -495,13 +674,13 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
         base: { type: "string" as const, enum: ["consenso", "top5"] },
         filtro: {
           type: "object" as const,
-          description: "Filtro efetivamente aplicado na origem",
+          description: "Filtro efetivamente aplicado na origem; nulo onde o parâmetro não foi informado",
           properties: {
-            referencia: { type: "string" as const },
+            referencia: { type: ["string", "null"] as const },
             dataInicial: { type: "string" as const },
             dataFinal: { type: "string" as const },
             janelaPadrao: { type: "boolean" as const, description: "true quando a janela de 30 dias foi assumida" },
-            suavizada: { type: "boolean" as const }
+            suavizada: { type: ["boolean", "null"] as const }
           },
           required: ["dataInicial", "dataFinal", "janelaPadrao"]
         },
@@ -544,8 +723,9 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
         base: { type: "string" as const, enum: ["consenso", "top5"] },
         filtro: {
           type: "object" as const,
+          description: "Filtro efetivamente aplicado; `reuniao` é nula quando não foi informada",
           properties: {
-            reuniao: { type: "string" as const },
+            reuniao: { type: ["string", "null"] as const },
             dataInicial: { type: "string" as const },
             dataFinal: { type: "string" as const },
             janelaPadrao: { type: "boolean" as const }
@@ -565,20 +745,28 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: "bcb_focus_referencias",
     description:
-      "Lista os indicadores e as datas de referência que existem no Focus, para você usar o texto EXATO em " +
-      "bcb_focus_expectativas. " +
+      "Lista, POR HORIZONTE, os indicadores e as referências que o Focus efetivamente publica, para você usar o " +
+      "texto EXATO em bcb_focus_expectativas e em bcb_focus_selic. " +
       "Quando usar: antes da primeira consulta ao Focus, ou quando uma consulta volta vazia — a causa mais " +
-      "comum é nome de indicador ou referência com texto diferente do publicado. Quando NÃO usar: para os " +
-      "valores das expectativas em si. " +
-      "Retorna: `indicadores` (lista distinta), `referencias` (lista distinta), `horizontes` (para cada " +
-      "horizonte: formato da referência, se exige referência e se tem Top 5), `totalRegistros`, `urlConsulta` " +
-      "e `consultadoEm`. " + NOTA_FOCUS,
+      "comum não é o dado faltar, é o indicador não existir NAQUELE horizonte (a fonte publica 9 indicadores no " +
+      "mensal e 26 no anual: 'PIB Total', por exemplo, não existe no mensal) ou a referência estar num formato " +
+      "diferente do publicado. Quando NÃO usar: para os valores das expectativas em si. " +
+      "Sem `horizonte`, consulta os cinco horizontes mais a Selic e devolve tudo; com `horizonte`, consulta só " +
+      "aquele. " +
+      "Retorna: `horizontes` (para cada um: `tool` que o consome, `formatoReferencia`, `exigeReferencia`, " +
+      "`temTop5`, `indicadores`, `referencias`, `urlConsulta` e `disponivel`), mais `indicadores` e " +
+      "`referencias` como união de todos, `janela`, `totalRegistros` e `consultadoEm`. Se algum horizonte não " +
+      "responder, os demais voltam mesmo assim, com `falhas` preenchido. " + NOTA_FOCUS,
     annotations: leituraRemota("Indicadores e referências do Focus"),
     inputSchema: {
       type: "object" as const,
       properties: {
-        indicador: { type: "string" as const, description: "Filtrar as referências de um indicador específico (opcional)" },
-        horizonte: { type: "string" as const, enum: HORIZONTES, description: "Apenas documenta o horizonte de interesse na resposta (opcional)" }
+        indicador: { type: "string" as const, description: "Filtrar por um indicador específico, para ver em quais horizontes ele existe (opcional)" },
+        horizonte: {
+          type: "string" as const,
+          enum: ESCOPOS,
+          description: "Restringe a descoberta a um horizonte (opcional). 'selic' descobre as reuniões do Copom para bcb_focus_selic."
+        }
       }
     },
     outputSchema: {
@@ -586,33 +774,60 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         filtro: {
           type: "object" as const,
+          description: "Filtro pedido; nulo onde o parâmetro não foi informado",
           properties: {
-            indicador: { type: "string" as const },
-            horizonte: { type: "string" as const }
+            indicador: { type: ["string", "null"] as const },
+            horizonte: { type: ["string", "null"] as const, description: `Um de: ${ESCOPOS.join(", ")}; nulo quando a consulta cobriu todos` }
           }
         },
-        indicadores: { type: "array" as const, items: { type: "string" as const }, description: "Indicadores publicados pela fonte" },
-        referencias: { type: "array" as const, items: { type: "string" as const }, description: "Datas de referência publicadas" },
+        janela: {
+          type: "object" as const,
+          description: "Janela de coleta observada para montar as listas",
+          properties: {
+            dataInicial: { type: "string" as const },
+            dataFinal: { type: "string" as const }
+          },
+          required: ["dataInicial", "dataFinal"]
+        },
+        indicadores: { type: "array" as const, items: { type: "string" as const }, description: "União dos indicadores de todos os horizontes consultados" },
+        referencias: { type: "array" as const, items: { type: "string" as const }, description: "União das referências de todos os horizontes consultados" },
         horizontes: {
           type: "array" as const,
-          description: "Regras de contrato por horizonte",
+          description: "Um bloco por horizonte: regras do contrato mais o que a fonte publica nele",
           items: {
             type: "object" as const,
             properties: {
-              horizonte: { type: "string" as const, enum: HORIZONTES },
-              formatoReferencia: { type: "string" as const },
-              exigeReferencia: { type: "boolean" as const },
-              temTop5: { type: "boolean" as const }
+              horizonte: { type: "string" as const, enum: ESCOPOS },
+              tool: { type: "string" as const, description: "Tool que consome este horizonte" },
+              formatoReferencia: { type: ["string", "null"] as const, description: "Formato da referência; nulo nos horizontes rolantes, que não têm alvo de calendário" },
+              exigeReferencia: { type: "boolean" as const, description: "true nos horizontes de calendário, onde `referencia` é obrigatória" },
+              temTop5: { type: "boolean" as const },
+              indicadores: { type: "array" as const, items: { type: "string" as const }, description: "Indicadores publicados NESTE horizonte" },
+              referencias: { type: "array" as const, items: { type: "string" as const }, description: "Referências publicadas NESTE horizonte; vazio nos rolantes, que não têm alvo de calendário" },
+              urlConsulta: { type: "string" as const },
+              disponivel: { type: "boolean" as const, description: "false quando a origem não respondeu por este horizonte — listas vazias por indisponibilidade, não por ausência de dado" }
             },
-            required: ["horizonte", "exigeReferencia", "temTop5"]
+            required: ["horizonte", "tool", "exigeReferencia", "temTop5", "indicadores", "referencias", "urlConsulta", "disponivel"]
           }
         },
         totalRegistros: { type: "number" as const },
-        urlConsulta: { type: "string" as const },
+        falhas: {
+          type: "array" as const,
+          description: "Horizontes que não responderam nesta consulta",
+          items: {
+            type: "object" as const,
+            properties: {
+              horizonte: { type: "string" as const },
+              erro: { type: "string" as const }
+            },
+            required: ["horizonte", "erro"]
+          }
+        },
         consultadoEm: { type: "string" as const },
-        observacao: { type: "string" as const }
+        observacao: { type: "string" as const },
+        observacaoFalhas: { type: "string" as const }
       },
-      required: ["indicadores", "referencias", "horizontes", "totalRegistros", "urlConsulta", "consultadoEm"]
+      required: ["indicadores", "referencias", "horizontes", "janela", "totalRegistros", "consultadoEm"]
     }
   }
 ];

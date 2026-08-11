@@ -98,6 +98,14 @@ vão ao ar VERBATIM (via `fromJsonSchema`). Não devolva schemas derivados de zo
 ao SDK — o emissor dele reescreveria o dialeto. `sealDeep` fecha
 (`additionalProperties: false`) todo nó objeto num lugar só.
 
+**Campo que pode vir nulo tem de ser `type: ["string", "null"]` no
+`outputSchema`.** As tools devolvem `null` de propósito onde a fonte não publica o
+campo — nulo é a informação de que ali não há dado, e a normalização nunca omite.
+Um schema que anuncie só `"string"` e sirva `null` viola a spec e faz cliente que
+valida (o Inspector valida) rejeitar a resposta INTEIRA. O gate é
+`src/output-contract.test.ts`; a validação de saída em runtime não pega isso, por
+ser permissiva de propósito.
+
 **Validação:** entrada é validada, saída não. O validador é o
 `CfWorkerJsonSchemaValidator` — nos DOIS runtimes de propósito: o provider de
 ajv compila com `new Function`, que o runtime da Cloudflare proíbe (derruba todo
@@ -130,6 +138,13 @@ landing page. O contador `legacy_root_post` em `/metrics` mede quem ainda usa.
   (arbitragem 4 da fase) — a migração só passa se cada diferença for nenhuma ou
   explicável. Repare que as duas tools usam convenções de arredondamento
   DIFERENTES entre si hoje; isso está pinado de propósito.
+- `src/output-contract.test.ts` — valida o `structuredContent` de TODA tool contra
+  o `outputSchema` anunciado, com o mesmo validador que o servidor usa na entrada.
+  Existe porque a validação de saída em runtime é permissiva de propósito
+  (`register.ts`), então nada mais pega um schema desonesto — e a spec do MCP exige
+  a conformidade: cliente que valida (o Inspector valida) rejeita a resposta
+  inteira. Os casos cobrem os caminhos que produzem `null`, que é onde isso
+  quebra. **Ao acrescentar campo em resposta, acrescente o caso aqui.**
 - `src/register.test.ts` — fidelidade registro↔wire pelo cliente v2 sobre
   transporte em memória.
 - `worker/tests/` — auth, rate limit, agregação de uso, status, superfície.
@@ -141,7 +156,7 @@ Depois de qualquer mudança que possa mexer na superfície:
 
 ```bash
 npm run build && node scripts/dump-surface.mjs --stdio > depois.json
-# baseline vigente: baselines/surface-stdio-d3-focus-ptax-busca.json (13 tools)
+# baseline vigente: baselines/surface-stdio-d3-verificada.json (13 tools)
 # baseline da fundação: baselines/surface-stdio-after-fundacao.json (8 tools)
 ```
 
@@ -185,7 +200,23 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   `$orderby` não é usado de propósito: já recebemos tudo, ordenar do lado do
   cliente elimina uma classe de falha.
 - **A PTAX recebe data em MM-DD-YYYY** nos parâmetros de função — não ISO, não
-  dd/MM/yyyy. Mora em `paraDataPtax` (`olinda.ts`), num lugar só.
+  dd/MM/yyyy. Mora em `paraDataPtax` (`olinda.ts`), num lugar só. A falha é
+  SILENCIOSA: em ISO a fonte responde 200 com zero linhas, não erro. Verificado
+  contra a origem.
+- **O `ExpectativasMercadoTop5Selic` publica os campos em CAIXA BAIXA**
+  (`indicador`, `reuniao`, `media`, `mediana`, `desvioPadrao`, `minimo`, `maximo`),
+  sozinho entre os treze recursos, e é o único com `coeficienteVariacao`. Ler só as
+  versões com inicial maiúscula devolve a linha inteira nula, sem erro nenhum. Por
+  isso `normalizarExpectativa` lê pares de nomes.
+- **`DatasReferencia` não é o índice de referências que o nome promete.** Publica
+  `Indicador`, `periodo`, `DataReferencia1` e `DataReferencia2` (não existe
+  `DataReferencia`), cobre 11 indicadores contra os 26 do recurso anual, não separa
+  por horizonte e, para o IPCA, para em 12/2026 enquanto o mensal já carrega
+  07/2028. `bcb_focus_referencias` deriva dos próprios recursos de expectativa, com
+  `$select` — que o Olinda suporta e corta o payload em ~4×.
+- **A fonte é irregular nos nomes dos recursos**, e não é erro de digitação:
+  `ExpectativaMercadoMensais` e `ExpectativaMercadoTop5Trimestral` são singulares;
+  o resto é plural. Existe Top 5 nos CINCO horizontes, não só no mensal e no anual.
 - **Limite de 10 anos do SGS** vale só para séries **diárias**, e o erro é
   **406** (não 400/404) — o tratamento ainda não existe, está no escopo do D1.
 - **`ultimos/N` tem teto de 20** no upstream, embora o schema anuncie até 1000.

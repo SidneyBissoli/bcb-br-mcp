@@ -55,6 +55,7 @@ export interface CotacaoNormalizada {
   /** Só para moedas não-dólar: paridade contra o USD (origem: agência de informação). */
   paridadeCompra?: number | null;
   paridadeVenda?: number | null;
+  /** Nulo em USD: verificado contra a origem, os recursos de dólar não publicam este campo. */
   tipoBoletim: string | null;
 }
 
@@ -288,12 +289,12 @@ export const CAMBIO_TOOL_DEFINITIONS: ToolDefinition[] = [
           items: {
             type: "object" as const,
             properties: {
-              dataHora: { type: "string" as const, description: "Data e hora da cotação" },
-              cotacaoCompra: { type: "number" as const },
-              cotacaoVenda: { type: "number" as const },
-              paridadeCompra: { type: "number" as const, description: "Paridade de compra contra o USD (moedas não-dólar; origem: agência de informação)" },
-              paridadeVenda: { type: "number" as const, description: "Paridade de venda contra o USD (moedas não-dólar; origem: agência de informação)" },
-              tipoBoletim: { type: "string" as const, description: "Tipo de boletim (ex.: Fechamento, Abertura, Intermediário)" }
+              dataHora: { type: ["string", "null"] as const, description: "Data e hora da cotação" },
+              cotacaoCompra: { type: ["number", "null"] as const },
+              cotacaoVenda: { type: ["number", "null"] as const },
+              paridadeCompra: { type: ["number", "null"] as const, description: "Paridade de compra contra o USD (moedas não-dólar; origem: agência de informação)" },
+              paridadeVenda: { type: ["number", "null"] as const, description: "Paridade de venda contra o USD (moedas não-dólar; origem: agência de informação)" },
+              tipoBoletim: { type: ["string", "null"] as const, description: "Tipo de boletim (ex.: Fechamento, Abertura, Intermediário). Nulo em USD: a fonte não publica este campo nos recursos de dólar, só nos de moeda." }
             },
             required: ["dataHora"]
           }
@@ -326,16 +327,16 @@ export const CAMBIO_TOOL_DEFINITIONS: ToolDefinition[] = [
     outputSchema: {
       type: "object" as const,
       properties: {
-        termo: { type: "string" as const },
+        termo: { type: ["string", "null"] as const, description: "Termo aplicado no filtro; nulo quando não foi informado" },
         totalMoedas: { type: "number" as const },
         moedas: {
           type: "array" as const,
           items: {
             type: "object" as const,
             properties: {
-              simbolo: { type: "string" as const, description: "Símbolo a usar em bcb_cambio_cotacao" },
-              nome: { type: "string" as const },
-              tipo: { type: "string" as const, description: "Tipo da moeda conforme a fonte (A ou B)" }
+              simbolo: { type: ["string", "null"] as const, description: "Símbolo a usar em bcb_cambio_cotacao" },
+              nome: { type: ["string", "null"] as const },
+              tipo: { type: ["string", "null"] as const, description: "Tipo da moeda conforme a fonte (A ou B)" }
             },
             required: ["simbolo"]
           }

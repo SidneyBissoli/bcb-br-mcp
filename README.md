@@ -60,7 +60,7 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 | `bcb_comparar` | Compare 2 to 5 series over the same period with ranking |
 | `bcb_focus_expectativas` | Focus survey expectations for one indicator, horizon as a parameter (monthly, quarterly, annual, rolling 12m/24m inflation); `top5` flag |
 | `bcb_focus_selic` | Focus expectations for the Selic rate, by Copom meeting (R1/2026 form) |
-| `bcb_focus_referencias` | Which indicators and reference dates exist in the Focus survey (exact strings) |
+| `bcb_focus_referencias` | Which indicators and reference dates exist in the Focus survey, **broken down per horizon** (exact strings) — the indicator set differs by horizon (9 monthly vs 26 annual) |
 | `bcb_cambio_cotacao` | PTAX quote for a currency (USD by default), single day or date range |
 | `bcb_cambio_moedas` | Currencies with quotes published by the BCB |
 
@@ -408,6 +408,22 @@ This server uses the Brazilian Central Bank's public API:
 - **Documentation:** [BCB Open Data](https://dadosabertos.bcb.gov.br/)
 
 ## Changelog
+
+### v1.4.0
+
+- **Three APIs under one contract, 8 tools → 13.** Focus market-expectations
+  survey (`bcb_focus_expectativas`, `bcb_focus_selic`, `bcb_focus_referencias`)
+  and PTAX exchange rates (`bcb_cambio_cotacao`, `bcb_cambio_moedas`), consolidated
+  by parameter rather than mirroring the source's ~18 OData resources.
+- **Real search.** `bcb_buscar_serie` now queries the Open Data Portal index
+  (3,500+ series, 24-hour cache, metadata only) on top of the curated catalog, and
+  states the index's coverage instead of claiming a series does not exist.
+- Every Focus and PTAX field name verified against the live API, including the
+  Top 5 Selic resource, which publishes its fields in a different case from the
+  other twelve.
+- ODbL obligations shipped with the exchange-rate tools: the BCB disclaimer is
+  passed through verbatim, and non-USD parities are qualified as third-party
+  (Refinitiv) data redistributed by the BCB.
 
 ### v1.2.0
 

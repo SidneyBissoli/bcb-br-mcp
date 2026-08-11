@@ -7,10 +7,16 @@
  *   node scripts/smoke-mcp.mjs --url <url>     # outro endpoint (ex.: wrangler dev)
  *   node scripts/smoke-mcp.mjs --stdio         # dist/index.js local (exige npm run build)
  *
- * Verifica: handshake, superfície completa (8 tools / 3 resources / 3 prompts),
- * uma tool servida do catálogo local, uma tool que vai à API do BCB, leitura de
- * resource, e a validação de entrada (argumento obrigatório ausente tem de ser
- * barrado ANTES de chamar o BCB — regressão fechada na fundação).
+ * Verifica: handshake, superfície completa (13 tools / 3 resources / 3 prompts),
+ * a busca com índice do portal, uma tool que vai ao SGS, as cinco tools de D3
+ * (Focus e PTAX) contra a origem, leitura de resource, e a validação de entrada
+ * (argumento obrigatório ausente tem de ser barrado ANTES de chamar o BCB —
+ * regressão fechada na fundação).
+ *
+ * As asserções das tools de D3 pinam o que o mini-spike verificou contra a
+ * origem, e não só "respondeu 200": nome de recurso por horizonte, os campos em
+ * caixa baixa do Top 5 da Selic, a quebra por horizonte das referências e o
+ * formato MM-DD-YYYY das datas da PTAX. Indisponibilidade do BCB vira AVISO.
  */
 
 import { spawn } from "node:child_process";
@@ -146,11 +152,20 @@ try {
   await client.notify("notifications/initialized");
 
   const tools = (await client.rpc("tools/list")).result?.tools ?? [];
-  check("tools/list = 8", tools.length === 8, `${tools.length} tools`);
+  check("tools/list = 13", tools.length === 13, `${tools.length} tools`);
   check(
     "todas com prefixo bcb_, title e outputSchema",
     tools.every(t => t.name.startsWith("bcb_") && t.annotations?.title && t.outputSchema)
   );
+  const nomes = tools.map(t => t.name);
+  const novas = [
+    "bcb_focus_expectativas",
+    "bcb_focus_selic",
+    "bcb_focus_referencias",
+    "bcb_cambio_cotacao",
+    "bcb_cambio_moedas"
+  ];
+  check("as 5 tools de Focus e câmbio estão publicadas", novas.every(n => nomes.includes(n)));
 
   const resources = (await client.rpc("resources/list")).result?.resources ?? [];
   check("resources/list = 3", resources.length === 3, resources.map(r => r.name).join(", "));
@@ -158,12 +173,18 @@ try {
   const prompts = (await client.rpc("prompts/list")).result?.prompts ?? [];
   check("prompts/list = 3", prompts.length === 3, prompts.map(p => p.name).join(", "));
 
-  // Tool offline (catálogo local).
+  // Busca: curadoria em destaque + índice do portal, e nunca afirmar inexistência.
   const busca = await client.rpc("tools/call", { name: "bcb_buscar_serie", arguments: { termo: "selic" } });
+  const buscaOut = busca.result?.structuredContent;
   check(
     "bcb_buscar_serie devolve structuredContent",
-    !busca.result?.isError && busca.result?.structuredContent?.totalEncontradas > 0,
-    `${busca.result?.structuredContent?.totalEncontradas} séries`
+    !busca.result?.isError && buscaOut?.totalEncontradas > 0,
+    `${buscaOut?.totalEncontradas} séries`
+  );
+  check(
+    "  → declara a cobertura do índice em vez de afirmar inexistência",
+    (buscaOut?.catalogo?.cobertura ?? "").includes("NÃO é o SGS inteiro"),
+    `${buscaOut?.catalogo?.seriesIndexadas ?? 0} séries indexadas`
   );
 
   // Tool que vai de fato à API do BCB.
@@ -177,6 +198,72 @@ try {
     selic.result,
     `${dados.length} obs; última = ${dados.at(-1)?.data} ${dados.at(-1)?.valor}`
   );
+
+  // ---------- as 5 tools de D3, contra a origem ----------
+
+  const call = (name, args) => client.rpc("tools/call", { name, arguments: args });
+
+  // Focus consolidado: o horizonte escolhe o recurso, e a URL da consulta prova qual.
+  const anual = await call("bcb_focus_expectativas", { indicador: "IPCA", horizonte: "anual", referencia: "2027" });
+  const anualOut = anual.result?.structuredContent;
+  checkUpstream("bcb_focus_expectativas (anual)", anual.result, `${anualOut?.totalRegistros} coletas`);
+  if (!anual.result?.isError) {
+    check(
+      "  → foi ao recurso anual, com filtro por construção",
+      anualOut?.urlConsulta?.includes("/ExpectativasMercadoAnuais?") && anualOut?.urlConsulta?.includes("$filter=")
+    );
+    check("  → devolve mediana, não só eco do pedido", typeof anualOut?.expectativas?.[0]?.mediana === "number");
+  }
+
+  // Fronteira do contrato: rolante recusa `referencia`, e isso não pode ir à rede.
+  const rolante = await call("bcb_focus_expectativas", { indicador: "IPCA", horizonte: "inflacao_12m", referencia: "2027" });
+  check(
+    "bcb_focus_expectativas barra `referencia` em horizonte rolante",
+    rolante.result?.isError === true && /rolante/i.test(rolante.result?.content?.[0]?.text ?? "")
+  );
+
+  // Top 5 da Selic: o recurso que publica os campos em caixa baixa. Se a
+  // normalização regredir, `mediana` volta nula e este check pega.
+  const top5 = await call("bcb_focus_selic", { top5: true, limite: 3 });
+  const top5Out = top5.result?.structuredContent;
+  checkUpstream("bcb_focus_selic (top5)", top5.result, `${top5Out?.totalRegistros} coletas`);
+  if (!top5.result?.isError) {
+    check(
+      "  → campos em caixa baixa do Top 5 chegam normalizados",
+      typeof top5Out?.expectativas?.[0]?.mediana === "number" &&
+        /^R\d+\/\d{4}$/.test(top5Out?.expectativas?.[0]?.referencia ?? "")
+    );
+  }
+
+  // Referências: o valor da tool é a quebra POR horizonte.
+  const refs = await call("bcb_focus_referencias", { horizonte: "anual" });
+  const refsOut = refs.result?.structuredContent;
+  checkUpstream("bcb_focus_referencias (anual)", refs.result, `${refsOut?.horizontes?.[0]?.indicadores?.length} indicadores`);
+  if (!refs.result?.isError) {
+    check(
+      "  → traz indicadores e referências do horizonte pedido",
+      refsOut?.horizontes?.[0]?.indicadores?.length > 0 && refsOut?.horizontes?.[0]?.referencias?.length > 0
+    );
+  }
+
+  // PTAX: o dia único usa MM-DD-YYYY. Em ISO a fonte devolve 200 com zero linhas,
+  // então o check é a URL trazer a data invertida E vir cotação.
+  const ptax = await call("bcb_cambio_cotacao", { moeda: "EUR", dataInicial: "2026-08-03", dataFinal: "2026-08-10" });
+  const ptaxOut = ptax.result?.structuredContent;
+  checkUpstream("bcb_cambio_cotacao (EUR, intervalo)", ptax.result, `${ptaxOut?.totalRegistros} boletins`);
+  if (!ptax.result?.isError) {
+    check("  → datas na URL em MM-DD-YYYY", ptaxOut?.urlConsulta?.includes("'08-03-2026'"));
+    check("  → disclaimer do BCB repassado literalmente", (ptaxOut?.disclaimer ?? "").includes("não assume qualquer responsabilidade"));
+    check("  → paridade não-USD qualificada como dado de terceiro", (ptaxOut?.qualificacaoParidade ?? "").includes("Refinitiv"));
+    check("  → cotação com compra e venda", typeof ptaxOut?.cotacoes?.[0]?.cotacaoVenda === "number");
+  }
+
+  const moedas = await call("bcb_cambio_moedas", {});
+  const moedasOut = moedas.result?.structuredContent;
+  checkUpstream("bcb_cambio_moedas", moedas.result, `${moedasOut?.totalMoedas} moedas`);
+  if (!moedas.result?.isError) {
+    check("  → símbolos utilizáveis em bcb_cambio_cotacao", (moedasOut?.moedas ?? []).some(m => m.simbolo === "EUR"));
+  }
 
   // Leitura de resource.
   const leitura = await client.rpc("resources/read", { uri: "bcb://series/principais" });

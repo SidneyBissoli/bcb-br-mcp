@@ -82,6 +82,25 @@ const LINHA_SELIC = {
   baseCalculo: 0
 };
 
+/**
+ * Linha REAL do `ExpectativasMercadoTop5Selic`, colhida da origem no mini-spike.
+ * É o único dos treze recursos que publica os campos em caixa baixa, e é por isso
+ * que ela está aqui: sem essa amostra, a normalização voltaria tudo nulo e nenhum
+ * teste perceberia.
+ */
+const LINHA_TOP5_SELIC = {
+  indicador: "Selic",
+  Data: "2026-06-29",
+  reuniao: "R5/2026",
+  tipoCalculo: "C",
+  media: 14.1591,
+  mediana: 14.25,
+  desvioPadrao: 0.1607,
+  coeficienteVariacao: 1.135,
+  minimo: 14,
+  maximo: 14.5
+};
+
 beforeEach(() => {
   fetchCalls = [];
   vi.useFakeTimers();
@@ -111,6 +130,31 @@ describe("normalizarExpectativa", () => {
     const linha = normalizarExpectativa({ ...LINHA_ANUAL, Mediana: "3,5", Media: "" });
     expect(linha.mediana).toBe(3.5);
     expect(linha.media).toBeNull();
+  });
+
+  it("lê o Top 5 da Selic, que a fonte publica em caixa baixa", () => {
+    const linha = normalizarExpectativa(LINHA_TOP5_SELIC);
+
+    expect(linha).toMatchObject({
+      indicador: "Selic",
+      coletadoEm: "2026-06-29",
+      referencia: "R5/2026",
+      media: 14.1591,
+      mediana: 14.25,
+      desvioPadrao: 0.1607,
+      minimo: 14,
+      maximo: 14.5,
+      tipoCalculo: "C",
+      coeficienteVariacao: 1.135
+    });
+    // A fonte não publica estes dois neste recurso — nulo é o valor honesto.
+    expect(linha.respondentes).toBeNull();
+    expect(linha.baseCalculo).toBeNull();
+  });
+
+  it("coeficienteVariacao só aparece onde a fonte o publica", () => {
+    expect(normalizarExpectativa(LINHA_SELIC).coeficienteVariacao).toBeUndefined();
+    expect(normalizarExpectativa(LINHA_ANUAL).coeficienteVariacao).toBeUndefined();
   });
 });
 
@@ -207,21 +251,36 @@ describe("bcb_focus_expectativas", () => {
     expect(decodeURIComponent(fetchCalls[0])).toContain("Suavizada eq 'S'");
   });
 
-  it("Top 5 é sinalizador: troca o recurso onde existe e é barrado onde não existe", async () => {
-    mockOlinda([LINHA_ANUAL]);
-    await call("bcb_focus_expectativas", { indicador: "IPCA", horizonte: "anual", referencia: "2027", top5: true });
-    expect(fetchCalls[0]).toContain("/ExpectativasMercadoTop5Anuais?");
+  /**
+   * Nomes lidos do documento de serviço do OData contra a origem. A irregularidade
+   * de caixa/singular é da fonte, não erro nosso — e é justamente o que um teste
+   * precisa impedir de "consertar" por engano.
+   */
+  it("Top 5 é sinalizador e existe nos CINCO horizontes, cada um no seu recurso", async () => {
+    const esperado: Record<string, string> = {
+      mensal: "ExpectativasMercadoTop5Mensais",
+      trimestral: "ExpectativaMercadoTop5Trimestral",
+      anual: "ExpectativasMercadoTop5Anuais",
+      inflacao_12m: "ExpectativasMercadoTop5Inflacao12Meses",
+      inflacao_24m: "ExpectativasMercadoTop5Inflacao24Meses"
+    };
 
-    fetchCalls = [];
-    const barrado = await call("bcb_focus_expectativas", {
-      indicador: "IPCA",
-      horizonte: "trimestral",
-      referencia: "3/2026",
-      top5: true
-    });
-    expect(barrado.isError).toBe(true);
-    expect(barrado.content[0].text).toContain("não publica Top 5");
-    expect(fetchCalls).toEqual([]);
+    for (const [horizonte, recurso] of Object.entries(esperado)) {
+      expect(RECURSOS[horizonte as keyof typeof RECURSOS].top5).toBe(recurso);
+
+      fetchCalls = [];
+      mockOlinda([]);
+      const rolante = RECURSOS[horizonte as keyof typeof RECURSOS].campoReferencia === null;
+      const result = await call("bcb_focus_expectativas", {
+        indicador: "IPCA",
+        horizonte,
+        top5: true,
+        ...(rolante ? {} : { referencia: "2027" })
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(fetchCalls[0]).toContain(`/${recurso}?`);
+    }
   });
 
   it("resposta vazia orienta em vez de afirmar que o dado não existe", async () => {
@@ -287,44 +346,203 @@ describe("bcb_focus_selic", () => {
     expect(url).not.toContain("Reuniao eq");
   });
 
-  it("top5 troca o recurso", async () => {
-    mockOlinda([LINHA_SELIC]);
-    await call("bcb_focus_selic", { top5: true });
+  it("top5 troca o recurso e a linha em caixa baixa chega normalizada", async () => {
+    mockOlinda([LINHA_TOP5_SELIC]);
+
+    const out = structured(await call("bcb_focus_selic", { top5: true }));
+
     expect(fetchCalls[0]).toContain("/ExpectativasMercadoTop5Selic?");
+    expect(out.base).toBe("top5");
+    expect((out.expectativas as Array<Record<string, unknown>>)[0]).toMatchObject({
+      referencia: "R5/2026",
+      mediana: 14.25,
+      coeficienteVariacao: 1.135
+    });
   });
 });
 
 // ==================== bcb_focus_referencias ====================
 
+/**
+ * A tool consulta os PRÓPRIOS recursos de expectativa, um por horizonte, e não o
+ * recurso `DatasReferencia` — que o mini-spike contra a origem mostrou não servir
+ * ao propósito (não tem campo `DataReferencia`, cobre 11 indicadores contra 26 do
+ * anual, e não separa por horizonte). O que estes testes pinam é a quebra POR
+ * HORIZONTE, que é o valor da tool.
+ */
 describe("bcb_focus_referencias", () => {
-  it("devolve indicadores e referências distintos, mais as regras por horizonte", async () => {
-    mockOlinda([
-      { Indicador: "IPCA", DataReferencia: "2027" },
-      { Indicador: "IPCA", DataReferencia: "2026" },
-      { Indicador: "PIB Total", DataReferencia: "2027" },
-      { Indicador: "IPCA", DataReferencia: "2027" }
-    ]);
+  /** Mock por recurso: cada horizonte responde uma coisa diferente, como na origem. */
+  function mockPorRecurso(porRecurso: Record<string, unknown[] | Error>): void {
+    global.fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      fetchCalls.push(url);
+      const chave = Object.keys(porRecurso).find(r => url.includes(`/${r}?`));
+      const valor = chave ? porRecurso[chave] : [];
+      if (valor instanceof Error) {
+        return { ok: false, status: 502, statusText: "Bad Gateway", json: async () => ({}) } as unknown as Response;
+      }
+      return { ok: true, status: 200, statusText: "OK", json: async () => ({ value: valor }) } as unknown as Response;
+    }) as unknown as typeof fetch;
+  }
+
+  it("consulta um recurso por horizonte, mais a Selic — nunca DatasReferencia", async () => {
+    mockPorRecurso({});
+
+    await call("bcb_focus_referencias", {});
+
+    expect(fetchCalls).toHaveLength(6);
+    for (const recurso of [
+      "ExpectativaMercadoMensais",
+      "ExpectativasMercadoTrimestrais",
+      "ExpectativasMercadoAnuais",
+      "ExpectativasMercadoInflacao12Meses",
+      "ExpectativasMercadoInflacao24Meses",
+      "ExpectativasMercadoSelic"
+    ]) {
+      expect(fetchCalls.some(u => u.includes(`/${recurso}?`))).toBe(true);
+    }
+    expect(fetchCalls.some(u => u.includes("DatasReferencia"))).toBe(false);
+  });
+
+  it("quebra indicadores e referências POR horizonte, que é o ponto da tool", async () => {
+    mockPorRecurso({
+      ExpectativaMercadoMensais: [
+        { Indicador: "IPCA", DataReferencia: "09/2026" },
+        { Indicador: "IPCA", DataReferencia: "10/2026" },
+        { Indicador: "Câmbio", DataReferencia: "09/2026" }
+      ],
+      ExpectativasMercadoAnuais: [
+        { Indicador: "IPCA", DataReferencia: "2027" },
+        { Indicador: "PIB Total", DataReferencia: "2027" }
+      ],
+      ExpectativasMercadoSelic: [{ Indicador: "Selic", Reuniao: "R6/2026" }]
+    });
 
     const out = structured(await call("bcb_focus_referencias", {}));
 
-    expect(out.indicadores).toEqual(["IPCA", "PIB Total"]);
-    expect(out.referencias).toEqual(["2026", "2027"]);
     const horizontes = out.horizontes as Array<Record<string, unknown>>;
-    expect(horizontes).toHaveLength(5);
-    expect(horizontes.find(h => h.horizonte === "anual")).toEqual({
-      horizonte: "anual",
-      formatoReferencia: "yyyy (ex.: 2027)",
+    expect(horizontes).toHaveLength(6);
+
+    const mensal = horizontes.find(h => h.horizonte === "mensal");
+    expect(mensal).toMatchObject({
+      tool: "bcb_focus_expectativas",
       exigeReferencia: true,
-      temTop5: true
+      temTop5: true,
+      indicadores: ["Câmbio", "IPCA"],
+      referencias: ["09/2026", "10/2026"],
+      disponivel: true
     });
-    expect(horizontes.find(h => h.horizonte === "inflacao_12m")).toMatchObject({ exigeReferencia: false, temTop5: false });
+
+    // "PIB Total" existe no anual e NÃO no mensal — a causa de resposta vazia que
+    // a tool existe para expor.
+    expect((horizontes.find(h => h.horizonte === "anual") as Record<string, unknown>).indicadores).toEqual([
+      "IPCA",
+      "PIB Total"
+    ]);
+    expect(mensal?.indicadores).not.toContain("PIB Total");
+
+    // A Selic entra como escopo próprio, apontando para a tool que a consome.
+    expect(horizontes.find(h => h.horizonte === "selic")).toMatchObject({
+      tool: "bcb_focus_selic",
+      exigeReferencia: false,
+      referencias: ["R6/2026"]
+    });
+
+    // Rolantes não têm alvo de calendário: lista vazia é o valor correto.
+    expect(horizontes.find(h => h.horizonte === "inflacao_12m")).toMatchObject({
+      exigeReferencia: false,
+      temTop5: true,
+      referencias: []
+    });
+
+    expect(out.indicadores).toEqual(["Câmbio", "IPCA", "PIB Total", "Selic"]);
+    // União em ordem cronológica, não lexicográfica.
+    expect(out.referencias).toEqual(["R6/2026", "09/2026", "10/2026", "2027"]);
+    expect(out.totalRegistros).toBe(6);
   });
 
-  it("filtra por indicador quando pedido", async () => {
-    mockOlinda([{ Indicador: "IPCA", DataReferencia: "2027" }]);
+  it("referências saem em ordem cronológica, não lexicográfica", async () => {
+    mockPorRecurso({
+      ExpectativaMercadoMensais: [
+        { Indicador: "IPCA", DataReferencia: "02/2027" },
+        { Indicador: "IPCA", DataReferencia: "01/2028" },
+        { Indicador: "IPCA", DataReferencia: "01/2027" },
+        { Indicador: "IPCA", DataReferencia: "12/2026" }
+      ]
+    });
 
-    await call("bcb_focus_referencias", { indicador: "IPCA" });
+    const out = structured(await call("bcb_focus_referencias", { horizonte: "mensal" }));
 
-    expect(decodeURIComponent(fetchCalls[0])).toContain("Indicador eq 'IPCA'");
+    // Lexicograficamente seria 01/2027, 01/2028, 02/2027, 12/2026 — inútil para ler.
+    expect((out.horizontes as Array<Record<string, unknown>>)[0].referencias).toEqual([
+      "12/2026",
+      "01/2027",
+      "02/2027",
+      "01/2028"
+    ]);
+  });
+
+  it("com `horizonte`, consulta só aquele recurso", async () => {
+    mockPorRecurso({ ExpectativasMercadoAnuais: [{ Indicador: "IPCA", DataReferencia: "2027" }] });
+
+    const out = structured(await call("bcb_focus_referencias", { horizonte: "anual" }));
+
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]).toContain("/ExpectativasMercadoAnuais?");
+    expect(out.horizontes).toHaveLength(1);
+  });
+
+  it("`selic` é escopo válido e vai ao recurso de Selic", async () => {
+    mockPorRecurso({ ExpectativasMercadoSelic: [{ Indicador: "Selic", Reuniao: "R6/2026" }] });
+
+    const out = structured(await call("bcb_focus_referencias", { horizonte: "selic" }));
+
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]).toContain("/ExpectativasMercadoSelic?");
+    expect((out.horizontes as Array<Record<string, unknown>>)[0].referencias).toEqual(["R6/2026"]);
+  });
+
+  it("filtra por indicador e usa $select para não trazer o payload inteiro", async () => {
+    mockPorRecurso({ ExpectativasMercadoAnuais: [{ Indicador: "IPCA", DataReferencia: "2027" }] });
+
+    await call("bcb_focus_referencias", { indicador: "IPCA", horizonte: "anual" });
+
+    const url = decodeURIComponent(fetchCalls[0]);
+    expect(url).toContain("Indicador eq 'IPCA'");
+    expect(url).toContain("$select=Indicador,DataReferencia");
+    expect(url).toContain("Data ge '2026-07-26'"); // janela de descoberta: 15 dias
+  });
+
+  it("horizonte que não responde não derruba os outros", async () => {
+    mockPorRecurso({
+      ExpectativasMercadoAnuais: [{ Indicador: "IPCA", DataReferencia: "2027" }],
+      ExpectativaMercadoMensais: new Error("fora")
+    });
+
+    const out = structured(await call("bcb_focus_referencias", {}));
+
+    const horizontes = out.horizontes as Array<Record<string, unknown>>;
+    expect(horizontes.find(h => h.horizonte === "anual")?.disponivel).toBe(true);
+    expect(horizontes.find(h => h.horizonte === "mensal")?.disponivel).toBe(false);
+    expect(out.falhas).toHaveLength(1);
+    expect(out.observacaoFalhas).toContain("disponivel");
+  });
+
+  it("origem inteira fora vira isError, não resposta vazia disfarçada", async () => {
+    mockOlinda({ __status: 502 });
+
+    const result = await call("bcb_focus_referencias", {});
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("502");
+  });
+
+  it("indicador inexistente diz o que fazer em vez de devolver listas vazias", async () => {
+    mockPorRecurso({});
+
+    const out = structured(await call("bcb_focus_referencias", { indicador: "Bitcoin" }));
+
+    expect(out.indicadores).toEqual([]);
+    expect(out.observacaoFalhas).toContain("SEM `indicador`");
   });
 });
