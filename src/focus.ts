@@ -447,23 +447,28 @@ function ordenarReferencias(referencias: string[]): string[] {
 
 export interface ArgsReferencias {
   indicador?: string;
-  horizonte?: EscopoReferencias;
+  escopo?: EscopoReferencias;
 }
 
 /**
- * Descobre os textos EXATOS de indicador e de referência, por horizonte.
+ * Descobre os textos EXATOS de indicador e de referência, por escopo.
+ *
+ * O parâmetro chama-se `escopo`, e não `horizonte`, de propósito: os cinco
+ * horizontes de `bcb_focus_expectativas` mais a Selic — cujo eixo é a reunião do
+ * Copom, não o calendário — não formam um conjunto de horizontes. Esta tool cobre
+ * tudo o que o Focus publica, e cada bloco diz em `tool` quem o consome.
  *
  * O desenho consulta os próprios recursos de expectativa — e não o recurso
  * `DatasReferencia`, que o nome sugere e que foi descartado com o spike contra a
  * origem: ele publica `Indicador`, `periodo`, `DataReferencia1` e
  * `DataReferencia2` (não existe `DataReferencia`), cobre 11 indicadores contra os
- * 26 do recurso anual, não separa por horizonte e, para o IPCA, para em 12/2026
+ * 26 do recurso anual, não separa por escopo e, para o IPCA, para em 12/2026
  * enquanto as expectativas mensais já carregam referência 07/2028. É um calendário
  * de datas de referência, não um índice das referências consultáveis.
  *
- * A quebra POR HORIZONTE é o ponto: o conjunto de indicadores varia muito entre
- * eles (9 no mensal contra 26 no anual), e pedir um indicador no horizonte errado
- * — "PIB Total" no mensal, por exemplo — é justamente o modo mais comum de a
+ * A quebra POR ESCOPO é o ponto: o conjunto de indicadores varia muito entre eles
+ * (9 no mensal contra 26 no anual), e pedir um indicador no horizonte errado —
+ * "PIB Total" no mensal, por exemplo — é justamente o modo mais comum de a
  * consulta voltar vazia sem explicação.
  */
 export async function handleFocusReferencias(
@@ -471,11 +476,11 @@ export async function handleFocusReferencias(
   timeoutMs?: number,
   maxRetries?: number
 ): Promise<ToolResult> {
-  if (args.horizonte !== undefined && !ESCOPOS.includes(args.horizonte)) {
-    return erroResult(`Horizonte inválido: "${args.horizonte}". Use um destes: ${ESCOPOS.join(", ")}.`);
+  if (args.escopo !== undefined && !ESCOPOS.includes(args.escopo)) {
+    return erroResult(`Escopo inválido: "${args.escopo}". Use um destes: ${ESCOPOS.join(", ")}.`);
   }
 
-  const escopos = args.horizonte !== undefined ? [args.horizonte] : ESCOPOS;
+  const escopos = args.escopo !== undefined ? [args.escopo] : ESCOPOS;
   const dataFinal = hojeIso();
   const dataInicial = somarDiasIso(dataFinal, -JANELA_REFERENCIAS_DIAS);
 
@@ -501,14 +506,14 @@ export async function handleFocusReferencias(
 
   const indicadoresUniao = new Set<string>();
   const referenciasUniao = new Set<string>();
-  const falhas: Array<{ horizonte: string; erro: string }> = [];
+  const falhas: Array<{ escopo: string; erro: string }> = [];
   let totalRegistros = 0;
 
-  const horizontes = consultas.map(({ plano, url }, i) => {
+  const blocos = consultas.map(({ plano, url }, i) => {
     const resposta = respostas[i];
     const linhas = resposta.status === "fulfilled" ? resposta.value : [];
     if (resposta.status === "rejected") {
-      falhas.push({ horizonte: plano.escopo, erro: mensagemDeErro(resposta.reason) });
+      falhas.push({ escopo: plano.escopo, erro: mensagemDeErro(resposta.reason) });
     }
 
     const indicadores = [
@@ -529,7 +534,7 @@ export async function handleFocusReferencias(
     totalRegistros += linhas.length;
 
     return {
-      horizonte: plano.escopo,
+      escopo: plano.escopo,
       tool: plano.tool,
       formatoReferencia: plano.formatoReferencia,
       exigeReferencia: plano.campoReferencia !== null && plano.escopo !== "selic",
@@ -547,31 +552,31 @@ export async function handleFocusReferencias(
   }
 
   const payload: Record<string, unknown> = {
-    filtro: { indicador: args.indicador ?? null, horizonte: args.horizonte ?? null },
+    filtro: { indicador: args.indicador ?? null, escopo: args.escopo ?? null },
     janela: { dataInicial, dataFinal },
     indicadores: [...indicadoresUniao].sort(),
     referencias: ordenarReferencias([...referenciasUniao]),
-    horizontes,
+    escopos: blocos,
     totalRegistros,
     consultadoEm: new Date().toISOString(),
     observacao:
       "Os nomes de indicador e as referências são sensíveis ao texto EXATO: copie daqui para " +
-      "bcb_focus_expectativas (ou para bcb_focus_selic, no caso das reuniões do Copom). Repare que o conjunto " +
-      "de indicadores muda por horizonte — pedir um indicador no horizonte em que a fonte não o publica é a " +
-      "causa mais comum de resposta vazia. As listas refletem as coletas dos últimos " +
-      `${JANELA_REFERENCIAS_DIAS} dias.`
+      "bcb_focus_expectativas (ou para bcb_focus_selic, no caso das reuniões do Copom) — o campo `tool` de cada " +
+      "escopo diz qual. Repare que o conjunto de indicadores muda por escopo: pedir um indicador no horizonte " +
+      "em que a fonte não o publica é a causa mais comum de resposta vazia. As listas refletem as coletas dos " +
+      `últimos ${JANELA_REFERENCIAS_DIAS} dias.`
   };
 
   if (falhas.length > 0) {
     payload.falhas = falhas;
     payload.observacaoFalhas =
-      `${falhas.length} de ${escopos.length} horizontes não responderam nesta consulta; os demais estão completos. ` +
-      "Horizontes com `disponivel: false` têm listas vazias por indisponibilidade, não por ausência de dado.";
+      `${falhas.length} de ${escopos.length} escopos não responderam nesta consulta; os demais estão completos. ` +
+      "Escopos com `disponivel: false` têm listas vazias por indisponibilidade, não por ausência de dado.";
   }
   if (args.indicador !== undefined && indicadoresUniao.size === 0 && falhas.length === 0) {
     payload.observacaoFalhas =
-      `Nenhum horizonte publica o indicador "${args.indicador}" nos últimos ${JANELA_REFERENCIAS_DIAS} dias. ` +
-      "Chame esta tool SEM `indicador` para ver a lista de nomes publicados por horizonte.";
+      `Nenhum escopo publica o indicador "${args.indicador}" nos últimos ${JANELA_REFERENCIAS_DIAS} dias. ` +
+      "Chame esta tool SEM `indicador` para ver a lista de nomes publicados por escopo.";
   }
 
   return structuredResult(payload);
@@ -745,27 +750,28 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: "bcb_focus_referencias",
     description:
-      "Lista, POR HORIZONTE, os indicadores e as referências que o Focus efetivamente publica, para você usar o " +
-      "texto EXATO em bcb_focus_expectativas e em bcb_focus_selic. " +
+      "Lista, POR ESCOPO, os indicadores e as referências que o Focus efetivamente publica, para você usar o " +
+      "texto EXATO em bcb_focus_expectativas e em bcb_focus_selic. Escopo = os cinco horizontes de " +
+      "bcb_focus_expectativas mais 'selic', que não é horizonte: o eixo dela é a reunião do Copom, e quem a " +
+      "consome é bcb_focus_selic. Cada bloco diz em `tool` quem o consome. " +
       "Quando usar: antes da primeira consulta ao Focus, ou quando uma consulta volta vazia — a causa mais " +
-      "comum não é o dado faltar, é o indicador não existir NAQUELE horizonte (a fonte publica 9 indicadores no " +
+      "comum não é o dado faltar, é o indicador não existir NAQUELE escopo (a fonte publica 9 indicadores no " +
       "mensal e 26 no anual: 'PIB Total', por exemplo, não existe no mensal) ou a referência estar num formato " +
       "diferente do publicado. Quando NÃO usar: para os valores das expectativas em si. " +
-      "Sem `horizonte`, consulta os cinco horizontes mais a Selic e devolve tudo; com `horizonte`, consulta só " +
-      "aquele. " +
-      "Retorna: `horizontes` (para cada um: `tool` que o consome, `formatoReferencia`, `exigeReferencia`, " +
+      "Sem `escopo`, consulta os seis e devolve tudo; com `escopo`, consulta só aquele. " +
+      "Retorna: `escopos` (para cada um: `tool` que o consome, `formatoReferencia`, `exigeReferencia`, " +
       "`temTop5`, `indicadores`, `referencias`, `urlConsulta` e `disponivel`), mais `indicadores` e " +
-      "`referencias` como união de todos, `janela`, `totalRegistros` e `consultadoEm`. Se algum horizonte não " +
+      "`referencias` como união de todos, `janela`, `totalRegistros` e `consultadoEm`. Se algum escopo não " +
       "responder, os demais voltam mesmo assim, com `falhas` preenchido. " + NOTA_FOCUS,
     annotations: leituraRemota("Indicadores e referências do Focus"),
     inputSchema: {
       type: "object" as const,
       properties: {
-        indicador: { type: "string" as const, description: "Filtrar por um indicador específico, para ver em quais horizontes ele existe (opcional)" },
-        horizonte: {
+        indicador: { type: "string" as const, description: "Filtrar por um indicador específico, para ver em quais escopos ele existe (opcional)" },
+        escopo: {
           type: "string" as const,
           enum: ESCOPOS,
-          description: "Restringe a descoberta a um horizonte (opcional). 'selic' descobre as reuniões do Copom para bcb_focus_selic."
+          description: "Restringe a descoberta a um escopo (opcional). 'selic' descobre as reuniões do Copom para bcb_focus_selic; os demais são os horizontes de bcb_focus_expectativas."
         }
       }
     },
@@ -777,7 +783,7 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: "Filtro pedido; nulo onde o parâmetro não foi informado",
           properties: {
             indicador: { type: ["string", "null"] as const },
-            horizonte: { type: ["string", "null"] as const, description: `Um de: ${ESCOPOS.join(", ")}; nulo quando a consulta cobriu todos` }
+            escopo: { type: ["string", "null"] as const, description: `Um de: ${ESCOPOS.join(", ")}; nulo quando a consulta cobriu todos` }
           }
         },
         janela: {
@@ -789,45 +795,45 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
           },
           required: ["dataInicial", "dataFinal"]
         },
-        indicadores: { type: "array" as const, items: { type: "string" as const }, description: "União dos indicadores de todos os horizontes consultados" },
-        referencias: { type: "array" as const, items: { type: "string" as const }, description: "União das referências de todos os horizontes consultados" },
-        horizontes: {
+        indicadores: { type: "array" as const, items: { type: "string" as const }, description: "União dos indicadores de todos os escopos consultados" },
+        referencias: { type: "array" as const, items: { type: "string" as const }, description: "União das referências de todos os escopos consultados" },
+        escopos: {
           type: "array" as const,
-          description: "Um bloco por horizonte: regras do contrato mais o que a fonte publica nele",
+          description: "Um bloco por escopo: regras do contrato mais o que a fonte publica nele",
           items: {
             type: "object" as const,
             properties: {
-              horizonte: { type: "string" as const, enum: ESCOPOS },
-              tool: { type: "string" as const, description: "Tool que consome este horizonte" },
+              escopo: { type: "string" as const, enum: ESCOPOS },
+              tool: { type: "string" as const, description: "Tool que consome este escopo" },
               formatoReferencia: { type: ["string", "null"] as const, description: "Formato da referência; nulo nos horizontes rolantes, que não têm alvo de calendário" },
               exigeReferencia: { type: "boolean" as const, description: "true nos horizontes de calendário, onde `referencia` é obrigatória" },
               temTop5: { type: "boolean" as const },
-              indicadores: { type: "array" as const, items: { type: "string" as const }, description: "Indicadores publicados NESTE horizonte" },
-              referencias: { type: "array" as const, items: { type: "string" as const }, description: "Referências publicadas NESTE horizonte; vazio nos rolantes, que não têm alvo de calendário" },
+              indicadores: { type: "array" as const, items: { type: "string" as const }, description: "Indicadores publicados NESTE escopo" },
+              referencias: { type: "array" as const, items: { type: "string" as const }, description: "Referências publicadas NESTE escopo; vazio nos rolantes, que não têm alvo de calendário" },
               urlConsulta: { type: "string" as const },
-              disponivel: { type: "boolean" as const, description: "false quando a origem não respondeu por este horizonte — listas vazias por indisponibilidade, não por ausência de dado" }
+              disponivel: { type: "boolean" as const, description: "false quando a origem não respondeu por este escopo — listas vazias por indisponibilidade, não por ausência de dado" }
             },
-            required: ["horizonte", "tool", "exigeReferencia", "temTop5", "indicadores", "referencias", "urlConsulta", "disponivel"]
+            required: ["escopo", "tool", "exigeReferencia", "temTop5", "indicadores", "referencias", "urlConsulta", "disponivel"]
           }
         },
         totalRegistros: { type: "number" as const },
         falhas: {
           type: "array" as const,
-          description: "Horizontes que não responderam nesta consulta",
+          description: "Escopos que não responderam nesta consulta",
           items: {
             type: "object" as const,
             properties: {
-              horizonte: { type: "string" as const },
+              escopo: { type: "string" as const },
               erro: { type: "string" as const }
             },
-            required: ["horizonte", "erro"]
+            required: ["escopo", "erro"]
           }
         },
         consultadoEm: { type: "string" as const },
         observacao: { type: "string" as const },
         observacaoFalhas: { type: "string" as const }
       },
-      required: ["indicadores", "referencias", "horizontes", "janela", "totalRegistros", "consultadoEm"]
+      required: ["indicadores", "referencias", "escopos", "janela", "totalRegistros", "consultadoEm"]
     }
   }
 ];

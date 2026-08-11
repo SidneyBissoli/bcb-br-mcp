@@ -236,13 +236,13 @@ try {
   }
 
   // Referências: o valor da tool é a quebra POR horizonte.
-  const refs = await call("bcb_focus_referencias", { horizonte: "anual" });
+  const refs = await call("bcb_focus_referencias", { escopo: "anual" });
   const refsOut = refs.result?.structuredContent;
-  checkUpstream("bcb_focus_referencias (anual)", refs.result, `${refsOut?.horizontes?.[0]?.indicadores?.length} indicadores`);
+  checkUpstream("bcb_focus_referencias (anual)", refs.result, `${refsOut?.escopos?.[0]?.indicadores?.length} indicadores`);
   if (!refs.result?.isError) {
     check(
       "  → traz indicadores e referências do horizonte pedido",
-      refsOut?.horizontes?.[0]?.indicadores?.length > 0 && refsOut?.horizontes?.[0]?.referencias?.length > 0
+      refsOut?.escopos?.[0]?.indicadores?.length > 0 && refsOut?.escopos?.[0]?.referencias?.length > 0
     );
   }
 

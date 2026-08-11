@@ -172,7 +172,7 @@ const CASOS: Array<[string, string, Record<string, unknown>]> = [
   ["bcb_focus_selic", "sem reunião (filtro.reuniao nula)", { limite: 3 }],
   ["bcb_focus_selic", "Top 5 em caixa baixa", { top5: true, limite: 3 }],
   ["bcb_focus_referencias", "todos os escopos (filtro nulo)", {}],
-  ["bcb_focus_referencias", "escopo único", { horizonte: "selic" }],
+  ["bcb_focus_referencias", "escopo único", { escopo: "selic" }],
   ["bcb_cambio_cotacao", "USD (fonte não publica tipoBoletim)", { data: "2026-08-07" }],
   ["bcb_cambio_cotacao", "moeda com paridade", { moeda: "EUR", dataInicial: "2026-08-03", dataFinal: "2026-08-10" }],
   ["bcb_cambio_moedas", "sem termo (termo nulo)", {}]

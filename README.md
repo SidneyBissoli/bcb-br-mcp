@@ -60,7 +60,7 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 | `bcb_comparar` | Compare 2 to 5 series over the same period with ranking |
 | `bcb_focus_expectativas` | Focus survey expectations for one indicator, horizon as a parameter (monthly, quarterly, annual, rolling 12m/24m inflation); `top5` flag |
 | `bcb_focus_selic` | Focus expectations for the Selic rate, by Copom meeting (R1/2026 form) |
-| `bcb_focus_referencias` | Which indicators and reference dates exist in the Focus survey, **broken down per horizon** (exact strings) — the indicator set differs by horizon (9 monthly vs 26 annual) |
+| `bcb_focus_referencias` | Which indicators and reference dates the Focus survey actually publishes, **broken down per scope** (the five horizons plus `selic`, whose axis is the Copom meeting) — the indicator set differs by scope (9 monthly vs 26 annual) |
 | `bcb_cambio_cotacao` | PTAX quote for a currency (USD by default), single day or date range |
 | `bcb_cambio_moedas` | Currencies with quotes published by the BCB |
 
@@ -408,6 +408,16 @@ This server uses the Brazilian Central Bank's public API:
 - **Documentation:** [BCB Open Data](https://dadosabertos.bcb.gov.br/)
 
 ## Changelog
+
+### v1.4.1
+
+- `bcb_focus_referencias`: the parameter is now `escopo`, not `horizonte`, and the
+  response array is `escopos`. The scopes are the five horizons of
+  `bcb_focus_expectativas` **plus `selic`** — and `selic` is not a horizon: its
+  axis is the Copom meeting. Each block names the `tool` that consumes it. The
+  previous name implied `selic` was a queryable horizon of
+  `bcb_focus_expectativas`, which it is not. Never published to npm under the old
+  name.
 
 ### v1.4.0
 

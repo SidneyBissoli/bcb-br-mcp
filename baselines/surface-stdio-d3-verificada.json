@@ -851,12 +851,12 @@
         "readOnlyHint": true,
         "title": "Indicadores e referências do Focus"
       },
-      "description": "Lista, POR HORIZONTE, os indicadores e as referências que o Focus efetivamente publica, para você usar o texto EXATO em bcb_focus_expectativas e em bcb_focus_selic. Quando usar: antes da primeira consulta ao Focus, ou quando uma consulta volta vazia — a causa mais comum não é o dado faltar, é o indicador não existir NAQUELE horizonte (a fonte publica 9 indicadores no mensal e 26 no anual: 'PIB Total', por exemplo, não existe no mensal) ou a referência estar num formato diferente do publicado. Quando NÃO usar: para os valores das expectativas em si. Sem `horizonte`, consulta os cinco horizontes mais a Selic e devolve tudo; com `horizonte`, consulta só aquele. Retorna: `horizontes` (para cada um: `tool` que o consome, `formatoReferencia`, `exigeReferencia`, `temTop5`, `indicadores`, `referencias`, `urlConsulta` e `disponivel`), mais `indicadores` e `referencias` como união de todos, `janela`, `totalRegistros` e `consultadoEm`. Se algum horizonte não responder, os demais voltam mesmo assim, com `falhas` preenchido. Fonte: Expectativas de Mercado (Focus) do Banco Central do Brasil, via Olinda OData. O Focus é vintage por construção: `coletadoEm` é a data da coleta e `referencia` é o alvo da expectativa — a mesma referência aparece em muitas coletas, e é isso que permite ver a expectativa mudar no tempo. A contagem é feita do nosso lado porque a fonte ignora `$count`; e o filtro é obrigatório por construção porque consulta sem filtro não completa na origem. Microdados por instituição NÃO são expostos: a fonte desativou esse recurso por risco de quebra de confidencialidade.",
+      "description": "Lista, POR ESCOPO, os indicadores e as referências que o Focus efetivamente publica, para você usar o texto EXATO em bcb_focus_expectativas e em bcb_focus_selic. Escopo = os cinco horizontes de bcb_focus_expectativas mais 'selic', que não é horizonte: o eixo dela é a reunião do Copom, e quem a consome é bcb_focus_selic. Cada bloco diz em `tool` quem o consome. Quando usar: antes da primeira consulta ao Focus, ou quando uma consulta volta vazia — a causa mais comum não é o dado faltar, é o indicador não existir NAQUELE escopo (a fonte publica 9 indicadores no mensal e 26 no anual: 'PIB Total', por exemplo, não existe no mensal) ou a referência estar num formato diferente do publicado. Quando NÃO usar: para os valores das expectativas em si. Sem `escopo`, consulta os seis e devolve tudo; com `escopo`, consulta só aquele. Retorna: `escopos` (para cada um: `tool` que o consome, `formatoReferencia`, `exigeReferencia`, `temTop5`, `indicadores`, `referencias`, `urlConsulta` e `disponivel`), mais `indicadores` e `referencias` como união de todos, `janela`, `totalRegistros` e `consultadoEm`. Se algum escopo não responder, os demais voltam mesmo assim, com `falhas` preenchido. Fonte: Expectativas de Mercado (Focus) do Banco Central do Brasil, via Olinda OData. O Focus é vintage por construção: `coletadoEm` é a data da coleta e `referencia` é o alvo da expectativa — a mesma referência aparece em muitas coletas, e é isso que permite ver a expectativa mudar no tempo. A contagem é feita do nosso lado porque a fonte ignora `$count`; e o filtro é obrigatório por construção porque consulta sem filtro não completa na origem. Microdados por instituição NÃO são expostos: a fonte desativou esse recurso por risco de quebra de confidencialidade.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
-          "horizonte": {
-            "description": "Restringe a descoberta a um horizonte (opcional). 'selic' descobre as reuniões do Copom para bcb_focus_selic.",
+          "escopo": {
+            "description": "Restringe a descoberta a um escopo (opcional). 'selic' descobre as reuniões do Copom para bcb_focus_selic; os demais são os horizontes de bcb_focus_expectativas.",
             "enum": [
               "mensal",
               "trimestral",
@@ -868,7 +868,7 @@
             "type": "string"
           },
           "indicador": {
-            "description": "Filtrar por um indicador específico, para ver em quais horizontes ele existe (opcional)",
+            "description": "Filtrar por um indicador específico, para ver em quais escopos ele existe (opcional)",
             "type": "string"
           }
         },
@@ -881,20 +881,90 @@
           "consultadoEm": {
             "type": "string"
           },
+          "escopos": {
+            "description": "Um bloco por escopo: regras do contrato mais o que a fonte publica nele",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "disponivel": {
+                  "description": "false quando a origem não respondeu por este escopo — listas vazias por indisponibilidade, não por ausência de dado",
+                  "type": "boolean"
+                },
+                "escopo": {
+                  "enum": [
+                    "mensal",
+                    "trimestral",
+                    "anual",
+                    "inflacao_12m",
+                    "inflacao_24m",
+                    "selic"
+                  ],
+                  "type": "string"
+                },
+                "exigeReferencia": {
+                  "description": "true nos horizontes de calendário, onde `referencia` é obrigatória",
+                  "type": "boolean"
+                },
+                "formatoReferencia": {
+                  "description": "Formato da referência; nulo nos horizontes rolantes, que não têm alvo de calendário",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "indicadores": {
+                  "description": "Indicadores publicados NESTE escopo",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "referencias": {
+                  "description": "Referências publicadas NESTE escopo; vazio nos rolantes, que não têm alvo de calendário",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "temTop5": {
+                  "type": "boolean"
+                },
+                "tool": {
+                  "description": "Tool que consome este escopo",
+                  "type": "string"
+                },
+                "urlConsulta": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "escopo",
+                "tool",
+                "exigeReferencia",
+                "temTop5",
+                "indicadores",
+                "referencias",
+                "urlConsulta",
+                "disponivel"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
           "falhas": {
-            "description": "Horizontes que não responderam nesta consulta",
+            "description": "Escopos que não responderam nesta consulta",
             "items": {
               "additionalProperties": false,
               "properties": {
                 "erro": {
                   "type": "string"
                 },
-                "horizonte": {
+                "escopo": {
                   "type": "string"
                 }
               },
               "required": [
-                "horizonte",
+                "escopo",
                 "erro"
               ],
               "type": "object"
@@ -905,7 +975,7 @@
             "additionalProperties": false,
             "description": "Filtro pedido; nulo onde o parâmetro não foi informado",
             "properties": {
-              "horizonte": {
+              "escopo": {
                 "description": "Um de: mensal, trimestral, anual, inflacao_12m, inflacao_24m, selic; nulo quando a consulta cobriu todos",
                 "type": [
                   "string",
@@ -921,78 +991,8 @@
             },
             "type": "object"
           },
-          "horizontes": {
-            "description": "Um bloco por horizonte: regras do contrato mais o que a fonte publica nele",
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "disponivel": {
-                  "description": "false quando a origem não respondeu por este horizonte — listas vazias por indisponibilidade, não por ausência de dado",
-                  "type": "boolean"
-                },
-                "exigeReferencia": {
-                  "description": "true nos horizontes de calendário, onde `referencia` é obrigatória",
-                  "type": "boolean"
-                },
-                "formatoReferencia": {
-                  "description": "Formato da referência; nulo nos horizontes rolantes, que não têm alvo de calendário",
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "horizonte": {
-                  "enum": [
-                    "mensal",
-                    "trimestral",
-                    "anual",
-                    "inflacao_12m",
-                    "inflacao_24m",
-                    "selic"
-                  ],
-                  "type": "string"
-                },
-                "indicadores": {
-                  "description": "Indicadores publicados NESTE horizonte",
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "referencias": {
-                  "description": "Referências publicadas NESTE horizonte; vazio nos rolantes, que não têm alvo de calendário",
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "temTop5": {
-                  "type": "boolean"
-                },
-                "tool": {
-                  "description": "Tool que consome este horizonte",
-                  "type": "string"
-                },
-                "urlConsulta": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "horizonte",
-                "tool",
-                "exigeReferencia",
-                "temTop5",
-                "indicadores",
-                "referencias",
-                "urlConsulta",
-                "disponivel"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
           "indicadores": {
-            "description": "União dos indicadores de todos os horizontes consultados",
+            "description": "União dos indicadores de todos os escopos consultados",
             "items": {
               "type": "string"
             },
@@ -1022,7 +1022,7 @@
             "type": "string"
           },
           "referencias": {
-            "description": "União das referências de todos os horizontes consultados",
+            "description": "União das referências de todos os escopos consultados",
             "items": {
               "type": "string"
             },
@@ -1035,7 +1035,7 @@
         "required": [
           "indicadores",
           "referencias",
-          "horizontes",
+          "escopos",
           "janela",
           "totalRegistros",
           "consultadoEm"

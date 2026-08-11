@@ -368,7 +368,7 @@ describe("bcb_focus_selic", () => {
  * recurso `DatasReferencia` — que o mini-spike contra a origem mostrou não servir
  * ao propósito (não tem campo `DataReferencia`, cobre 11 indicadores contra 26 do
  * anual, e não separa por horizonte). O que estes testes pinam é a quebra POR
- * HORIZONTE, que é o valor da tool.
+ * ESCOPO, que é o valor da tool.
  */
 describe("bcb_focus_referencias", () => {
   /** Mock por recurso: cada horizonte responde uma coisa diferente, como na origem. */
@@ -385,7 +385,7 @@ describe("bcb_focus_referencias", () => {
     }) as unknown as typeof fetch;
   }
 
-  it("consulta um recurso por horizonte, mais a Selic — nunca DatasReferencia", async () => {
+  it("consulta um recurso por escopo, incluindo a Selic — nunca DatasReferencia", async () => {
     mockPorRecurso({});
 
     await call("bcb_focus_referencias", {});
@@ -404,7 +404,7 @@ describe("bcb_focus_referencias", () => {
     expect(fetchCalls.some(u => u.includes("DatasReferencia"))).toBe(false);
   });
 
-  it("quebra indicadores e referências POR horizonte, que é o ponto da tool", async () => {
+  it("quebra indicadores e referências POR escopo, que é o ponto da tool", async () => {
     mockPorRecurso({
       ExpectativaMercadoMensais: [
         { Indicador: "IPCA", DataReferencia: "09/2026" },
@@ -420,10 +420,10 @@ describe("bcb_focus_referencias", () => {
 
     const out = structured(await call("bcb_focus_referencias", {}));
 
-    const horizontes = out.horizontes as Array<Record<string, unknown>>;
-    expect(horizontes).toHaveLength(6);
+    const escopos = out.escopos as Array<Record<string, unknown>>;
+    expect(escopos).toHaveLength(6);
 
-    const mensal = horizontes.find(h => h.horizonte === "mensal");
+    const mensal = escopos.find(h => h.escopo === "mensal");
     expect(mensal).toMatchObject({
       tool: "bcb_focus_expectativas",
       exigeReferencia: true,
@@ -435,21 +435,21 @@ describe("bcb_focus_referencias", () => {
 
     // "PIB Total" existe no anual e NÃO no mensal — a causa de resposta vazia que
     // a tool existe para expor.
-    expect((horizontes.find(h => h.horizonte === "anual") as Record<string, unknown>).indicadores).toEqual([
+    expect((escopos.find(h => h.escopo === "anual") as Record<string, unknown>).indicadores).toEqual([
       "IPCA",
       "PIB Total"
     ]);
     expect(mensal?.indicadores).not.toContain("PIB Total");
 
     // A Selic entra como escopo próprio, apontando para a tool que a consome.
-    expect(horizontes.find(h => h.horizonte === "selic")).toMatchObject({
+    expect(escopos.find(h => h.escopo === "selic")).toMatchObject({
       tool: "bcb_focus_selic",
       exigeReferencia: false,
       referencias: ["R6/2026"]
     });
 
     // Rolantes não têm alvo de calendário: lista vazia é o valor correto.
-    expect(horizontes.find(h => h.horizonte === "inflacao_12m")).toMatchObject({
+    expect(escopos.find(h => h.escopo === "inflacao_12m")).toMatchObject({
       exigeReferencia: false,
       temTop5: true,
       referencias: []
@@ -471,10 +471,10 @@ describe("bcb_focus_referencias", () => {
       ]
     });
 
-    const out = structured(await call("bcb_focus_referencias", { horizonte: "mensal" }));
+    const out = structured(await call("bcb_focus_referencias", { escopo: "mensal" }));
 
     // Lexicograficamente seria 01/2027, 01/2028, 02/2027, 12/2026 — inútil para ler.
-    expect((out.horizontes as Array<Record<string, unknown>>)[0].referencias).toEqual([
+    expect((out.escopos as Array<Record<string, unknown>>)[0].referencias).toEqual([
       "12/2026",
       "01/2027",
       "02/2027",
@@ -482,30 +482,30 @@ describe("bcb_focus_referencias", () => {
     ]);
   });
 
-  it("com `horizonte`, consulta só aquele recurso", async () => {
+  it("com `escopo`, consulta só aquele recurso", async () => {
     mockPorRecurso({ ExpectativasMercadoAnuais: [{ Indicador: "IPCA", DataReferencia: "2027" }] });
 
-    const out = structured(await call("bcb_focus_referencias", { horizonte: "anual" }));
+    const out = structured(await call("bcb_focus_referencias", { escopo: "anual" }));
 
     expect(fetchCalls).toHaveLength(1);
     expect(fetchCalls[0]).toContain("/ExpectativasMercadoAnuais?");
-    expect(out.horizontes).toHaveLength(1);
+    expect(out.escopos).toHaveLength(1);
   });
 
   it("`selic` é escopo válido e vai ao recurso de Selic", async () => {
     mockPorRecurso({ ExpectativasMercadoSelic: [{ Indicador: "Selic", Reuniao: "R6/2026" }] });
 
-    const out = structured(await call("bcb_focus_referencias", { horizonte: "selic" }));
+    const out = structured(await call("bcb_focus_referencias", { escopo: "selic" }));
 
     expect(fetchCalls).toHaveLength(1);
     expect(fetchCalls[0]).toContain("/ExpectativasMercadoSelic?");
-    expect((out.horizontes as Array<Record<string, unknown>>)[0].referencias).toEqual(["R6/2026"]);
+    expect((out.escopos as Array<Record<string, unknown>>)[0].referencias).toEqual(["R6/2026"]);
   });
 
   it("filtra por indicador e usa $select para não trazer o payload inteiro", async () => {
     mockPorRecurso({ ExpectativasMercadoAnuais: [{ Indicador: "IPCA", DataReferencia: "2027" }] });
 
-    await call("bcb_focus_referencias", { indicador: "IPCA", horizonte: "anual" });
+    await call("bcb_focus_referencias", { indicador: "IPCA", escopo: "anual" });
 
     const url = decodeURIComponent(fetchCalls[0]);
     expect(url).toContain("Indicador eq 'IPCA'");
@@ -513,7 +513,7 @@ describe("bcb_focus_referencias", () => {
     expect(url).toContain("Data ge '2026-07-26'"); // janela de descoberta: 15 dias
   });
 
-  it("horizonte que não responde não derruba os outros", async () => {
+  it("escopo que não responde não derruba os outros", async () => {
     mockPorRecurso({
       ExpectativasMercadoAnuais: [{ Indicador: "IPCA", DataReferencia: "2027" }],
       ExpectativaMercadoMensais: new Error("fora")
@@ -521,9 +521,9 @@ describe("bcb_focus_referencias", () => {
 
     const out = structured(await call("bcb_focus_referencias", {}));
 
-    const horizontes = out.horizontes as Array<Record<string, unknown>>;
-    expect(horizontes.find(h => h.horizonte === "anual")?.disponivel).toBe(true);
-    expect(horizontes.find(h => h.horizonte === "mensal")?.disponivel).toBe(false);
+    const escopos = out.escopos as Array<Record<string, unknown>>;
+    expect(escopos.find(h => h.escopo === "anual")?.disponivel).toBe(true);
+    expect(escopos.find(h => h.escopo === "mensal")?.disponivel).toBe(false);
     expect(out.falhas).toHaveLength(1);
     expect(out.observacaoFalhas).toContain("disponivel");
   });
