@@ -85,8 +85,13 @@ Visit [bcb-br-mcp on Smithery](https://smithery.ai/servers/sidneybissoli/bcb-br-
 Use the HTTP endpoint directly, no installation required:
 
 ```
-https://bcb.sidneybissoli.workers.dev
+https://bcb.sidneybissoli.com/mcp
 ```
+
+The legacy hostname `https://bcb.sidneybissoli.workers.dev` keeps working, and so
+does the older `POST /` route — clients configured before the endpoint moved to
+`/mcp` are rewritten transparently, so nothing that used to work stopped working.
+New setups should use the URL above.
 
 ### Via npx (Claude Desktop)
 

@@ -1,0 +1,903 @@
+{
+  "prompts": [
+    {
+      "description": "Compara os principais índices de inflação do Brasil (IPCA, IGP-M, INPC) nos últimos 12 meses",
+      "name": "comparar_inflacao"
+    },
+    {
+      "description": "Consulta os principais indicadores econômicos do Brasil (Selic, IPCA, Dólar, IBC-Br)",
+      "name": "indicadores_atuais"
+    },
+    {
+      "description": "Gera um panorama completo da economia brasileira com os principais indicadores",
+      "name": "panorama_economico"
+    }
+  ],
+  "resources": [
+    {
+      "description": "Lista de categorias disponíveis no catálogo de séries do BCB",
+      "mimeType": "application/json",
+      "name": "categorias",
+      "uri": "bcb://series/categorias"
+    },
+    {
+      "description": "Catálogo de 150+ séries econômicas populares do BCB organizadas por categoria",
+      "mimeType": "application/json",
+      "name": "series_populares",
+      "uri": "bcb://series/populares"
+    },
+    {
+      "description": "Códigos dos indicadores econômicos mais utilizados (Selic, IPCA, Dólar, PIB, etc.)",
+      "mimeType": "application/json",
+      "name": "codigos_principais",
+      "uri": "bcb://series/principais"
+    }
+  ],
+  "serverName": "bcb-br-mcp",
+  "toolCount": 8,
+  "tools": [
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true,
+        "title": "Buscar série no catálogo"
+      },
+      "description": "Busca séries no catálogo interno curado por nome ou categoria, ignorando acentos e maiúsculas (ex.: 'inflacao' encontra 'Inflação'; 'dolar' encontra 'Dólar'). Quando usar: para encontrar o código de uma série a partir de uma palavra-chave (selic, ipca, cambio, pib, emprego, credito...). Quando NÃO usar: para listar tudo por categoria use bcb_series_populares. Limitação: pesquisa apenas o catálogo curado (150+ séries), não o SGS completo (dezenas de milhares); quando nada é encontrado, retorna sugestões e o link do portal SGS. Retorna: `termo`, `totalEncontradas`, `series` (array de {codigo, nome, categoria, periodicidade}) e, quando vazio, `mensagem` e `sugestao`. Catálogo local: não faz chamada de rede.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "termo": {
+            "description": "Termo de busca (mínimo 2 caracteres)",
+            "minLength": 2,
+            "type": "string"
+          }
+        },
+        "required": [
+          "termo"
+        ],
+        "type": "object"
+      },
+      "name": "bcb_buscar_serie",
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "mensagem": {
+            "description": "Mensagem exibida quando nada é encontrado",
+            "type": "string"
+          },
+          "series": {
+            "description": "Séries que correspondem ao termo",
+            "items": {
+              "additionalProperties": false,
+              "description": "Identificação da série temporal",
+              "properties": {
+                "categoria": {
+                  "description": "Categoria econômica",
+                  "type": "string"
+                },
+                "codigo": {
+                  "description": "Código da série no SGS/BCB",
+                  "type": "number"
+                },
+                "nome": {
+                  "description": "Nome da série",
+                  "type": "string"
+                },
+                "periodicidade": {
+                  "description": "Periodicidade (Diária, Mensal, etc.)",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "codigo",
+                "nome"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "sugestao": {
+            "description": "Sugestões de termos alternativos",
+            "type": "string"
+          },
+          "termo": {
+            "description": "Termo pesquisado",
+            "type": "string"
+          },
+          "totalEncontradas": {
+            "description": "Quantidade de séries encontradas",
+            "type": "number"
+          }
+        },
+        "required": [
+          "termo",
+          "totalEncontradas",
+          "series"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Comparar séries"
+      },
+      "description": "Compara de 2 a 5 séries temporais no MESMO período (dataInicial e dataFinal obrigatórias), calculando a variação percentual de cada uma e ordenando-as num ranking (maior para menor variação). Quando usar: para comparar/correlacionar a evolução de vários indicadores lado a lado. Quando NÃO usar: para uma única série use bcb_variacao. Retorna: `periodo`, `totalSeries`, `seriesComDados`, `seriesComErro`, `ranking` (cada item com posicao, codigo, nome, valorInicial, valorFinal, variacaoPercentual, maximo, minimo, media) e `erros`. Resiliente: séries sem dados no período são isoladas em `erros` sem invalidar a comparação. Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codigos": {
+            "description": "Array com 2 a 5 códigos de séries para comparar",
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 5,
+            "minItems": 2,
+            "type": "array"
+          },
+          "dataFinal": {
+            "description": "Data final (yyyy-MM-dd ou dd/MM/yyyy)",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Data inicial (yyyy-MM-dd ou dd/MM/yyyy)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigos",
+          "dataInicial",
+          "dataFinal"
+        ],
+        "type": "object"
+      },
+      "name": "bcb_comparar",
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "erros": {
+            "description": "Séries que não retornaram dados, com o motivo",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "codigo": {
+                  "type": "number"
+                },
+                "erro": {
+                  "type": "string"
+                },
+                "nome": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "codigo",
+                "erro"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "periodo": {
+            "additionalProperties": false,
+            "description": "Janela temporal comparada",
+            "properties": {
+              "dataFinal": {
+                "type": "string"
+              },
+              "dataInicial": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "dataInicial",
+              "dataFinal"
+            ],
+            "type": "object"
+          },
+          "ranking": {
+            "description": "Séries ordenadas pela variação percentual (maior para menor)",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "categoria": {
+                  "type": "string"
+                },
+                "codigo": {
+                  "type": "number"
+                },
+                "maximo": {
+                  "type": "number"
+                },
+                "media": {
+                  "type": "number"
+                },
+                "minimo": {
+                  "type": "number"
+                },
+                "nome": {
+                  "type": "string"
+                },
+                "periodicidade": {
+                  "type": "string"
+                },
+                "posicao": {
+                  "description": "Posição no ranking",
+                  "type": "number"
+                },
+                "totalRegistros": {
+                  "type": "number"
+                },
+                "valorFinal": {
+                  "type": "number"
+                },
+                "valorInicial": {
+                  "type": "number"
+                },
+                "variacaoFormatada": {
+                  "type": "string"
+                },
+                "variacaoPercentual": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "posicao",
+                "codigo",
+                "nome"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "seriesComDados": {
+            "description": "Quantidade de séries com dados no período",
+            "type": "number"
+          },
+          "seriesComErro": {
+            "description": "Quantidade de séries sem dados ou com erro",
+            "type": "number"
+          },
+          "totalSeries": {
+            "description": "Quantidade de séries solicitadas",
+            "type": "number"
+          }
+        },
+        "required": [
+          "periodo",
+          "totalSeries",
+          "seriesComDados",
+          "seriesComErro",
+          "ranking",
+          "erros"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Indicadores econômicos atuais"
+      },
+      "description": "Atalho que retorna, em uma única chamada, o valor mais recente dos principais indicadores da economia brasileira: Selic anualizada, IPCA mensal, IPCA acumulado 12 meses, Dólar PTAX (venda) e IBC-Br. Não recebe parâmetros. Quando usar: para um panorama econômico rápido. Quando NÃO usar: para qualquer outra série, para dados históricos ou para escolher o período use bcb_serie_ultimos ou bcb_serie_valores. Retorna: `consultadoEm` (timestamp ISO 8601) e `indicadores` (array com indicador, codigo, data, valor — ou `erro` no item). Resiliente: cada indicador é buscado de forma independente, então a falha de um não derruba os demais. Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "name": "bcb_indicadores_atuais",
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "consultadoEm": {
+            "description": "Timestamp ISO 8601 da consulta",
+            "type": "string"
+          },
+          "indicadores": {
+            "description": "Lista de indicadores com seus valores mais recentes",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "codigo": {
+                  "description": "Código da série no SGS/BCB",
+                  "type": "number"
+                },
+                "data": {
+                  "description": "Data da observação",
+                  "type": "string"
+                },
+                "erro": {
+                  "description": "Mensagem de erro quando o indicador não pôde ser obtido",
+                  "type": "string"
+                },
+                "indicador": {
+                  "description": "Nome do indicador",
+                  "type": "string"
+                },
+                "valor": {
+                  "description": "Valor mais recente",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "indicador",
+                "codigo"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "consultadoEm",
+          "indicadores"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Metadados da série"
+      },
+      "description": "Obtém os metadados descritivos de UMA série do BCB (nome, unidade de medida, periodicidade, fonte, categoria), sem trazer a série de valores. Quando usar: para confirmar o que uma série representa e em que unidade antes de consultar os dados. Quando NÃO usar: para os valores em si use bcb_serie_valores ou bcb_serie_ultimos. Retorna: codigo, nome, unidade, periodicidade, fonte, categoria, especial e URLs diretas da API (urlConsulta, urlUltimos10). Se o endpoint de metadados do BCB não responder, faz fallback para o catálogo interno ou para o último valor disponível, sinalizando a origem em `observacao`. Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codigo": {
+            "description": "Código da série no SGS/BCB",
+            "type": "number"
+          }
+        },
+        "required": [
+          "codigo"
+        ],
+        "type": "object"
+      },
+      "name": "bcb_serie_metadados",
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "categoria": {
+            "description": "Categoria econômica",
+            "type": "string"
+          },
+          "codigo": {
+            "description": "Código da série no SGS/BCB",
+            "type": "number"
+          },
+          "especial": {
+            "description": "Indica se é uma série especial",
+            "type": "boolean"
+          },
+          "fonte": {
+            "description": "Fonte dos dados",
+            "type": "string"
+          },
+          "nome": {
+            "description": "Nome da série",
+            "type": "string"
+          },
+          "observacao": {
+            "description": "Observação sobre a origem dos metadados",
+            "type": "string"
+          },
+          "periodicidade": {
+            "description": "Periodicidade da série",
+            "type": "string"
+          },
+          "ultimoValor": {
+            "additionalProperties": false,
+            "description": "Última observação disponível (quando metadados detalhados não existem)",
+            "properties": {
+              "data": {
+                "description": "Data da observação (dd/MM/yyyy)",
+                "type": "string"
+              },
+              "valor": {
+                "description": "Valor numérico da observação",
+                "type": "number"
+              }
+            },
+            "required": [
+              "data",
+              "valor"
+            ],
+            "type": "object"
+          },
+          "unidade": {
+            "description": "Unidade de medida",
+            "type": "string"
+          },
+          "urlConsulta": {
+            "description": "URL da API do BCB para consulta completa",
+            "type": "string"
+          },
+          "urlUltimos10": {
+            "description": "URL da API do BCB para os últimos 10 valores",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo",
+          "nome",
+          "fonte"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Últimos valores da série"
+      },
+      "description": "Obtém as últimas N observações de UMA série temporal do BCB (mais recentes primeiro a partir do fim da série). Quando usar: para ver os dados mais recentes sem precisar calcular datas (ex.: últimos 12 meses do IPCA). Quantidade entre 1 e 1000 (padrão 10). Quando NÃO usar: para um intervalo de datas ou o histórico completo use bcb_serie_valores. Retorna: objeto `serie`, `totalRegistros` e `dados` (array de {data, valor}); sem dados, `totalRegistros` = 0 com `observacao`. Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codigo": {
+            "description": "Código da série no SGS/BCB",
+            "type": "number"
+          },
+          "quantidade": {
+            "default": 10,
+            "description": "Quantidade de valores a retornar (1-1000, padrão: 10)",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "codigo"
+        ],
+        "type": "object"
+      },
+      "name": "bcb_serie_ultimos",
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "dados": {
+            "description": "Observações mais recentes",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "data": {
+                  "description": "Data da observação (dd/MM/yyyy)",
+                  "type": "string"
+                },
+                "valor": {
+                  "description": "Valor numérico da observação",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "data",
+                "valor"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "observacao": {
+            "description": "Mensagem informativa (ex.: quando não há dados)",
+            "type": "string"
+          },
+          "serie": {
+            "additionalProperties": false,
+            "description": "Identificação da série temporal",
+            "properties": {
+              "categoria": {
+                "description": "Categoria econômica",
+                "type": "string"
+              },
+              "codigo": {
+                "description": "Código da série no SGS/BCB",
+                "type": "number"
+              },
+              "nome": {
+                "description": "Nome da série",
+                "type": "string"
+              },
+              "periodicidade": {
+                "description": "Periodicidade (Diária, Mensal, etc.)",
+                "type": "string"
+              }
+            },
+            "required": [
+              "codigo",
+              "nome"
+            ],
+            "type": "object"
+          },
+          "totalRegistros": {
+            "description": "Quantidade de observações retornadas",
+            "type": "number"
+          }
+        },
+        "required": [
+          "serie",
+          "totalRegistros",
+          "dados"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Consultar valores da série"
+      },
+      "description": "Consulta o histórico de valores de UMA série temporal do BCB pelo código SGS, opcionalmente limitado por um intervalo de datas (dataInicial/dataFinal). Quando usar: para obter a série histórica completa ou uma janela de datas específica. Quando NÃO usar: para apenas os pontos mais recentes use bcb_serie_ultimos; para a variação percentual use bcb_variacao; para comparar várias séries use bcb_comparar; se não souber o código, descubra-o antes com bcb_buscar_serie ou bcb_series_populares. Retorna: objeto `serie` (codigo, nome, categoria, periodicidade), `totalRegistros`, `periodoInicial`, `periodoFinal` e `dados` (array de {data, valor}); quando não há dados, `totalRegistros` = 0 e uma `observacao` explicativa. Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codigo": {
+            "description": "Código da série no SGS/BCB (ex: 433 para IPCA mensal, 11 para Selic)",
+            "type": "number"
+          },
+          "dataFinal": {
+            "description": "Data final no formato yyyy-MM-dd ou dd/MM/yyyy (opcional)",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Data inicial no formato yyyy-MM-dd ou dd/MM/yyyy (opcional)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo"
+        ],
+        "type": "object"
+      },
+      "name": "bcb_serie_valores",
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "dados": {
+            "description": "Observações históricas",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "data": {
+                  "description": "Data da observação (dd/MM/yyyy)",
+                  "type": "string"
+                },
+                "valor": {
+                  "description": "Valor numérico da observação",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "data",
+                "valor"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "observacao": {
+            "description": "Mensagem informativa (ex.: quando não há dados)",
+            "type": "string"
+          },
+          "periodoFinal": {
+            "description": "Data da última observação",
+            "type": "string"
+          },
+          "periodoInicial": {
+            "description": "Data da primeira observação",
+            "type": "string"
+          },
+          "serie": {
+            "additionalProperties": false,
+            "description": "Identificação da série temporal",
+            "properties": {
+              "categoria": {
+                "description": "Categoria econômica",
+                "type": "string"
+              },
+              "codigo": {
+                "description": "Código da série no SGS/BCB",
+                "type": "number"
+              },
+              "nome": {
+                "description": "Nome da série",
+                "type": "string"
+              },
+              "periodicidade": {
+                "description": "Periodicidade (Diária, Mensal, etc.)",
+                "type": "string"
+              }
+            },
+            "required": [
+              "codigo",
+              "nome"
+            ],
+            "type": "object"
+          },
+          "totalRegistros": {
+            "description": "Quantidade de observações retornadas",
+            "type": "number"
+          }
+        },
+        "required": [
+          "serie",
+          "totalRegistros",
+          "dados"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true,
+        "title": "Listar séries populares"
+      },
+      "description": "Lista o catálogo interno curado de 150+ séries econômicas do BCB com seus códigos, agrupadas por categoria (Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, Agregados Monetários, Poupança, Índices de Mercado, Expectativas); aceita filtro por categoria. Quando usar: para navegar/descobrir as séries disponíveis por tema. Quando NÃO usar: para busca por palavra-chave use bcb_buscar_serie; esta ferramenta não busca valores. Retorna: `totalSeries`, `categorias` (nº de categorias) e `series` — objeto agrupado por categoria quando sem filtro, ou array plano quando filtrado por categoria; cada item tem codigo, nome, categoria e periodicidade. Catálogo local: não faz chamada de rede.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "categoria": {
+            "description": "Filtrar por categoria: Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, Agregados Monetários, Poupança, Índices de Mercado, Expectativas",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "bcb_series_populares",
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "categorias": {
+            "description": "Quantidade de categorias distintas",
+            "type": "number"
+          },
+          "observacao": {
+            "description": "Dica de uso",
+            "type": "string"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": false,
+                  "description": "Identificação da série temporal",
+                  "properties": {
+                    "categoria": {
+                      "description": "Categoria econômica",
+                      "type": "string"
+                    },
+                    "codigo": {
+                      "description": "Código da série no SGS/BCB",
+                      "type": "number"
+                    },
+                    "nome": {
+                      "description": "Nome da série",
+                      "type": "string"
+                    },
+                    "periodicidade": {
+                      "description": "Periodicidade (Diária, Mensal, etc.)",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "codigo",
+                    "nome"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "additionalProperties": {
+                  "items": {
+                    "additionalProperties": false,
+                    "description": "Identificação da série temporal",
+                    "properties": {
+                      "categoria": {
+                        "description": "Categoria econômica",
+                        "type": "string"
+                      },
+                      "codigo": {
+                        "description": "Código da série no SGS/BCB",
+                        "type": "number"
+                      },
+                      "nome": {
+                        "description": "Nome da série",
+                        "type": "string"
+                      },
+                      "periodicidade": {
+                        "description": "Periodicidade (Diária, Mensal, etc.)",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "codigo",
+                      "nome"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              }
+            ],
+            "description": "Séries encontradas. Objeto agrupado por categoria quando sem filtro; array plano quando filtrado por categoria."
+          },
+          "totalSeries": {
+            "description": "Quantidade total de séries retornadas",
+            "type": "number"
+          }
+        },
+        "required": [
+          "totalSeries",
+          "categorias",
+          "series"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true,
+        "title": "Variação percentual da série"
+      },
+      "description": "Calcula a variação percentual de UMA série entre o primeiro e o último ponto do período, mais estatísticas descritivas. O período pode ser definido por datas (dataInicial/dataFinal) OU pelos últimos N períodos (parâmetro `periodos`, que tem precedência e ignora as datas). Quando usar: para medir tendência/variação de uma única série. Quando NÃO usar: para comparar várias séries use bcb_comparar; para os valores brutos use bcb_serie_valores. Requer ao menos 2 observações no período (senão retorna `isError`). Retorna: `serie`, `periodo` (dataInicial, dataFinal, totalPeriodos), `analise` (valorInicial, valorFinal, diferencaAbsoluta, variacaoPercentual, variacaoFormatada) e `estatisticas` (maximo, minimo, media, amplitude). Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codigo": {
+            "description": "Código da série no SGS/BCB",
+            "type": "number"
+          },
+          "dataFinal": {
+            "description": "Data final (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o último valor disponível.",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Data inicial (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o primeiro valor disponível.",
+            "type": "string"
+          },
+          "periodos": {
+            "description": "Alternativa: calcular variação dos últimos N períodos (ignora datas se informado)",
+            "type": "number"
+          }
+        },
+        "required": [
+          "codigo"
+        ],
+        "type": "object"
+      },
+      "name": "bcb_variacao",
+      "outputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "analise": {
+            "additionalProperties": false,
+            "description": "Resultado da variação entre o primeiro e o último valor",
+            "properties": {
+              "diferencaAbsoluta": {
+                "type": "number"
+              },
+              "valorFinal": {
+                "type": "number"
+              },
+              "valorInicial": {
+                "type": "number"
+              },
+              "variacaoFormatada": {
+                "type": "string"
+              },
+              "variacaoPercentual": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "valorInicial",
+              "valorFinal",
+              "diferencaAbsoluta",
+              "variacaoPercentual",
+              "variacaoFormatada"
+            ],
+            "type": "object"
+          },
+          "estatisticas": {
+            "additionalProperties": false,
+            "description": "Estatísticas descritivas dos valores no período",
+            "properties": {
+              "amplitude": {
+                "type": "number"
+              },
+              "maximo": {
+                "type": "number"
+              },
+              "media": {
+                "type": "number"
+              },
+              "minimo": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "maximo",
+              "minimo",
+              "media",
+              "amplitude"
+            ],
+            "type": "object"
+          },
+          "periodo": {
+            "additionalProperties": false,
+            "description": "Janela temporal analisada",
+            "properties": {
+              "dataFinal": {
+                "type": "string"
+              },
+              "dataInicial": {
+                "type": "string"
+              },
+              "totalPeriodos": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "dataInicial",
+              "dataFinal",
+              "totalPeriodos"
+            ],
+            "type": "object"
+          },
+          "serie": {
+            "additionalProperties": false,
+            "description": "Identificação da série",
+            "properties": {
+              "categoria": {
+                "type": "string"
+              },
+              "codigo": {
+                "type": "number"
+              },
+              "nome": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "codigo",
+              "nome"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "serie",
+          "periodo",
+          "analise",
+          "estatisticas"
+        ],
+        "type": "object"
+      }
+    }
+  ]
+}

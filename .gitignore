@@ -12,3 +12,7 @@ dist/
 
 # artefatos renderizados
 *.html
+
+# wrangler
+.wrangler/
+worker/.wrangler/

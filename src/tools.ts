@@ -6,8 +6,6 @@
  * License: MIT
  */
 
-import { z } from "zod";
-
 // ==================== CONSTANTS ====================
 
 export const BCB_API_BASE = "https://api.bcb.gov.br/dados/serie/bcdata.sgs";
@@ -72,13 +70,6 @@ export interface ToolResult {
   content: Array<{ type: "text"; text: string }>;
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
-}
-
-export interface ToolDefinition {
-  name: string;
-  description: string;
-  schema: Record<string, z.ZodTypeAny>;
-  handler: (args: Record<string, unknown>, config?: { timeoutMs?: number; maxRetries?: number }) => Promise<ToolResult>;
 }
 
 // ==================== OUTPUT HELPER ====================
@@ -877,9 +868,18 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     BEHAVIOR_NOTE
 };
 
-// ==================== TOOL DEFINITIONS (for worker JSON-RPC) ====================
+// ==================== TOOL DEFINITIONS (canonical, both transports) ====================
+//
+// Since the SDK v2 migration these JSON Schemas are the SINGLE advertised
+// surface: `src/register.ts` hands them to the SDK verbatim (via
+// `fromJsonSchema` + a permissive validator) for both stdio and the Worker.
+// Before, stdio derived its schemas from Zod and the Worker used this list,
+// so the two transports advertised different contracts — see
+// `baselines/README.md`. Zod stays as the runtime validator inside handlers
+// (that is what produces the pedagogical error results); it is no longer the
+// source of the published schema.
 
-export const TOOL_DEFINITIONS = [
+const RAW_TOOL_DEFINITIONS = [
   {
     name: "bcb_serie_valores",
     description: TOOL_DESCRIPTIONS.bcb_serie_valores,
@@ -926,7 +926,13 @@ export const TOOL_DEFINITIONS = [
       type: "object" as const,
       properties: {
         codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
-        quantidade: { type: "number" as const, description: "Quantidade de valores a retornar (1-1000, padrão: 10)" }
+        quantidade: {
+          type: "number" as const,
+          description: "Quantidade de valores a retornar (1-1000, padrão: 10)",
+          default: 10,
+          minimum: 1,
+          maximum: 1000
+        }
       },
       required: ["codigo"]
     },
@@ -997,8 +1003,16 @@ export const TOOL_DEFINITIONS = [
       properties: {
         totalSeries: { type: "number" as const, description: "Quantidade total de séries retornadas" },
         categorias: { type: "number" as const, description: "Quantidade de categorias distintas" },
+        // União modelada de verdade: array plano quando há filtro de categoria,
+        // objeto agrupado por categoria quando não há. Descrever em prosa sem
+        // o `anyOf` deixaria o cliente sem contrato para o caso agrupado.
         series: {
-          description: "Séries encontradas. Objeto agrupado por categoria quando sem filtro; array plano quando filtrado por categoria. Cada item contém codigo, nome, categoria e periodicidade."
+          description:
+            "Séries encontradas. Objeto agrupado por categoria quando sem filtro; array plano quando filtrado por categoria.",
+          anyOf: [
+            { type: "array" as const, items: SERIE_REF_SCHEMA },
+            { type: "object" as const, additionalProperties: { type: "array" as const, items: SERIE_REF_SCHEMA } }
+          ]
         },
         observacao: { type: "string" as const, description: "Dica de uso" }
       },
@@ -1018,7 +1032,7 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        termo: { type: "string" as const, description: "Termo de busca (mínimo 2 caracteres)" }
+        termo: { type: "string" as const, description: "Termo de busca (mínimo 2 caracteres)", minLength: 2 }
       },
       required: ["termo"]
     },
@@ -1030,16 +1044,7 @@ export const TOOL_DEFINITIONS = [
         series: {
           type: "array" as const,
           description: "Séries que correspondem ao termo",
-          items: {
-            type: "object" as const,
-            properties: {
-              codigo: { type: "number" as const },
-              nome: { type: "string" as const },
-              categoria: { type: "string" as const },
-              periodicidade: { type: "string" as const }
-            },
-            required: ["codigo", "nome"]
-          }
+          items: SERIE_REF_SCHEMA
         },
         mensagem: { type: "string" as const, description: "Mensagem exibida quando nada é encontrado" },
         sugestao: { type: "string" as const, description: "Sugestões de termos alternativos" }
@@ -1098,8 +1103,14 @@ export const TOOL_DEFINITIONS = [
       type: "object" as const,
       properties: {
         codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
-        dataInicial: { type: "string" as const, description: "Data inicial (yyyy-MM-dd ou dd/MM/yyyy)" },
-        dataFinal: { type: "string" as const, description: "Data final (yyyy-MM-dd ou dd/MM/yyyy)" },
+        dataInicial: {
+          type: "string" as const,
+          description: "Data inicial (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o primeiro valor disponível."
+        },
+        dataFinal: {
+          type: "string" as const,
+          description: "Data final (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o último valor disponível."
+        },
         periodos: { type: "number" as const, description: "Alternativa: calcular variação dos últimos N períodos (ignora datas se informado)" }
       },
       required: ["codigo"]
@@ -1137,7 +1148,8 @@ export const TOOL_DEFINITIONS = [
             variacaoPercentual: { type: "number" as const },
             variacaoFormatada: { type: "string" as const }
           },
-          required: ["valorInicial", "valorFinal", "variacaoPercentual"]
+          // O handler sempre devolve os cinco campos — o contrato reflete isso.
+          required: ["valorInicial", "valorFinal", "diferencaAbsoluta", "variacaoPercentual", "variacaoFormatada"]
         },
         estatisticas: {
           type: "object" as const,
@@ -1167,7 +1179,13 @@ export const TOOL_DEFINITIONS = [
     inputSchema: {
       type: "object" as const,
       properties: {
-        codigos: { type: "array" as const, items: { type: "number" as const }, description: "Array com 2 a 5 códigos de séries para comparar" },
+        codigos: {
+          type: "array" as const,
+          items: { type: "number" as const },
+          description: "Array com 2 a 5 códigos de séries para comparar",
+          minItems: 2,
+          maxItems: 5
+        },
         dataInicial: { type: "string" as const, description: "Data inicial (yyyy-MM-dd ou dd/MM/yyyy)" },
         dataFinal: { type: "string" as const, description: "Data final (yyyy-MM-dd ou dd/MM/yyyy)" }
       },
@@ -1225,8 +1243,107 @@ export const TOOL_DEFINITIONS = [
           }
         }
       },
-      required: ["periodo", "totalSeries", "seriesComDados", "seriesComErro", "ranking"]
+      required: ["periodo", "totalSeries", "seriesComDados", "seriesComErro", "ranking", "erros"]
     }
+  }
+];
+
+/**
+ * Seals every object node of a JSON Schema (`additionalProperties: false`),
+ * recursively. Zod sealed objects by construction, so the stdio channel always
+ * advertised sealed schemas; doing it here in one place keeps that guarantee
+ * after the migration and extends it to the HTTP channel, which never had it.
+ */
+function sealDeep<T>(schema: T): T {
+  if (Array.isArray(schema)) return schema.map(sealDeep) as unknown as T;
+  if (schema === null || typeof schema !== "object") return schema;
+
+  const node = schema as Record<string, unknown>;
+  const sealedEntries = Object.fromEntries(Object.entries(node).map(([k, v]) => [k, sealDeep(v)]));
+
+  return (node.type === "object" && node.properties !== undefined
+    ? { ...sealedEntries, additionalProperties: false }
+    : sealedEntries) as unknown as T;
+}
+
+export const TOOL_DEFINITIONS = RAW_TOOL_DEFINITIONS.map(tool => ({
+  ...tool,
+  inputSchema: sealDeep(tool.inputSchema),
+  outputSchema: sealDeep(tool.outputSchema)
+}));
+
+// ==================== RESOURCES (canonical, both transports) ====================
+//
+// Previously duplicated between index.ts (stdio) and worker.ts (HTTP), which is
+// how the two channels drifted apart — the HTTP side published human-readable
+// labels ("Séries Populares BCB") where stdio published identifiers
+// ("series_populares"). The identifier is what MCP's `name` means, so the stdio
+// form is canonical and the Worker now follows it.
+
+export interface ResourceDefinition {
+  name: string;
+  uri: string;
+  description: string;
+  mimeType: string;
+  read: () => string;
+}
+
+export const CODIGOS_PRINCIPAIS = {
+  juros: { selic_meta: 1178, selic_acumulada: 432, cdi: 4389, tr: 226 },
+  inflacao: { ipca_mensal: 433, ipca_12m: 13522, igpm: 189, inpc: 188 },
+  cambio: { dolar_venda: 1, dolar_ptax: 3698, euro: 21619 },
+  atividade: { pib_mensal: 4380, ibc_br: 24364 },
+  emprego: { desemprego: 24369, rendimento_medio: 24380 },
+  fiscal: { divida_bruta: 4513, divida_liquida: 4503, resultado_primario: 4537 }
+};
+
+export const RESOURCE_DEFINITIONS: ResourceDefinition[] = [
+  {
+    name: "series_populares",
+    uri: "bcb://series/populares",
+    description: "Catálogo de 150+ séries econômicas populares do BCB organizadas por categoria",
+    mimeType: "application/json",
+    read: () => JSON.stringify(SERIES_POPULARES, null, 2)
+  },
+  {
+    name: "categorias",
+    uri: "bcb://series/categorias",
+    description: "Lista de categorias disponíveis no catálogo de séries do BCB",
+    mimeType: "application/json",
+    read: () => JSON.stringify([...new Set(SERIES_POPULARES.map(s => s.categoria))].sort(), null, 2)
+  },
+  {
+    name: "codigos_principais",
+    uri: "bcb://series/principais",
+    description: "Códigos dos indicadores econômicos mais utilizados (Selic, IPCA, Dólar, PIB, etc.)",
+    mimeType: "application/json",
+    read: () => JSON.stringify(CODIGOS_PRINCIPAIS, null, 2)
+  }
+];
+
+// ==================== PROMPTS (canonical, both transports) ====================
+
+export interface PromptDefinition {
+  name: string;
+  description: string;
+  text: string;
+}
+
+export const PROMPT_DEFINITIONS: PromptDefinition[] = [
+  {
+    name: "indicadores_atuais",
+    description: "Consulta os principais indicadores econômicos do Brasil (Selic, IPCA, Dólar, IBC-Br)",
+    text: "Consulte os indicadores econômicos atuais do Brasil usando a ferramenta bcb_indicadores_atuais e apresente os resultados de forma clara e organizada."
+  },
+  {
+    name: "panorama_economico",
+    description: "Gera um panorama completo da economia brasileira com os principais indicadores",
+    text: "Faça um panorama completo da economia brasileira. Use bcb_indicadores_atuais para obter Selic, IPCA, Dólar e IBC-Br. Depois use bcb_serie_ultimos para consultar os últimos 3 valores da taxa de desemprego (código 24369) e da dívida bruta (código 4513). Apresente tudo de forma organizada com análise breve."
+  },
+  {
+    name: "comparar_inflacao",
+    description: "Compara os principais índices de inflação do Brasil (IPCA, IGP-M, INPC) nos últimos 12 meses",
+    text: "Compare os principais índices de inflação do Brasil nos últimos 12 meses. Use bcb_serie_ultimos com quantidade 12 para IPCA (código 433), IGP-M (código 189) e INPC (código 188). Apresente uma tabela comparativa e análise das tendências."
   }
 ];
 

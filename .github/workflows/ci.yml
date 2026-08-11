@@ -1,0 +1,82 @@
+name: CI
+
+# Gate de merge. Antes da fundação da fase bcb este repo não tinha suíte de
+# testes nem workflow de CI — só o publish. A suíte que este workflow roda é a
+# rede de caracterização (baseline pré-migração das 8 tools) mais os testes de
+# fidelidade do registro; ver baselines/README.md.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Piso é node >= 20 (engines do package; requisito do MCP SDK v2).
+        node-version: [20.x, 22.x]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - run: npm ci
+      - name: Typecheck (inclui os testes)
+        run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # A superfície publicada é o produto: se o build não consegue nem levantar
+      # o servidor e listar as tools, o pacote não deve passar no gate.
+      - name: Dump da superfície (fumaça do build)
+        run: node scripts/dump-surface.mjs --stdio > /dev/null
+
+  worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      # O worker consome dist/ do pacote pai e resolve o SDK do node_modules da
+      # raiz (desenho de cópia única) — por isso a raiz é instalada e buildada
+      # antes de qualquer coisa dentro de worker/.
+      - name: Install + build (raiz)
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install (worker)
+        run: npm ci
+        working-directory: worker
+
+      - name: Typecheck (worker)
+        run: npm run typecheck
+        working-directory: worker
+
+      - name: Test (worker)
+        run: npm test
+        working-directory: worker
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+      - run: npm ci
+      - name: npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true

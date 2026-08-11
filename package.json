@@ -9,12 +9,14 @@
     "bcb-br-mcp": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "dev:worker": "wrangler dev src/worker.ts",
-    "deploy:worker": "wrangler deploy",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "dump:surface": "node scripts/dump-surface.mjs",
+    "smoke": "node scripts/smoke-mcp.mjs"
   },
   "keywords": [
     "mcp",
@@ -53,20 +55,19 @@
   },
   "homepage": "https://github.com/SidneyBissoli/bcb-br-mcp#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "files": [
-    "dist",
-    "data"
+    "dist"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^3.25.0"
+    "@modelcontextprotocol/server": "^2.0.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
     "@types/node": "^20.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0",
-    "wrangler": "^4.75.0"
+    "vitest": "^4.1.10"
   }
 }

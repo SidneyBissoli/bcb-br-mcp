@@ -1,0 +1,68 @@
+# Baselines de superfície (fundação da fase bcb — 10/08/2026)
+
+Artefatos do gate "superfície byte-idêntica ANTES/DEPOIS" da sessão de fundação.
+Gerados por `node scripts/dump-surface.mjs` (normalizado: chaves ordenadas
+recursivamente, tools/resources/prompts ordenados por nome/uri, versão do
+servidor omitida de propósito).
+
+| Arquivo | Como foi capturado | O que representa |
+|:--|:--|:--|
+| `surface-stdio-1.3.5.json` | `--stdio` sobre `dist/index.js` do fonte atual | o que o canal npm publica hoje |
+| `surface-worker-source-1.3.5.json` | `--source` (lê `TOOL_DEFINITIONS` de `dist/tools.js`) | o que o worker serviria se o fonte fosse deployado (só tools — o modo não enxerga resources/prompts, que o worker monta à mão em `worker.ts`) |
+| `surface-http-prod-1.3.1.json` | `--url https://bcb.sidneybissoli.workers.dev/` | o que o endpoint hospedado serve DE FATO hoje |
+
+## Divergências medidas na captura (as três superfícies não coincidem)
+
+### 1. Deriva de deploy — material, não cosmética
+
+O worker em produção está em **1.3.1** enquanto o npm está em **1.3.5**, e a
+diferença não é só o número: **as descrições das 8 tools em produção têm ~100
+caracteres; no fonte têm ~1.200**. O trabalho de enriquecimento de descrições
+para leitura por agente (v1.3.3) **nunca chegou ao endpoint hospedado**.
+
+| Tool | fonte (1.3.5) | produção (1.3.1) |
+|:--|--:|--:|
+| bcb_serie_valores | 1301 | 100 |
+| bcb_variacao | 1312 | 119 |
+| bcb_indicadores_atuais | 1217 | 103 |
+| bcb_comparar | 1207 | 99 |
+| bcb_serie_metadados | 1192 | 115 |
+| bcb_serie_ultimos | 1057 | 97 |
+| bcb_series_populares | 721 | 139 |
+| bcb_buscar_serie | 713 | 126 |
+
+Causa: não há CI de deploy do worker (só `publish.yml`, que publica npm e
+registry). Corrigido na fundação.
+
+### 2. Os dois transportes anunciam contratos DIFERENTES
+
+O stdio deriva o `inputSchema` do zod (via SDK); o worker usa JSON Schema
+escrito à mão em `TOOL_DEFINITIONS`. O resultado é que o cliente HTTP recebe um
+contrato mais fraco:
+
+| Tool | presente no stdio, ausente no worker |
+|:--|:--|
+| `bcb_serie_ultimos` | `quantidade.default` (10), `quantidade.minimum`, `quantidade.maximum` (1000), `additionalProperties` |
+| `bcb_comparar` | `codigos.minItems`, `codigos.maxItems`, `additionalProperties` |
+| as outras 6 | `additionalProperties` |
+
+`outputSchema` também difere entre os dois. As `annotations` (title + hints)
+são idênticas nos três — essa parte já está consistente.
+
+Causa: duplicação de definição entre `src/index.ts` (zod) e `src/tools.ts`
+(`TOOL_DEFINITIONS`), com `worker.ts` reimplementando o protocolo à mão.
+É exatamente o que o **registro único** (`src/register.ts`) elimina.
+
+## Como usar no gate
+
+Depois de cada etapa da migração, recapturar e comparar:
+
+```bash
+npm run build
+node scripts/dump-surface.mjs --stdio > /tmp/after-stdio.json
+diff <(python -m json.tool baselines/surface-stdio-1.3.5.json) <(python -m json.tool /tmp/after-stdio.json)
+```
+
+Toda diferença precisa ser deliberada e constar da lista de mudanças da sessão.
+A convergência dos dois transectos num contrato só (o do stdio, que é o mais
+forte) É uma mudança deliberada desta fundação — não uma regressão.

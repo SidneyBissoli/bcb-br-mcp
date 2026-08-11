@@ -1,0 +1,7 @@
+{
+  // Build de publicação: mesmo compilador do tsconfig.json, sem os testes.
+  // `npm run typecheck` usa o tsconfig.json (que INCLUI os testes, para que
+  // erros de tipo neles também quebrem o gate); `npm run build` usa este.
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}
