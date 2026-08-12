@@ -7,7 +7,7 @@
  *   node scripts/smoke-mcp.mjs --url <url>     # outro endpoint (ex.: wrangler dev)
  *   node scripts/smoke-mcp.mjs --stdio         # dist/index.js local (exige npm run build)
  *
- * Verifica: handshake, superfície completa (13 tools / 3 resources / 3 prompts),
+ * Verifica: handshake, superfície completa (15 tools / 3 resources / 3 prompts),
  * a busca com índice do portal, uma tool que vai ao SGS, as cinco tools de D3
  * (Focus e PTAX) contra a origem, leitura de resource, e a validação de entrada
  * (argumento obrigatório ausente tem de ser barrado ANTES de chamar o BCB —
@@ -152,7 +152,7 @@ try {
   await client.notify("notifications/initialized");
 
   const tools = (await client.rpc("tools/list")).result?.tools ?? [];
-  check("tools/list = 13", tools.length === 13, `${tools.length} tools`);
+  check("tools/list = 15", tools.length === 15, `${tools.length} tools`);
   check(
     "todas com prefixo bcb_, title e outputSchema",
     tools.every(t => t.name.startsWith("bcb_") && t.annotations?.title && t.outputSchema)
@@ -166,6 +166,10 @@ try {
     "bcb_cambio_moedas"
   ];
   check("as 5 tools de Focus e câmbio estão publicadas", novas.every(n => nomes.includes(n)));
+  check(
+    "as 2 tools da segunda metade do D2 estão publicadas",
+    ["bcb_correlacao", "bcb_deflacionar"].every(n => nomes.includes(n))
+  );
 
   const resources = (await client.rpc("resources/list")).result?.resources ?? [];
   check("resources/list = 3", resources.length === 3, resources.map(r => r.name).join(", "));
@@ -283,6 +287,87 @@ try {
   if (!misto.result?.isError) {
     check("  → aviso presente com as duas periodicidades", (mistoOut?.aviso ?? "").includes("periodicidades diferentes"));
     check("  → estatística marcada como derivada", mistoOut?.derivacao?.derived === true);
+  }
+
+  // ---------- correlação e deflação, contra a origem ----------
+
+  // A recusa é a asserção principal desta tool. Medido em 11/08/2026: cruzar uma
+  // série diária com uma mensal por data casa ~7 datas de 12 no ano — não zero —,
+  // e o coeficiente resultante teria aparência saudável. Se a recusa parar de
+  // funcionar, a tool passa a mentir em silêncio.
+  const cruzado = await call("bcb_correlacao", {
+    codigos: [1, 433], dataInicial: "2024-01-01", dataFinal: "2024-12-31"
+  });
+  const textoCruzado = cruzado.result?.content?.[0]?.text ?? "";
+  check(
+    "bcb_correlacao RECUSA cruzar grades diferentes sem harmonizar",
+    cruzado.result?.isError === true && /periodicidades diferentes/i.test(textoCruzado),
+    textoCruzado.slice(0, 70)
+  );
+  check("  → e o erro ensina a saída (`frequencia`)", textoCruzado.includes("frequencia"));
+
+  // IPCA × INPC: os dois são índices de consumo do IBGE com cestas que se
+  // sobrepõem quase inteiramente. Um coeficiente alto aqui é validação EXTERNA —
+  // não é o nosso número conferindo com o nosso número.
+  const gemeas = await call("bcb_correlacao", {
+    codigos: [433, 188], dataInicial: "2015-01-01", dataFinal: "2024-12-31"
+  });
+  const gemeasOut = gemeas.result?.structuredContent;
+  const parGemeas = gemeasOut?.pares?.[0];
+  checkUpstream("bcb_correlacao IPCA × INPC (mesma família de índice)", gemeas.result, `r = ${parGemeas?.coeficiente}`);
+  if (!gemeas.result?.isError) {
+    check("  → alinhou os 120 meses, sem descarte", parGemeas?.n === 120 && parGemeas?.descartados === 0);
+    check("  → correlação forte, como a fonte manda esperar", (parGemeas?.coeficiente ?? 0) > 0.9);
+    check("  → interpretação em prosa acompanha o número", /forte/.test(parGemeas?.interpretacao ?? ""));
+    check("  → marcada como derivada", gemeasOut?.derivacao?.derived === true);
+  }
+
+  // Séries diárias em janela larga: o caso que exercita o chunking dos dois lados
+  // e que, com uma requisição por série, não completava nos 10 s do worker.
+  const diarias = await call("bcb_correlacao", {
+    codigos: [1, 12], dataInicial: "2015-01-01", dataFinal: "2024-12-31"
+  });
+  const diariasOut = diarias.result?.structuredContent;
+  checkUpstream("bcb_correlacao em 10 anos de duas séries diárias", diarias.result, `${diariasOut?.alinhamento?.completas} datas`);
+  if (!diarias.result?.isError) {
+    check("  → mais de 2000 datas alinhadas nas duas séries", (diariasOut?.alinhamento?.completas ?? 0) > 2000);
+    check("  → grade declarada como diária", diariasOut?.alinhamento?.grade === "diária");
+  }
+
+  // Deflação: salário mínimo desde 2000. O ganho real do salário mínimo no período
+  // é fato público e amplamente documentado — se o número vier perto de zero ou
+  // negativo, a reconstrução do índice quebrou.
+  const defl = await call("bcb_deflacionar", {
+    codigo: 1619, dataInicial: "2000-01-01", dataFinal: "2024-12-31"
+  });
+  const deflOut = defl.result?.structuredContent;
+  checkUpstream("bcb_deflacionar salário mínimo desde 2000 pelo IPCA", defl.result,
+    `nominal ${deflOut?.variacao?.nominal}% × real ${deflOut?.variacao?.real}%`);
+  if (!defl.result?.isError) {
+    check("  → o índice foi reconstruído desde 2000", deflOut?.deflator?.cobertura?.primeiroMes === "01/2000");
+    check("  → a base declarada é um mês do índice, não a data final pedida",
+      /^\d{2}\/\d{4}$/.test(deflOut?.base?.mes ?? ""));
+    check("  → alta nominal muito maior que a real (a inflação come a maior parte)",
+      (deflOut?.variacao?.nominal ?? 0) > 500 && (deflOut?.variacao?.real ?? 0) < 250);
+    check("  → ganho REAL positivo, como a literatura registra para o período",
+      (deflOut?.variacao?.real ?? 0) > 50);
+    check("  → todo ponto traz o fator aplicado", (deflOut?.dados ?? []).every(d => d.fator !== undefined));
+  }
+
+  // Mês base explícito: a régua muda, o fato não. A variação real entre as mesmas
+  // duas pontas tem de ser a MESMA, qualquer que seja o mês em que se expressa.
+  const base2010 = await call("bcb_deflacionar", {
+    codigo: 1619, dataInicial: "2000-01-01", dataFinal: "2024-12-31", mesBase: "2010-01"
+  });
+  const base2010Out = base2010.result?.structuredContent;
+  checkUpstream("bcb_deflacionar com mês base explícito", base2010.result, `base ${base2010Out?.base?.mes}`);
+  if (!base2010.result?.isError && !defl.result?.isError) {
+    check("  → a base pedida foi aplicada", base2010Out?.base?.mes === "01/2010");
+    check(
+      "  → a variação real NÃO depende do mês base",
+      Math.abs((base2010Out?.variacao?.real ?? 0) - (deflOut?.variacao?.real ?? 0)) < 0.01,
+      `${base2010Out?.variacao?.real} × ${deflOut?.variacao?.real}`
+    );
   }
 
   // ---------- as 5 tools de D3, contra a origem ----------

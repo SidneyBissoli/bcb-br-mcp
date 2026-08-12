@@ -67,7 +67,19 @@ Toda diferença precisa ser deliberada e constar da lista de mudanças da sessã
 A convergência dos dois transectos num contrato só (o do stdio, que é o mais
 forte) É uma mudança deliberada desta fundação — não uma regressão.
 
-## Baseline vigente: `surface-stdio-d1-d2.json` (sessão de D1+D2)
+## Baseline vigente: `surface-stdio-d2-correlacao.json` (segunda metade do D2)
+
+**15 tools**, 3 resources, 3 prompts. A diferença contra
+`surface-stdio-d1-d2.json` é a mais limpa que a fase produziu: **duas tools
+novas ao fim da lista e nada mais**. Nenhuma das 13 preexistentes mudou um byte —
+conferido programaticamente, tool a tool, não de olho.
+
+| Tool | O que é |
+|:--|:--|
+| `bcb_correlacao` | correlação par a par de 2 a 5 séries (Pearson/Spearman, sobre nível ou variação), com o alinhamento de grades declarado |
+| `bcb_deflacionar` | série nominal convertida a moeda constante por IPCA, INPC ou IGP-M, com a variação nominal ao lado da real |
+
+## Baseline anterior: `surface-stdio-d1-d2.json` (sessão de D1+D2)
 
 13 tools, 3 resources, 3 prompts — a contagem não mudou, e a **ordem também
 não**. As diferenças contra `surface-stdio-d3-verificada.json` são cinco tools, e

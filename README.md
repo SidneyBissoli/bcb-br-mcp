@@ -18,7 +18,7 @@ Query economic and financial indicators such as **Selic** (interest rate), **IPC
 
 > If you find this project useful, please consider giving it a [star on GitHub](https://github.com/SidneyBissoli/bcb-br-mcp). It helps others discover the project!
 
-**Capabilities:** 13 tools (skills) · 3 resources · 3 prompts — everything an MCP client needs to query the Brazilian Central Bank: SGS/BCB time series, the **Focus** market-expectations survey and **PTAX** exchange rates.
+**Capabilities:** 15 tools (skills) · 3 resources · 3 prompts — everything an MCP client needs to query the Brazilian Central Bank: SGS/BCB time series, the **Focus** market-expectations survey and **PTAX** exchange rates.
 
 ## See it in action
 

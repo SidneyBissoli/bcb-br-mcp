@@ -5,6 +5,49 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Cross-series statistics and inflation adjustment — the half of D2 that the
+previous session left open. Both tools were measured against the live API before
+any code was written, and the measurement changed the design twice.
+
+### Added
+- **`bcb_correlacao`** — pairwise correlation of 2 to 5 series over the same
+  window. `metodo` picks Pearson (linear, on the values) or Spearman (monotonic,
+  on average ranks — the right one when a series sits on plateaus, like the Selic
+  target between Copom meetings). `base` picks levels or period-over-period
+  change; the tool says, in its own derivation note, that correlating the *levels*
+  of two trending series is high by construction. Every pair reports the
+  coefficient, the number of pairs actually used and how many dates were dropped.
+  A coefficient that cannot be computed comes back as `null` with a reason —
+  never 0, which would claim a measured absence of relationship.
+- **`bcb_deflacionar`** — a nominal series restated in constant currency, by IPCA
+  (default), INPC or IGP-M, with `mesBase` choosing the reference month (default:
+  the last month the index published, i.e. "in today's money"). The response puts
+  the nominal change next to the real one, which is the whole point: the minimum
+  wage is up 938% in current reais since 2000 and 134% in purchasing power.
+- **Correlation in `@sbissoli/mcp-stats` 0.2.0.** The maths went into the shared
+  engine, not here, so the `motor` field this server already publishes stays
+  truthful.
+
+### Changed
+- **Mixed periodicities are now REFUSED by `bcb_correlacao`**, not merely flagged
+  as they are in `bcb_comparar`. Measured against the source: joining a daily
+  series to a monthly one by date matches about 7 dates in 12 per year — the 1st
+  of each month that falls on a business day. Not zero, which would be obvious;
+  seven, which yields a healthy-looking coefficient computed over a handful of
+  points. The error names `frequencia` as the way out.
+- **Grid compatibility is decided by the MEASURED periodicity**, from the spacing
+  of the dates the source returned, not by the curated catalogue's label. Series
+  11 is catalogued as monthly and the source publishes it every business day; the
+  label would have refused a perfectly valid correlation.
+- **Concurrency budget for multi-series fetches**, shared across the series
+  requested. What overruns the hosted transport's 10 s timeout is queue *depth*,
+  not request count: at one request per series, two daily series over 10 years
+  took 10.7 s and five took 10.4 s. Ten in flight, split across the series, brings
+  the worst case to ~8.8 s while staying inside the ≤5 req/s parsimony the project
+  adopted (each slice lasts ~2.6 s, so ten at once is ~3.8 req/s).
+
 ## [1.5.0] - 2026-08-11
 
 The SGS limits, handled. Three of them were measured against the live API before

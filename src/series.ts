@@ -544,3 +544,185 @@ export function harmonizar(
 
   return { dados, frequencia: alvo, agregacao, nota };
 }
+
+// ==================== ALINHAMENTO DE GRADES ====================
+
+export interface LinhaAlinhada {
+  /** `dd/MM/yyyy` */
+  data: string;
+  /** Um valor por série, na ordem em que as séries entraram; `null` onde não há observação. */
+  valores: Array<number | null>;
+}
+
+export interface ResultadoAlinhamento {
+  linhas: LinhaAlinhada[];
+  /** Datas em que TODAS as séries publicam. É o que entra num cálculo pareado. */
+  completas: number;
+  /** Datas em que ao menos uma série publica e ao menos uma não. */
+  parciais: number;
+}
+
+/**
+ * Alinha N séries pela data, na UNIÃO das datas, preservando a ordem de entrada.
+ *
+ * O alinhamento é separado do cálculo de propósito: é aqui que mora o erro caro.
+ * Medido contra a origem em 11/08/2026: casar uma série DIÁRIA com uma MENSAL por
+ * data devolve **7 datas de 12** no ano — os dias 1º que caíram em dia útil. Não dá
+ * zero, que seria evidente; dá um punhado de pontos com o qual qualquer estatística
+ * pareada produz um número de aparência saudável. Por isso `completas` e `parciais`
+ * saem contados, e quem chama decide o que fazer com a diferença: correlacionar
+ * séries de periodicidades diferentes sem harmonizar é recusado, não avisado.
+ *
+ * Séries de mesma periodicidade casam de verdade: dólar, Selic e CDI diários deram
+ * 253 de 253 em 2024; IPCA e IGP-M mensais, 12 de 12 (todos no dia 1º).
+ */
+export function alinharSeries(
+  series: Array<Array<{ data: string; valor: number }>>
+): ResultadoAlinhamento {
+  const porData = new Map<number, { data: string; valores: Array<number | null> }>();
+
+  series.forEach((serie, indice) => {
+    for (const obs of serie) {
+      const t = parseDataSgs(obs.data);
+      if (t === null || !Number.isFinite(obs.valor)) continue;
+      let linha = porData.get(t);
+      if (!linha) {
+        linha = { data: obs.data, valores: new Array<number | null>(series.length).fill(null) };
+        porData.set(t, linha);
+      }
+      // Data repetida na mesma série (emenda de fatia já deduplicada): o primeiro fica.
+      if (linha.valores[indice] === null) linha.valores[indice] = obs.valor;
+    }
+  });
+
+  const linhas = [...porData.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, linha]) => linha);
+
+  let completas = 0;
+  for (const linha of linhas) {
+    if (linha.valores.every(v => v !== null)) completas++;
+  }
+
+  return { linhas, completas, parciais: linhas.length - completas };
+}
+
+// ==================== DEFLAÇÃO ====================
+
+/**
+ * Deflator construído por ENCADEAMENTO de variações mensais.
+ *
+ * Existe encadeado porque a origem não deixa alternativa: **o SGS não publica
+ * número-índice do IPCA** — o índice do Portal de Dados Abertos não tem nenhuma série
+ * de número-índice, só variações. Encadear é reconstruir o índice a partir delas.
+ *
+ * A reconstrução foi medida contra a própria fonte em 11/08/2026: compor 12 variações
+ * mensais da série 433 reproduz o acumulado em 12 meses que o BCB publica na série
+ * 13522 com erro máximo de **0,0052 pp** em 85 janelas de 2018 a 2025. O resíduo é o
+ * arredondamento da fonte, que publica a variação com 2 casas — não é erro do método.
+ */
+export interface Deflator {
+  /** Chave `yyyy-MM` → fator que leva o valor daquele mês a preços do mês base. */
+  fatores: Map<string, number>;
+  /** `MM/yyyy` do mês em cujos preços os valores são expressos. */
+  mesBase: string;
+  /** `MM/yyyy` do primeiro e do último mês cobertos pelo deflator. */
+  primeiroMes: string;
+  ultimoMes: string;
+}
+
+/** `yyyy-MM` do mês que contém a data `dd/MM/yyyy`; `null` se a data não casar. */
+export function chaveMes(data: string): string | null {
+  const t = parseDataSgs(data);
+  if (t === null) return null;
+  const d = new Date(t);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function mesLegivel(chave: string): string {
+  const [ano, mes] = chave.split("-");
+  return `${mes}/${ano}`;
+}
+
+/**
+ * Monta o deflator a partir das variações mensais publicadas (em %).
+ *
+ * O fator de um mês é `L(base) / L(mês)`, onde `L` é o nível do índice reconstruído.
+ * A forma de razão, em vez de compor só as variações posteriores, é o que permite o
+ * mês base ficar em QUALQUER posição — inclusive no meio ou antes do período, que é o
+ * caso de "quanto valia, em reais de 2010, o salário de 2024".
+ */
+export function construirDeflator(
+  variacoes: Array<{ data: string; valor: number }>,
+  mesBaseSolicitado?: string
+): Deflator {
+  const porMes = new Map<string, number>();
+  for (const obs of variacoes) {
+    const chave = chaveMes(obs.data);
+    if (chave !== null && Number.isFinite(obs.valor)) porMes.set(chave, obs.valor);
+  }
+
+  const meses = [...porMes.keys()].sort();
+  if (meses.length === 0) {
+    throw new Error("O índice de preços não devolveu observações no período necessário para deflacionar.");
+  }
+
+  // Nível do índice: o mês anterior ao primeiro vale 1, e cada mês aplica a sua variação.
+  const nivel = new Map<string, number>();
+  let atual = 1;
+  for (const mes of meses) {
+    atual *= 1 + porMes.get(mes)! / 100;
+    nivel.set(mes, atual);
+  }
+
+  const mesBase = mesBaseSolicitado && nivel.has(mesBaseSolicitado)
+    ? mesBaseSolicitado
+    : meses[meses.length - 1];
+  const nivelBase = nivel.get(mesBase)!;
+
+  const fatores = new Map<string, number>();
+  for (const mes of meses) fatores.set(mes, nivelBase / nivel.get(mes)!);
+
+  return {
+    fatores,
+    mesBase: mesLegivel(mesBase),
+    primeiroMes: mesLegivel(meses[0]),
+    ultimoMes: mesLegivel(meses[meses.length - 1])
+  };
+}
+
+export interface ObservacaoDeflacionada {
+  data: string;
+  valorNominal: number;
+  /** `null` quando a data cai fora da cobertura do índice de preços. */
+  valorReal: number | null;
+  /** `null` pelo mesmo motivo. */
+  fator: number | null;
+}
+
+/**
+ * Converte cada observação nominal a preços do mês base.
+ *
+ * Cada observação é deflacionada pelo fator do MÊS EM QUE ELA CAI, qualquer que seja
+ * a periodicidade da série — o índice de preços é mensal, então todo dia de um mesmo
+ * mês compartilha o fator, o que é a convenção certa para série diária. Em série
+ * trimestral ou anual isso significa usar o mês da data do ponto; quem quiser outra
+ * convenção (média do período, por exemplo) harmoniza a série antes com `frequencia`.
+ *
+ * Data fora da cobertura do índice devolve `null` em vez de valor: o IPCA começa em
+ * 01/1980 e é publicado com defasagem, então observação anterior ao início ou
+ * posterior ao último mês divulgado não tem como ser deflacionada. Nulo é a
+ * informação de que ali não há dado — inventar fator 1 seria mentir.
+ */
+export function deflacionar(
+  observacoes: Array<{ data: string; valor: number }>,
+  deflator: Deflator
+): ObservacaoDeflacionada[] {
+  return observacoes.map(obs => {
+    const chave = chaveMes(obs.data);
+    const fator = chave === null ? undefined : deflator.fatores.get(chave);
+    return fator === undefined
+      ? { data: obs.data, valorNominal: obs.valor, valorReal: null, fator: null }
+      : { data: obs.data, valorNominal: obs.valor, valorReal: obs.valor * fator, fator };
+  });
+}

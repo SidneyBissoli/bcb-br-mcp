@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 An MCP server, published to npm as `bcb-br-mcp`, exposing three public APIs of
-the Brazilian Central Bank as 13 tools over STDIO and Streamable HTTP: the SGS
+the Brazilian Central Bank as 15 tools over STDIO and Streamable HTTP: the SGS
 time series (Selic, IPCA, FX, GDP and 150+ indicators), the **Focus**
 market-expectations survey (Olinda OData) and **PTAX** exchange rates. Pure
 TypeScript, ESM, two runtime dependencies: `@modelcontextprotocol/server` (MCP SDK
@@ -63,8 +63,8 @@ trouxe a segunda e a terceira API):
 | Módulo | Responsabilidade |
 |:--|:--|
 | `src/shared.ts` | Primitivos sem dependência: fetch com timeout/retry, config, versão, tipos, `structuredResult`/`erroResult`, `sealDeep`, `ErroHttpBcb` (erro com o status preservado — é o que permite casar o 406). Não importa ninguém — é o que impede ciclo. `tools.ts` re-exporta tudo, porque worker e testes importam desses nomes de lá desde a fundação. |
-| `src/series.ts` | Engenharia de série do SGS (D1): inferência de periodicidade, fatiamento de janela, busca com chunking, contorno do teto de 20 e harmonização de frequências. Concentra os limites medidos da origem. |
-| `src/stats.ts` | Adaptador do `@sbissoli/mcp-stats` (D2) e a convenção de arredondamento única do servidor. |
+| `src/series.ts` | Engenharia de série do SGS (D1): inferência de periodicidade, fatiamento de janela, busca com chunking, contorno do teto de 20, harmonização de frequências, **alinhamento de grades** e **deflator encadeado**. Concentra os limites medidos da origem. |
+| `src/stats.ts` | Adaptador do `@sbissoli/mcp-stats` (D2) — distribuição, **correlação** e as convenções de arredondamento e de derivação do servidor. |
 | `src/tools.ts` | Tools do SGS + montagem do catálogo canônico + `dispatchTool`. |
 | `src/catalog.ts` | Índice do Portal de Dados Abertos (CKAN) para a busca real: cache de 24 h, renovação bloqueante, só metadados. |
 | `src/olinda.ts` | Tradução do OData: montagem de URL, literais, datas, `consultarOData`. Concentra as pegadinhas da fonte. |
@@ -150,6 +150,10 @@ landing page. O contador `legacy_root_post` em `/metrics` mede quem ainda usa.
   `bcb_comparar` não mudou em valor nenhum. A convenção de arredondamento agora é
   única e mora em `src/stats.ts`: observação da fonte sai verbatim, número
   calculado sai com 4 casas.
+- `src/tools.correlacao-deflacao.test.ts` — as duas tools da segunda metade do
+  D2: a RECUSA de cruzar grades diferentes (com o erro que ensina a saída), a
+  grade decidida pela periodicidade medida e não pelo rótulo do catálogo, a
+  diferença entre correlacionar nível e movimento, e a comparação nominal × real.
 - `src/output-contract.test.ts` — valida o `structuredContent` de TODA tool contra
   o `outputSchema` anunciado, com o mesmo validador que o servidor usa na entrada.
   Existe porque a validação de saída em runtime é permissiva de propósito
@@ -168,7 +172,7 @@ Depois de qualquer mudança que possa mexer na superfície:
 
 ```bash
 npm run build && node scripts/dump-surface.mjs --stdio > depois.json
-# baseline vigente: baselines/surface-stdio-d3-verificada.json (13 tools)
+# baseline vigente: baselines/surface-stdio-d2-correlacao.json (15 tools)
 # baseline da fundação: baselines/surface-stdio-after-fundacao.json (8 tools)
 ```
 
@@ -246,6 +250,29 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   responde **404 `endpoint not found!`**, em todas as variantes de rota. A
   periodicidade sai da inferência pelo espaçamento das datas, e `unidade` não sai
   de lugar nenhum. Não reintroduza a chamada.
+- **Cruzar grades diferentes casa 7 datas de 12, não zero.** Uma série diária e
+  uma mensal casam por data nos dias 1º que caem em dia útil — medido em 2024:
+  7 de 12. Zero seria evidente; sete produz um coeficiente de aparência saudável
+  sobre um punhado de pontos. Por isso `bcb_correlacao` **recusa** periodicidades
+  diferentes em vez de avisar como o `bcb_comparar`, e por isso `alinharSeries`
+  devolve `completas` e `parciais` contados.
+- **A periodicidade do catálogo curado NÃO é confiável para decidir grade.** A
+  série 11 está catalogada como "Mensal" e a origem a publica todo dia útil.
+  Decisão de compatibilidade de grade usa a periodicidade **medida** pelo
+  espaçamento das datas; o catálogo só entra quando não há medição (menos de 3
+  observações). Há mais rótulos errados no catálogo — ver a pendência registrada
+  no `bcb/roadmap.md`.
+- **O SGS não publica número-índice de preço**, só variação. O deflator é
+  reconstruído encadeando as variações mensais — conferido contra a fonte:
+  12 variações da 433 compostas batem com o acumulado em 12 meses da 13522 com
+  erro máximo de 0,0052 pp (2018–2025). Não procure série de número-índice; não
+  existe.
+- **O que estoura o timeout de 10 s do worker é a PROFUNDIDADE da fila, não o
+  número de requisições.** Com 1 requisição por série, duas séries diárias de 10
+  anos levavam 10,7 s e cinco levavam 10,4 s. O orçamento de 10 simultâneas
+  repartido entre as séries (`concorrenciaPorSerie`) derrubou o pior caso para
+  ~8,8 s. **Meça sempre em janela nunca pedida**: a origem serve repetição de
+  cache e uma janela já consultada mede 600 ms onde a fria mede 10 s.
 - **Renomear o worker quebraria a URL**: ele se chama `bcb` desde a origem e é
   isso que define `bcb.sidneybissoli.workers.dev`.
 - **Propagação da Cloudflare serve isolates mistos** por alguns segundos após o

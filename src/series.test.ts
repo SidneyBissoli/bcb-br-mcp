@@ -13,8 +13,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   FATIA_ANOS,
+  alinharSeries,
   buscarSerieSgs,
   buscarUltimosSgs,
+  chaveMes,
+  construirDeflator,
+  deflacionar,
   fatiarJanela,
   formatarDataSgs,
   harmonizar,
@@ -330,5 +334,142 @@ describe("harmonizar", () => {
     );
 
     expect(r.dados).toEqual([{ data: "01/01/2024", valor: 1, observacoes: 1 }]);
+  });
+});
+
+// ==================== alinhamento de grades ====================
+//
+// O que estes testes pinam é a medição de 11/08/2026 contra a origem: séries de
+// mesma periodicidade casam integralmente (dólar, Selic e CDI diários deram 253 de
+// 253 em 2024), e cruzar periodicidades diferentes casa um punhado de datas — não
+// zero, que seria evidente, mas 7 de 12 no ano. É o número 7 que torna o erro caro.
+
+describe("alinharSeries", () => {
+  it("séries de mesma grade casam integralmente", () => {
+    const a = [{ data: "01/01/2024", valor: 1 }, { data: "01/02/2024", valor: 2 }];
+    const b = [{ data: "01/01/2024", valor: 10 }, { data: "01/02/2024", valor: 20 }];
+
+    const r = alinharSeries([a, b]);
+
+    expect(r.linhas).toEqual([
+      { data: "01/01/2024", valores: [1, 10] },
+      { data: "01/02/2024", valores: [2, 20] }
+    ]);
+    expect(r.completas).toBe(2);
+    expect(r.parciais).toBe(0);
+  });
+
+  it("grades diferentes: a união preserva tudo e as parciais ficam contadas", () => {
+    const diaria = [
+      { data: "01/01/2024", valor: 1 },
+      { data: "02/01/2024", valor: 2 },
+      { data: "03/01/2024", valor: 3 }
+    ];
+    const mensal = [{ data: "01/01/2024", valor: 100 }];
+
+    const r = alinharSeries([diaria, mensal]);
+
+    expect(r.linhas).toHaveLength(3);
+    expect(r.completas).toBe(1); // só o dia 1º
+    expect(r.parciais).toBe(2);
+    expect(r.linhas[1].valores).toEqual([2, null]);
+  });
+
+  it("reproduz a medição da origem: diária × mensal casa ~7 datas de 12 no ano", () => {
+    // Dias 1º de 2024 que caíram em dia útil: jan, fev, mar, abr, jul, ago, out.
+    const diasUteis = ["01/01/2024", "01/02/2024", "01/03/2024", "01/04/2024",
+                       "01/07/2024", "01/08/2024", "01/10/2024"];
+    const diaria = diasUteis.map((data, i) => ({ data, valor: i + 1 }));
+    const mensal = Array.from({ length: 12 }, (_, i) => ({
+      data: `01/${String(i + 1).padStart(2, "0")}/2024`, valor: (i + 1) * 10
+    }));
+
+    const r = alinharSeries([diaria, mensal]);
+
+    expect(r.completas).toBe(7);
+    expect(r.linhas).toHaveLength(12);
+  });
+
+  it("ordena por data, não por ordem de chegada", () => {
+    const r = alinharSeries([[{ data: "05/03/2024", valor: 2 }, { data: "01/01/2024", valor: 1 }]]);
+    expect(r.linhas.map(l => l.data)).toEqual(["01/01/2024", "05/03/2024"]);
+  });
+
+  it("data inválida e valor não-numérico são descartados, não viram linha nula", () => {
+    const r = alinharSeries([[
+      { data: "01/01/2024", valor: 1 },
+      { data: "lixo", valor: 2 },
+      { data: "01/02/2024", valor: Number.NaN }
+    ]]);
+
+    expect(r.linhas).toEqual([{ data: "01/01/2024", valores: [1] }]);
+  });
+});
+
+// ==================== deflação ====================
+
+describe("construirDeflator / deflacionar", () => {
+  /** 12 meses de 1% — índice fecha o ano em 1,01^12. */
+  const umPorCento = Array.from({ length: 12 }, (_, i) => ({
+    data: `01/${String(i + 1).padStart(2, "0")}/2024`, valor: 1
+  }));
+
+  it("fator do mês base é exatamente 1", () => {
+    const d = construirDeflator(umPorCento);
+    expect(d.mesBase).toBe("12/2024");
+    expect(d.fatores.get("2024-12")).toBe(1);
+  });
+
+  it("fator de meses anteriores compõe geometricamente até a base", () => {
+    const d = construirDeflator(umPorCento);
+    // De jan a dez são 11 variações mensais de 1% aplicadas depois de janeiro.
+    expect(d.fatores.get("2024-01")!).toBeCloseTo(1.01 ** 11, 12);
+    expect(d.fatores.get("2024-11")!).toBeCloseTo(1.01, 12);
+  });
+
+  it("mês base no MEIO do período: meses posteriores recebem fator < 1", () => {
+    const d = construirDeflator(umPorCento, "2024-06");
+    expect(d.mesBase).toBe("06/2024");
+    expect(d.fatores.get("2024-06")).toBe(1);
+    expect(d.fatores.get("2024-12")!).toBeCloseTo(1 / 1.01 ** 6, 12);
+    expect(d.fatores.get("2024-01")!).toBeCloseTo(1.01 ** 5, 12);
+  });
+
+  it("mês base inexistente cai no último mês, sem inventar cobertura", () => {
+    const d = construirDeflator(umPorCento, "1999-01");
+    expect(d.mesBase).toBe("12/2024");
+  });
+
+  it("índice vazio é erro explícito, não deflator de fator 1", () => {
+    expect(() => construirDeflator([])).toThrow(/índice de preços/i);
+  });
+
+  it("todo dia do mesmo mês compartilha o fator — o índice é mensal", () => {
+    const d = construirDeflator(umPorCento);
+    const r = deflacionar(
+      [{ data: "03/01/2024", valor: 100 }, { data: "29/01/2024", valor: 100 }],
+      d
+    );
+    expect(r[0].fator).toBe(r[1].fator);
+    expect(r[0].valorReal!).toBeCloseTo(100 * 1.01 ** 11, 10);
+  });
+
+  it("data fora da cobertura devolve null, nunca fator 1", () => {
+    const d = construirDeflator(umPorCento);
+    const r = deflacionar([{ data: "15/06/2023", valor: 100 }, { data: "15/03/2026", valor: 100 }], d);
+
+    expect(r[0]).toEqual({ data: "15/06/2023", valorNominal: 100, valorReal: null, fator: null });
+    expect(r[1].valorReal).toBeNull();
+  });
+
+  it("deflação de variação nula devolve o próprio valor", () => {
+    const semInflacao = umPorCento.map(o => ({ ...o, valor: 0 }));
+    const r = deflacionar([{ data: "01/03/2024", valor: 1518 }], construirDeflator(semInflacao));
+    expect(r[0].valorReal).toBe(1518);
+  });
+
+  it("chaveMes extrai o mês da data e recusa o que não casa", () => {
+    expect(chaveMes("29/02/2024")).toBe("2024-02");
+    expect(chaveMes("2024-02-29")).toBeNull();
   });
 });

@@ -13,13 +13,27 @@
 import { obterCatalogo, buscarSeries } from "./catalog.js";
 import { FOCUS_TOOL_DEFINITIONS, dispatchFocusTool } from "./focus.js";
 import { CAMBIO_TOOL_DEFINITIONS, dispatchCambioTool } from "./cambio.js";
-import { DERIVACAO_ESTATISTICA, arredondarDerivado, estatisticasDaSerie } from "./stats.js";
+import {
+  DERIVACAO_CORRELACAO,
+  DERIVACAO_DEFLACAO,
+  DERIVACAO_ESTATISTICA,
+  arredondarDerivado,
+  correlacaoEntreSeries,
+  emVariacoes,
+  estatisticasDaSerie,
+  type BaseCorrelacao,
+  type MetodoCorrelacao
+} from "./stats.js";
 import {
   ROTULO_PERIODICIDADE,
   TETO_ULTIMOS,
+  alinharSeries,
   buscarSerieSgs,
   buscarUltimosSgs,
+  construirDeflator,
+  deflacionar,
   harmonizar,
+  hojeSgs,
   inferirPeriodicidade,
   type Agregacao,
   type FrequenciaAlvo,
@@ -781,6 +795,314 @@ export async function handleComparar(
   }
 }
 
+/** Série buscada e preparada para as tools que trabalham com mais de uma. */
+interface SeriePreparada {
+  codigo: number;
+  ref: Record<string, unknown>;
+  periodicidade: Periodicidade | null;
+  observacoes: Array<{ data: string; valor: number }>;
+}
+
+/**
+ * Orçamento de requisições simultâneas repartido entre as `n` séries buscadas juntas.
+ *
+ * O que estoura o timeout não é o número de requisições, é a PROFUNDIDADE da fila:
+ * cada série diária de ~10 anos vira 4 fatias de 3 anos (`series.ts`), e fatias em
+ * fila custam ~2,6 s cada. Com uma requisição por série, medido em 11/08/2026 contra
+ * a origem: duas séries diárias de 2015 a 2024 levaram **10,7 s** e cinco séries de
+ * 2001 a 2010 levaram **10,4 s** — as duas ACIMA dos 10 s em que o worker corta, ou
+ * seja, consultas legítimas que não completavam no canal hospedado.
+ *
+ * O teto de 10 em voo respeita a parcimônia de ≤5 req/s que a fase adotou: como cada
+ * fatia dura ~2,6 s, dez requisições simultâneas dão ~3,8 req/s, não dez. Repartido,
+ * o pior caso caiu para 4,5–6,7 s em janelas nunca pedidas antes (medição fria — a
+ * origem serve repetição de cache e mediria bonito por engano).
+ */
+const ORCAMENTO_SIMULTANEO = 10;
+
+function concorrenciaPorSerie(n: number): number {
+  return Math.max(1, Math.floor(ORCAMENTO_SIMULTANEO / Math.max(1, n)));
+}
+
+/** Busca N séries na mesma janela, isolando quem falhou. */
+async function buscarVarias(
+  codigos: number[],
+  dataInicial: string,
+  dataFinal: string,
+  timeoutMs?: number,
+  maxRetries?: number
+): Promise<{ series: SeriePreparada[]; erros: Array<Record<string, unknown>> }> {
+  const concorrencia = concorrenciaPorSerie(codigos.length);
+
+  const resultados = await Promise.all(
+    codigos.map(async (codigo) => {
+      const info = SERIES_POPULARES.find(s => s.codigo === codigo);
+      try {
+        const r = await buscarSerieSgs(
+          { codigo, dataInicial: formatDateForApi(dataInicial), dataFinal: formatDateForApi(dataFinal) },
+          timeoutMs, maxRetries, concorrencia
+        );
+        if (r.observacoes.length === 0) {
+          return { erro: { codigo, nome: info?.nome || `Série ${codigo}`, erro: "Sem dados no período" } };
+        }
+        return {
+          serie: {
+            codigo,
+            ref: refSerie(codigo, r.periodicidade),
+            periodicidade: r.periodicidade,
+            observacoes: r.observacoes.map(o => ({ data: o.data, valor: parseFloat(o.valor) }))
+          } satisfies SeriePreparada
+        };
+      } catch (err) {
+        return { erro: { codigo, nome: info?.nome || `Série ${codigo}`, erro: mensagemDeErro(err) } };
+      }
+    })
+  );
+
+  return {
+    series: resultados.flatMap(r => ("serie" in r && r.serie ? [r.serie] : [])),
+    erros: resultados.flatMap(r => ("erro" in r && r.erro ? [r.erro] : []))
+  };
+}
+
+export async function handleCorrelacao(
+  args: {
+    codigos: number[];
+    dataInicial: string;
+    dataFinal: string;
+    frequencia?: FrequenciaAlvo;
+    agregacao?: Agregacao;
+    metodo?: MetodoCorrelacao;
+    base?: BaseCorrelacao;
+  },
+  timeoutMs?: number,
+  maxRetries?: number
+): Promise<ToolResult> {
+  try {
+    const metodo: MetodoCorrelacao = args.metodo ?? "pearson";
+    const base: BaseCorrelacao = args.base ?? "nivel";
+
+    const { series, erros } = await buscarVarias(
+      args.codigos, args.dataInicial, args.dataFinal, timeoutMs, maxRetries
+    );
+
+    if (series.length < 2) {
+      return erroResult(
+        `Correlação exige ao menos duas séries com dados no período, e apenas ${series.length} retornou. ` +
+        (erros.length > 0 ? `Motivos: ${erros.map(e => `${e.codigo} — ${e.erro}`).join("; ")}.` : "")
+      );
+    }
+
+    // A recusa que a medição contra a origem justificou. Casar série diária com
+    // mensal por data devolve ~7 datas de 12 no ano (os dias 1º em dia útil), e o
+    // coeficiente sobre esse punhado tem aparência perfeitamente saudável. Aqui não
+    // basta avisar como em `bcb_comparar`, onde cada série é resumida na própria
+    // grade: um coeficiente é UM número sobre as duas séries ao mesmo tempo, e ele
+    // sairia simplesmente errado. Recusar com o caminho da solução é o único
+    // comportamento defensável.
+    //
+    // A grade é decidida pela periodicidade MEDIDA (espaçamento das datas que a
+    // origem devolveu), nunca pelo rótulo do catálogo curado. O rótulo é um nome de
+    // exibição e pode estar errado — a série 11 está catalogada como "Mensal" e a
+    // origem a publica todo dia útil —, e um rótulo errado aqui recusaria uma
+    // correlação perfeitamente válida. O catálogo só entra quando não há medição
+    // possível (menos de 3 observações).
+    const gradeDe = (s: SeriePreparada): string =>
+      s.periodicidade ? ROTULO_PERIODICIDADE[s.periodicidade] : String(s.ref.periodicidade);
+    const distintas = [...new Set(series.map(gradeDe))].filter(p => p !== "Desconhecida");
+    if (!args.frequencia && distintas.length > 1) {
+      return erroResult(
+        `As séries têm periodicidades diferentes (${distintas.join(", ")}) e a correlação foi recusada. ` +
+        `Cruzar grades diferentes por data casa apenas as datas coincidentes — uma série diária e uma mensal ` +
+        `coincidem em cerca de 7 datas por ano, os dias 1º que caem em dia útil —, e o coeficiente resultante ` +
+        `descreveria esse punhado de pontos, não as séries. Informe \`frequencia\` (mensal, trimestral ou anual) ` +
+        `para harmonizá-las na mesma grade antes de correlacionar, escolhendo a convenção em \`agregacao\`.`
+      );
+    }
+
+    let harmonizacao: Record<string, unknown> | undefined;
+    const preparadas = series.map(s => {
+      if (!args.frequencia) return s.observacoes;
+      const h = harmonizar(s.observacoes, args.frequencia, args.agregacao ?? "ultimo", s.periodicidade);
+      harmonizacao = { frequencia: h.frequencia, agregacao: h.agregacao, derived: true, nota: h.nota };
+      return h.dados.map(d => ({ data: d.data, valor: d.valor }));
+    });
+
+    const alinhamento = alinharSeries(preparadas);
+
+    const pares: Array<Record<string, unknown>> = [];
+    for (let i = 0; i < series.length; i++) {
+      for (let j = i + 1; j < series.length; j++) {
+        const brutos = alinhamento.linhas.map(l => ({ a: l.valores[i], b: l.valores[j] }));
+        const entrada = base === "variacao" ? emVariacoes(brutos) : brutos;
+        const c = correlacaoEntreSeries(entrada, metodo);
+        pares.push({
+          codigoA: series[i].codigo, nomeA: String(series[i].ref.nome),
+          codigoB: series[j].codigo, nomeB: String(series[j].ref.nome),
+          coeficiente: c.coeficiente,
+          n: c.n,
+          descartados: c.descartados,
+          interpretacao: c.interpretacao,
+          ...(c.motivo ? { motivo: c.motivo } : {})
+        });
+      }
+    }
+
+    return structuredResult({
+      periodo: { dataInicial: formatDateForApi(args.dataInicial), dataFinal: formatDateForApi(args.dataFinal) },
+      metodo,
+      base,
+      series: series.map(s => ({ ...s.ref, totalRegistros: s.observacoes.length })),
+      alinhamento: {
+        datas: alinhamento.linhas.length,
+        completas: alinhamento.completas,
+        parciais: alinhamento.parciais,
+        grade: args.frequencia ?? gradeDe(series[0]).toLowerCase()
+      },
+      pares,
+      erros,
+      derivacao: DERIVACAO_CORRELACAO,
+      ...(harmonizacao ? { harmonizacao } : {})
+    });
+  } catch (error) {
+    return erroResult(`Erro ao calcular correlação: ${mensagemDeErro(error)}`);
+  }
+}
+
+/** Índices de preço aceitos como deflator, todos publicados como variação mensal em %. */
+const DEFLATORES: Record<string, { codigo: number; nome: string }> = {
+  ipca: { codigo: 433, nome: "IPCA — Índice Nacional de Preços ao Consumidor Amplo (IBGE)" },
+  inpc: { codigo: 188, nome: "INPC — Índice Nacional de Preços ao Consumidor (IBGE)" },
+  igpm: { codigo: 189, nome: "IGP-M — Índice Geral de Preços do Mercado (FGV)" }
+};
+
+export async function handleDeflacionar(
+  args: {
+    codigo: number;
+    dataInicial: string;
+    dataFinal: string;
+    indice?: string;
+    mesBase?: string;
+    frequencia?: FrequenciaAlvo;
+    agregacao?: Agregacao;
+  },
+  timeoutMs?: number,
+  maxRetries?: number
+): Promise<ToolResult> {
+  try {
+    const chaveIndice = (args.indice ?? "ipca").toLowerCase();
+    const deflatorInfo = DEFLATORES[chaveIndice];
+    if (!deflatorInfo) {
+      return erroResult(
+        `Índice de preços desconhecido: "${args.indice}". Aceitos: ${Object.keys(DEFLATORES).join(", ")}.`
+      );
+    }
+
+    const inicio = formatDateForApi(args.dataInicial);
+    const fim = formatDateForApi(args.dataFinal);
+
+    // O deflator é buscado do início do período até HOJE, não até `dataFinal`: o mês
+    // base default é o último mês publicado do índice ("em reais de hoje"), que é a
+    // pergunta que praticamente todo mundo faz. É uma requisição mensal barata.
+    // A série nominal fica com a concorrência de duas séries (3 fatias em voo): ela é
+    // a única que pode ser diária e portanto fatiada em muitas janelas. O índice de
+    // preços é sempre mensal — uma requisição — e não precisa de folga nenhuma.
+    const [serie, indice] = await Promise.all([
+      buscarSerieSgs({ codigo: args.codigo, dataInicial: inicio, dataFinal: fim }, timeoutMs, maxRetries, concorrenciaPorSerie(2)),
+      buscarSerieSgs({ codigo: deflatorInfo.codigo, dataInicial: inicio, dataFinal: hojeSgs() }, timeoutMs, maxRetries, 1)
+    ]);
+
+    if (serie.observacoes.length === 0) {
+      return erroResult(`A série ${args.codigo} não retornou dados entre ${inicio} e ${fim}.`);
+    }
+    if (indice.observacoes.length === 0) {
+      return erroResult(
+        `O índice de preços (${chaveIndice.toUpperCase()}, série ${deflatorInfo.codigo}) não retornou dados no período — ` +
+        `sem ele não há como deflacionar.`
+      );
+    }
+
+    let observacoes = serie.observacoes.map(o => ({ data: o.data, valor: parseFloat(o.valor) }));
+    let harmonizacao: Record<string, unknown> | undefined;
+    if (args.frequencia) {
+      const h = harmonizar(observacoes, args.frequencia, args.agregacao ?? "ultimo", serie.periodicidade);
+      observacoes = h.dados.map(d => ({ data: d.data, valor: d.valor }));
+      harmonizacao = { frequencia: h.frequencia, agregacao: h.agregacao, derived: true, nota: h.nota };
+    }
+
+    const deflator = construirDeflator(
+      indice.observacoes.map(o => ({ data: o.data, valor: parseFloat(o.valor) })),
+      args.mesBase
+    );
+    const dados = deflacionar(observacoes, deflator).map(d => ({
+      data: d.data,
+      valorNominal: d.valorNominal,
+      valorReal: d.valorReal === null ? null : arredondarDerivado(d.valorReal),
+      fator: d.fator === null ? null : arredondarDerivado(d.fator)
+    }));
+
+    const comReal = dados.filter(d => d.valorReal !== null);
+    const foraDeCobertura = dados.length - comReal.length;
+
+    // A comparação que é o produto da tool: o mesmo período lido em moeda corrente e
+    // em moeda constante. Sem isto o cliente teria de calcular a variação real, que é
+    // exatamente o cálculo que ele veio aqui para não fazer.
+    const variacao = comReal.length >= 2
+      ? {
+          nominal: arredondarDerivado(calculateVariation(comReal[0].valorNominal, comReal[comReal.length - 1].valorNominal)),
+          real: arredondarDerivado(calculateVariation(comReal[0].valorReal!, comReal[comReal.length - 1].valorReal!)),
+          dataInicial: comReal[0].data,
+          dataFinal: comReal[comReal.length - 1].data
+        }
+      : null;
+
+    const avisos: string[] = [];
+    if (foraDeCobertura > 0) {
+      avisos.push(
+        `${foraDeCobertura} observação(ões) ficaram com \`valorReal: null\` por caírem fora da cobertura do ` +
+        `índice de preços (${deflator.primeiroMes} a ${deflator.ultimoMes}). O índice é publicado com defasagem, ` +
+        `então observação do mês corrente costuma ainda não ter deflator.`
+      );
+    }
+    // `mesBase` fora da cobertura cai no default sem reclamar; dizer isso é obrigatório.
+    if (args.mesBase && mesBaseSolicitadoDiferente(args.mesBase, deflator.mesBase)) {
+      avisos.push(
+        `O mês base pedido (${args.mesBase}) não existe na cobertura do índice ` +
+        `(${deflator.primeiroMes} a ${deflator.ultimoMes}); foi usado ${deflator.mesBase}.`
+      );
+    }
+
+    return structuredResult({
+      serie: { ...refSerie(args.codigo, serie.periodicidade), totalRegistros: dados.length },
+      deflator: {
+        indice: chaveIndice.toUpperCase(),
+        codigo: deflatorInfo.codigo,
+        nome: deflatorInfo.nome,
+        cobertura: { primeiroMes: deflator.primeiroMes, ultimoMes: deflator.ultimoMes }
+      },
+      base: {
+        mes: deflator.mesBase,
+        descricao: `Todos os valores em \`valorReal\` estão expressos em reais de ${deflator.mesBase}.`
+      },
+      periodo: { dataInicial: inicio, dataFinal: fim },
+      dados,
+      variacao,
+      derivacao: DERIVACAO_DEFLACAO,
+      ...(harmonizacao ? { harmonizacao } : {}),
+      ...(avisos.length > 0 ? { avisos } : {}),
+      ...blocoRede(serie)
+    });
+  } catch (error) {
+    return erroResult(`Erro ao deflacionar a série: ${mensagemDeErro(error)}`);
+  }
+}
+
+/** `yyyy-MM` pedido × `MM/yyyy` aplicado. */
+function mesBaseSolicitadoDiferente(pedido: string, aplicado: string): boolean {
+  const [ano, mes] = pedido.split("-");
+  return `${mes}/${ano}` !== aplicado;
+}
+
 // ==================== OUTPUT SCHEMAS (JSON Schema, for worker JSON-RPC) ====================
 
 // Shared fragment: identification block for a BCB time series.
@@ -1041,7 +1363,46 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "comparáveis, e a resposta avisa isso em `aviso`; informe `frequencia` (mensal|trimestral|anual) para " +
     "harmonizar todas na mesma grade antes de comparar, escolhendo a convenção em `agregacao`. " +
     "Janelas longas em séries diárias são fatiadas automaticamente (limite de 10 anos da API do BCB). " +
-    BEHAVIOR_NOTE
+    BEHAVIOR_NOTE,
+
+  bcb_correlacao:
+    "Calcula a correlação estatística entre 2 a 5 séries temporais do BCB no MESMO período " +
+    "(dataInicial e dataFinal obrigatórias), par a par. " +
+    "Quando usar: para medir se dois indicadores se movem juntos (ex.: dólar e Selic, IPCA e IGP-M). " +
+    "Quando NÃO usar: para comparar a variação de cada série lado a lado use bcb_comparar; para uma série " +
+    "só use bcb_variacao. " +
+    "Métodos: `pearson` (padrão) mede relação LINEAR entre os valores; `spearman` mede relação MONÓTONA " +
+    "entre os postos e é o adequado quando a relação não é reta ou quando uma série fica parada em platôs " +
+    "(taxa de juros entre reuniões do Copom). " +
+    "Base: `nivel` (padrão) correlaciona os valores; `variacao` correlaciona a mudança percentual de um " +
+    "ponto para o outro — prefira `variacao` quando as duas séries têm tendência (preço, índice, estoque), " +
+    "porque o nível de duas séries crescentes tem correlação alta só porque ambas crescem com o tempo. " +
+    "Retorna: `periodo`, `metodo`, `base`, `series`, `alinhamento` (datas cruzadas, completas e parciais), " +
+    "`pares` (cada um com codigoA/codigoB, `coeficiente` entre -1 e 1, `n`, `descartados` e `interpretacao` " +
+    "em prosa), `erros` e `derivacao`. Coeficiente que não pode ser calculado vem `null` com `motivo` — " +
+    "nunca 0, que significaria ausência medida de relação. " +
+    "Periodicidades diferentes são RECUSADAS, não avisadas: cruzar uma série diária com uma mensal por data " +
+    "casa só as datas coincidentes (cerca de 7 por ano) e produziria um coeficiente sobre esse punhado; " +
+    "informe `frequencia` para harmonizar todas na mesma grade antes de correlacionar. " +
+    "Correlação não estabelece causalidade. " + BEHAVIOR_NOTE,
+
+  bcb_deflacionar:
+    "Converte uma série NOMINAL do BCB em valores REAIS (moeda constante), descontando a inflação do " +
+    "período — a diferença entre 'o salário mínimo subiu 46% desde 2020' e 'o salário mínimo subiu 5% em " +
+    "poder de compra'. " +
+    "Quando usar: sempre que valores em reais de épocas diferentes forem comparados. Quando NÃO usar: para " +
+    "séries que já são percentuais, índices ou taxas (deflacionar uma taxa de juros não significa nada); " +
+    "para a série nominal crua use bcb_serie_valores. " +
+    "Índice: `ipca` (padrão), `inpc` ou `igpm`. Base: `mesBase` no formato yyyy-MM define em reais de que " +
+    "mês os valores são expressos; sem ele, usa o último mês publicado do índice ('em reais de hoje'). " +
+    "Retorna: `serie`, `deflator` (índice, código, cobertura), `base`, `periodo`, `dados` (cada ponto com " +
+    "valorNominal, `valorReal` e `fator`), `variacao` (a percentual nominal ao lado da real no mesmo " +
+    "período), `derivacao` e `avisos`. " +
+    "Limite da fonte: o SGS não publica número-índice, então o índice é reconstruído compondo as variações " +
+    "mensais — reconstrução conferida contra a própria fonte (diferença máxima de 0,0052 ponto percentual " +
+    "contra o acumulado oficial em 12 meses). Observação fora da cobertura do índice recebe " +
+    "`valorReal: null`, nunca um valor inventado; como o índice sai com defasagem, o mês corrente " +
+    "costuma cair nesse caso. " + BEHAVIOR_NOTE
 };
 
 // ==================== TOOL DEFINITIONS (canonical, both transports) ====================
@@ -1494,6 +1855,270 @@ const RAW_TOOL_DEFINITIONS = [
       },
       required: ["periodo", "totalSeries", "seriesComDados", "seriesComErro", "ranking", "erros", "derivacao"]
     }
+  },
+  {
+    name: "bcb_correlacao",
+    description: TOOL_DESCRIPTIONS.bcb_correlacao,
+    annotations: {
+      title: "Correlacionar séries",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        codigos: {
+          type: "array" as const,
+          items: { type: "number" as const },
+          description: "Array com 2 a 5 códigos de séries para correlacionar par a par",
+          minItems: 2,
+          maxItems: 5
+        },
+        dataInicial: { type: "string" as const, description: "Data inicial (yyyy-MM-dd ou dd/MM/yyyy)" },
+        dataFinal: { type: "string" as const, description: "Data final (yyyy-MM-dd ou dd/MM/yyyy)" },
+        metodo: {
+          type: "string" as const,
+          enum: ["pearson", "spearman"],
+          default: "pearson",
+          description:
+            "`pearson` mede relação linear entre os valores; `spearman` mede relação monótona entre os postos " +
+            "(com posto médio nos empates) e é o adequado quando a relação não é reta ou quando uma das séries " +
+            "fica parada em platôs, como a Selic entre reuniões do Copom."
+        },
+        base: {
+          type: "string" as const,
+          enum: ["nivel", "variacao"],
+          default: "nivel",
+          description:
+            "`nivel` correlaciona os valores; `variacao` correlaciona a mudança percentual de um ponto para o " +
+            "seguinte. Prefira `variacao` quando as duas séries têm tendência: o nível de duas séries crescentes " +
+            "tem correlação alta só porque ambas crescem com o tempo."
+        },
+        frequencia: FREQUENCIA_INPUT,
+        agregacao: AGREGACAO_INPUT
+      },
+      required: ["codigos", "dataInicial", "dataFinal"]
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        periodo: {
+          type: "object" as const,
+          description: "Janela temporal correlacionada",
+          properties: {
+            dataInicial: { type: "string" as const },
+            dataFinal: { type: "string" as const }
+          },
+          required: ["dataInicial", "dataFinal"]
+        },
+        metodo: { type: "string" as const, enum: ["pearson", "spearman"], description: "Método aplicado" },
+        base: { type: "string" as const, enum: ["nivel", "variacao"], description: "Se o cálculo usou os valores ou as variações" },
+        series: {
+          type: "array" as const,
+          description: "Séries que entraram no cálculo",
+          items: {
+            type: "object" as const,
+            properties: {
+              codigo: { type: "number" as const },
+              nome: { type: "string" as const },
+              categoria: { type: "string" as const },
+              periodicidade: { type: "string" as const },
+              periodicidadeInferida: { type: "boolean" as const },
+              totalRegistros: { type: "number" as const }
+            },
+            required: ["codigo", "nome"]
+          }
+        },
+        alinhamento: {
+          type: "object" as const,
+          description:
+            "Como as grades foram cruzadas. `completas` é o que efetivamente entra num coeficiente: datas em " +
+            "que TODAS as séries publicam. A distância entre `datas` e `completas` é a medida de quanto as " +
+            "séries não se sobrepõem.",
+          properties: {
+            datas: { type: "number" as const, description: "Datas distintas na união das séries" },
+            completas: { type: "number" as const, description: "Datas em que todas as séries publicam" },
+            parciais: { type: "number" as const, description: "Datas em que ao menos uma série não publica" },
+            grade: { type: "string" as const, description: "Grade temporal usada no cruzamento" }
+          },
+          required: ["datas", "completas", "parciais"]
+        },
+        pares: {
+          type: "array" as const,
+          description: "Um item por par de séries",
+          items: {
+            type: "object" as const,
+            properties: {
+              codigoA: { type: "number" as const },
+              nomeA: { type: "string" as const },
+              codigoB: { type: "number" as const },
+              nomeB: { type: "string" as const },
+              coeficiente: {
+                type: ["number", "null"] as const,
+                description: "Coeficiente entre -1 e 1; `null` quando indefinido (ver `motivo`) — nunca 0 por omissão"
+              },
+              n: { type: "number" as const, description: "Pares de valores efetivamente usados" },
+              descartados: { type: "number" as const, description: "Datas descartadas por falta de valor em uma das pontas" },
+              interpretacao: {
+                type: ["string", "null"] as const,
+                description: "Leitura em prosa da força e do sentido; `null` quando não há coeficiente"
+              },
+              motivo: { type: "string" as const, description: "Por que o coeficiente é `null`; ausente quando há coeficiente" }
+            },
+            required: ["codigoA", "codigoB", "coeficiente", "n", "descartados", "interpretacao"]
+          }
+        },
+        erros: {
+          type: "array" as const,
+          description: "Séries que não retornaram dados, com o motivo",
+          items: {
+            type: "object" as const,
+            properties: {
+              codigo: { type: "number" as const },
+              nome: { type: "string" as const },
+              erro: { type: "string" as const }
+            },
+            required: ["codigo", "erro"]
+          }
+        },
+        derivacao: DERIVACAO_SCHEMA,
+        harmonizacao: HARMONIZACAO_SCHEMA
+      },
+      required: ["periodo", "metodo", "base", "series", "alinhamento", "pares", "erros", "derivacao"]
+    }
+  },
+  {
+    name: "bcb_deflacionar",
+    description: TOOL_DESCRIPTIONS.bcb_deflacionar,
+    annotations: {
+      title: "Deflacionar série (valores reais)",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true
+    },
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        codigo: { type: "number" as const, description: "Código da série NOMINAL a deflacionar (ex.: 1619 para salário mínimo)" },
+        dataInicial: { type: "string" as const, description: "Data inicial (yyyy-MM-dd ou dd/MM/yyyy)" },
+        dataFinal: { type: "string" as const, description: "Data final (yyyy-MM-dd ou dd/MM/yyyy)" },
+        indice: {
+          type: "string" as const,
+          enum: ["ipca", "inpc", "igpm"],
+          default: "ipca",
+          description: "Índice de preços usado como deflator: IPCA (433), INPC (188) ou IGP-M (189)"
+        },
+        mesBase: {
+          type: "string" as const,
+          pattern: "^\\d{4}-\\d{2}$",
+          description:
+            "Mês em cujos preços os valores serão expressos, no formato yyyy-MM. Sem ele, usa o último mês " +
+            "publicado do índice — isto é, 'em reais de hoje'."
+        },
+        frequencia: FREQUENCIA_INPUT,
+        agregacao: AGREGACAO_INPUT
+      },
+      required: ["codigo", "dataInicial", "dataFinal"]
+    },
+    outputSchema: {
+      type: "object" as const,
+      properties: {
+        serie: {
+          type: "object" as const,
+          description: "Identificação da série nominal",
+          properties: {
+            codigo: { type: "number" as const },
+            nome: { type: "string" as const },
+            categoria: { type: "string" as const },
+            periodicidade: { type: "string" as const },
+            periodicidadeInferida: { type: "boolean" as const },
+            totalRegistros: { type: "number" as const }
+          },
+          required: ["codigo", "nome"]
+        },
+        deflator: {
+          type: "object" as const,
+          description: "Índice de preços usado e o intervalo que ele cobre",
+          properties: {
+            indice: { type: "string" as const },
+            codigo: { type: "number" as const },
+            nome: { type: "string" as const },
+            cobertura: {
+              type: "object" as const,
+              properties: {
+                primeiroMes: { type: "string" as const, description: "MM/yyyy" },
+                ultimoMes: { type: "string" as const, description: "MM/yyyy" }
+              },
+              required: ["primeiroMes", "ultimoMes"]
+            }
+          },
+          required: ["indice", "codigo", "nome", "cobertura"]
+        },
+        base: {
+          type: "object" as const,
+          description: "Mês em cujos preços os valores reais estão expressos",
+          properties: {
+            mes: { type: "string" as const, description: "MM/yyyy" },
+            descricao: { type: "string" as const }
+          },
+          required: ["mes", "descricao"]
+        },
+        periodo: {
+          type: "object" as const,
+          properties: {
+            dataInicial: { type: "string" as const },
+            dataFinal: { type: "string" as const }
+          },
+          required: ["dataInicial", "dataFinal"]
+        },
+        dados: {
+          type: "array" as const,
+          description: "Observações com o valor publicado e o valor em moeda constante",
+          items: {
+            type: "object" as const,
+            properties: {
+              data: { type: "string" as const, description: "dd/MM/yyyy" },
+              valorNominal: { type: "number" as const, description: "Valor como o BCB publicou" },
+              valorReal: {
+                type: ["number", "null"] as const,
+                description: "Valor em reais do mês base; `null` quando a data cai fora da cobertura do índice"
+              },
+              fator: {
+                type: ["number", "null"] as const,
+                description: "Multiplicador aplicado; `null` pelo mesmo motivo"
+              }
+            },
+            required: ["data", "valorNominal", "valorReal", "fator"]
+          }
+        },
+        variacao: {
+          type: ["object", "null"] as const,
+          description:
+            "Variação percentual do período em moeda corrente ao lado da variação em moeda constante — é a " +
+            "comparação que a tool existe para entregar. `null` quando há menos de duas observações deflacionadas.",
+          properties: {
+            nominal: { type: "number" as const, description: "Variação percentual sem descontar inflação" },
+            real: { type: "number" as const, description: "Variação percentual em poder de compra" },
+            dataInicial: { type: "string" as const },
+            dataFinal: { type: "string" as const }
+          },
+          required: ["nominal", "real", "dataInicial", "dataFinal"]
+        },
+        derivacao: DERIVACAO_SCHEMA,
+        harmonizacao: HARMONIZACAO_SCHEMA,
+        avisos: {
+          type: "array" as const,
+          items: { type: "string" as const },
+          description: "Ressalvas sobre cobertura do índice ou mês base substituído"
+        },
+        chunking: CHUNKING_SCHEMA,
+        janelaAplicada: JANELA_APLICADA_SCHEMA
+      },
+      required: ["serie", "deflator", "base", "periodo", "dados", "variacao", "derivacao"]
+    }
   }
 ];
 
@@ -1633,6 +2258,24 @@ export async function dispatchTool(
       return handleComparar(
         args as {
           codigos: number[]; dataInicial: string; dataFinal: string;
+          frequencia?: FrequenciaAlvo; agregacao?: Agregacao;
+        },
+        timeoutMs, maxRetries
+      );
+    case "bcb_correlacao":
+      return handleCorrelacao(
+        args as {
+          codigos: number[]; dataInicial: string; dataFinal: string;
+          frequencia?: FrequenciaAlvo; agregacao?: Agregacao;
+          metodo?: MetodoCorrelacao; base?: BaseCorrelacao;
+        },
+        timeoutMs, maxRetries
+      );
+    case "bcb_deflacionar":
+      return handleDeflacionar(
+        args as {
+          codigo: number; dataInicial: string; dataFinal: string;
+          indice?: string; mesBase?: string;
           frequencia?: FrequenciaAlvo; agregacao?: Agregacao;
         },
         timeoutMs, maxRetries

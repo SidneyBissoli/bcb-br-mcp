@@ -166,6 +166,8 @@ const CASOS: Array<[string, string, Record<string, unknown>]> = [
   ["bcb_indicadores_atuais", "painel agregado", {}],
   ["bcb_variacao", "estatística artesanal", { codigo: 433, dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
   ["bcb_comparar", "duas séries", { codigos: [433, 189], dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
+  ["bcb_correlacao", "duas séries alinhadas", { codigos: [433, 189], dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
+  ["bcb_deflacionar", "série nominal com deflator", { codigo: 1619, dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
   ["bcb_focus_expectativas", "calendário com referência", { indicador: "IPCA", horizonte: "anual", referencia: "2027" }],
   ["bcb_focus_expectativas", "Top 5 (sem respondentes na fonte)", { indicador: "IPCA", horizonte: "anual", referencia: "2027", top5: true }],
   ["bcb_focus_expectativas", "rolante (filtro.referencia nula)", { indicador: "IPCA", horizonte: "inflacao_12m" }],
@@ -195,11 +197,11 @@ describe("structuredContent obedece ao outputSchema anunciado", () => {
     expect(veredicto.valid, `${nome}: ${veredicto.errorMessage}`).toBe(true);
   });
 
-  it("toda tool declara outputSchema — a regra dura do SDK v2 vale para as 13", () => {
+  it("toda tool declara outputSchema — a regra dura do SDK v2 vale para as 15", () => {
     for (const definicao of TOOL_DEFINITIONS) {
       expect(definicao.outputSchema, `${definicao.name} sem outputSchema`).toBeDefined();
     }
-    expect(TOOL_DEFINITIONS).toHaveLength(13);
+    expect(TOOL_DEFINITIONS).toHaveLength(15);
   });
 });
 
@@ -351,5 +353,96 @@ describe("campos acrescentados pelo D1/D2 obedecem ao schema", () => {
 
     expect(out.harmonizacao).toBeDefined();
     expect(out.aviso).toBeUndefined();
+  });
+});
+
+// ==================== campos da correlação e da deflação ====================
+//
+// As duas tools novas produzem nulo em três caminhos distintos, e é exatamente
+// onde um schema desonesto quebraria o cliente que valida: coeficiente indefinido,
+// observação fora da cobertura do índice de preços, e período curto demais para
+// haver variação. Um caso para cada.
+
+describe("campos da correlação e da deflação obedecem ao schema", () => {
+  it("bcb_correlacao com série constante: `coeficiente` e `interpretacao` nulos + `motivo`", async () => {
+    const constante = MENSAIS_12.map(o => ({ ...o, valor: "5" }));
+    mockRotas([
+      ["bcdata.sgs.433/dados", MENSAIS_12],
+      ["bcdata.sgs.189/dados", constante]
+    ]);
+
+    const out = await validar("bcb_correlacao", {
+      codigos: [433, 189], dataInicial: "01/01/2024", dataFinal: "31/12/2024"
+    });
+
+    const par = (out.pares as Array<Record<string, unknown>>)[0];
+    expect(par.coeficiente).toBeNull();
+    expect(par.interpretacao).toBeNull();
+    expect(par.motivo).toContain("constante");
+    expect(par.n).toBe(12);
+  });
+
+  it("bcb_correlacao harmonizada: bloco `harmonizacao` e grade declarada", async () => {
+    mockRotas([
+      ["bcdata.sgs.1/dados", diarias("2024-01-02", 40)],
+      ["bcdata.sgs.433/dados", MENSAIS_12]
+    ]);
+
+    const out = await validar("bcb_correlacao", {
+      codigos: [1, 433], dataInicial: "01/01/2024", dataFinal: "31/12/2024",
+      frequencia: "mensal", agregacao: "media", metodo: "spearman", base: "variacao"
+    });
+
+    expect(out.harmonizacao).toBeDefined();
+    expect(out.metodo).toBe("spearman");
+    expect(out.base).toBe("variacao");
+    expect((out.alinhamento as Record<string, unknown>).grade).toBe("mensal");
+  });
+
+  it("bcb_deflacionar fora da cobertura do índice: `valorReal` e `fator` nulos + `avisos`", async () => {
+    // O índice cobre 2024; a série nominal tem um ponto em 2023, que fica sem fator.
+    const nominal = [{ data: "01/12/2023", valor: "1000" }, ...MENSAIS_12.map(o => ({ ...o, valor: "1200" }))];
+    mockRotas([
+      ["bcdata.sgs.1619/dados", nominal],
+      ["bcdata.sgs.433/dados", MENSAIS_12]
+    ]);
+
+    const out = await validar("bcb_deflacionar", {
+      codigo: 1619, dataInicial: "01/01/2023", dataFinal: "31/12/2024"
+    });
+
+    const dados = out.dados as Array<Record<string, unknown>>;
+    expect(dados[0].valorReal).toBeNull();
+    expect(dados[0].fator).toBeNull();
+    expect(dados[1].valorReal).not.toBeNull();
+    expect(out.avisos).toBeDefined();
+  });
+
+  it("bcb_deflacionar com um só ponto deflacionável: `variacao` nula", async () => {
+    mockRotas([
+      ["bcdata.sgs.1619/dados", [{ data: "01/06/2024", valor: "1412" }]],
+      ["bcdata.sgs.433/dados", MENSAIS_12]
+    ]);
+
+    const out = await validar("bcb_deflacionar", {
+      codigo: 1619, dataInicial: "01/01/2024", dataFinal: "31/12/2024"
+    });
+
+    expect(out.variacao).toBeNull();
+    expect((out.dados as unknown[]).length).toBe(1);
+  });
+
+  it("bcb_deflacionar com mês base fora da cobertura: cai no default e AVISA", async () => {
+    mockRotas([
+      ["bcdata.sgs.1619/dados", MENSAIS_12.map(o => ({ ...o, valor: "1412" }))],
+      ["bcdata.sgs.433/dados", MENSAIS_12]
+    ]);
+
+    const out = await validar("bcb_deflacionar", {
+      codigo: 1619, dataInicial: "01/01/2024", dataFinal: "31/12/2024", mesBase: "1999-01"
+    });
+
+    expect((out.base as Record<string, unknown>).mes).toBe("12/2024");
+    expect((out.avisos as string[]).some(a => a.includes("1999-01"))).toBe(true);
   });
 });
