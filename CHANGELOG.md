@@ -5,7 +5,7 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.6.0] - 2026-08-11
 
 Cross-series statistics and inflation adjustment — the half of D2 that the
 previous session left open. Both tools were measured against the live API before
