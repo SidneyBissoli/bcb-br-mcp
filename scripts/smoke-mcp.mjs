@@ -246,10 +246,17 @@ try {
       inexistente.result?.isError === true,
       textoInexistente.slice(0, 70)
     );
-    check(
-      "  → e o erro diz que a série é inexistente, em vez de culpar o período",
-      /INEXISTENTE/i.test(textoInexistente)
-    );
+    // A mensagem pedagógica só é possível quando a origem SERVE a página de
+    // erro. Quando ela pendura, o que volta é timeout — condição do upstream,
+    // não defeito nosso, e o smoke a distingue como faz com o resto.
+    if (/INEXISTENTE/i.test(textoInexistente)) {
+      check("  → e o erro diz que a série é inexistente, em vez de culpar o período", true);
+    } else if (/timeout|aborted|Falha após|50\d/i.test(textoInexistente)) {
+      warnings++;
+      console.log("  [AVISO] a origem pendurou a conexão neste código em vez de servir a página de erro");
+    } else {
+      check("  → e o erro diz que a série é inexistente, em vez de culpar o período", false, textoInexistente.slice(0, 90));
+    }
   }
 
   const catalogo = await call("bcb_series_populares", {});
