@@ -177,6 +177,8 @@ try {
   const prompts = (await client.rpc("prompts/list")).result?.prompts ?? [];
   check("prompts/list = 3", prompts.length === 3, prompts.map(p => p.name).join(", "));
 
+  const call = (name, args) => client.rpc("tools/call", { name, arguments: args });
+
   // Busca: curadoria em destaque + índice do portal, e nunca afirmar inexistência.
   const busca = await client.rpc("tools/call", { name: "bcb_buscar_serie", arguments: { termo: "selic" } });
   const buscaOut = busca.result?.structuredContent;
@@ -191,6 +193,78 @@ try {
     `${buscaOut?.catalogo?.seriesIndexadas ?? 0} séries indexadas`
   );
 
+  check(
+    "  → o achado curado declara a procedência do nome",
+    (buscaOut?.series ?? []).filter(s => s.origem === "curado").every(s => s.fonteNome === "portal" || s.fonteNome === "medido")
+  );
+
+  // ---------- catálogo curado, contra a origem ----------
+  //
+  // A verificação de 13/08/2026 achou ~metade dos nomes conferíveis trocados
+  // (`bcb/docs/06`). Estes checks pedem à origem o dado que arbitrou os casos
+  // mais caros — não basta o catálogo concordar consigo mesmo.
+
+  const meta432 = await call("bcb_serie_metadados", { codigo: 432 });
+  const meta1178 = await call("bcb_serie_metadados", { codigo: 1178 });
+  checkUpstream("bcb_serie_metadados 432 = meta do Copom", meta432.result,
+    `${meta432.result?.structuredContent?.nome}`);
+  checkUpstream("bcb_serie_metadados 1178 = Selic efetiva", meta1178.result,
+    `${meta1178.result?.structuredContent?.nome}`);
+  if (!meta432.result?.isError && !meta1178.result?.isError) {
+    const n432 = meta432.result.structuredContent.nome;
+    const n1178 = meta1178.result.structuredContent.nome;
+    check("  → 432 é a META e 1178 é a efetiva (estavam trocadas)",
+      /Meta Selic/i.test(n432) && /anualizada base 252/i.test(n1178));
+    // O dado arbitra: a meta é constante entre reuniões do Copom, a efetiva não.
+    const v432 = meta432.result.structuredContent.ultimoValor?.valor;
+    const v1178 = meta1178.result.structuredContent.ultimoValor?.valor;
+    check("  → e o dado separa as duas: a meta é redonda, a efetiva não",
+      typeof v432 === "number" && typeof v1178 === "number" && v432 !== v1178,
+      `meta ${v432} × efetiva ${v1178}`);
+  }
+
+  // Código que a origem NÃO reconhece. Ela responde de duas formas a esses
+  // códigos, medido em 13/08/2026: a página de "requisição inválida" com status
+  // 200 (o caso que sabemos traduzir) ou simplesmente pendurar a conexão até o
+  // timeout. Exigir só a primeira faria este check piscar conforme o humor da
+  // origem — o que se garante do NOSSO lado é que nunca vira sucesso silencioso.
+  // Quando a origem pendura, as retentativas com backoff passam do teto de 30 s
+  // desta chamada — daí o try/catch: um upstream lento não pode abortar o smoke.
+  let inexistente = null;
+  try {
+    inexistente = await call("bcb_serie_ultimos", { codigo: 13523, quantidade: 5 });
+  } catch {
+    inexistente = null;
+  }
+  if (inexistente === null) {
+    warnings++;
+    console.log("  [AVISO] a origem pendurou a conexão no código inexistente em vez de servir a página de erro");
+  } else {
+    const textoInexistente = inexistente.result?.content?.[0]?.text ?? "";
+    check(
+      "código que a origem não reconhece nunca vira resposta de sucesso",
+      inexistente.result?.isError === true,
+      textoInexistente.slice(0, 70)
+    );
+    check(
+      "  → e o erro diz que a série é inexistente, em vez de culpar o período",
+      /INEXISTENTE/i.test(textoInexistente)
+    );
+  }
+
+  const catalogo = await call("bcb_series_populares", {});
+  const catOut = catalogo.result?.structuredContent;
+  check("bcb_series_populares lista o catálogo verificado", catOut?.totalSeries === 139, `${catOut?.totalSeries} séries`);
+  if (catOut) {
+    const todas = Object.values(catOut.series ?? {}).flat();
+    check("  → toda entrada declara fonteNome",
+      todas.length > 0 && todas.every(s => s.fonteNome === "portal" || s.fonteNome === "medido"));
+    check("  → só quem vem do portal declara unidade",
+      todas.every(s => (s.fonteNome === "portal") || s.unidade === undefined));
+    check("  → os 4 códigos inexistentes ficaram fora",
+      ![14, 13523, 21860, 13690].some(c => todas.some(s => s.codigo === c)));
+  }
+
   // Tool que vai de fato à API do BCB.
   const selic = await client.rpc("tools/call", {
     name: "bcb_serie_ultimos",
@@ -202,8 +276,6 @@ try {
     selic.result,
     `${dados.length} obs; última = ${dados.at(-1)?.data} ${dados.at(-1)?.valor}`
   );
-
-  const call = (name, args) => client.rpc("tools/call", { name, arguments: args });
 
   // ---------- D1: os limites do SGS, contra a origem ----------
   //

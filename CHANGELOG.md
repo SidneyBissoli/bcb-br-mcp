@@ -5,6 +5,64 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-08-13
+
+The curated catalog was verified against the source, series by series, for the
+first time. About half of what could be checked was wrong — not typos, but series
+mapped to the wrong name. Full measurement in `bcb/docs/06`.
+
+**No part of the tool contract was removed.** The schema changes are additive
+(two optional output fields), and the 15 tools, their inputs and their required
+fields are untouched. What changes is data: names, periodicities, and which
+series the curated catalog contains.
+
+### Fixed
+- **Wrong names, corrected from the source.** 82 of the 169 curated series have a
+  dataset on the BCB Open Data Portal, and their names are now **transcribed**
+  from it. Among the corrections: **432 and 1178 were swapped** (432 is the Copom
+  target — flat at 14.00 between meetings; 1178 is the effective annualised Selic
+  — 13.90–14.15 on the same day); **20540 and 20541 had legal entities and
+  individuals inverted**; **29033–29038 were advertised as Focus expectations**
+  when they are household debt and debt-service ratios; **4513 is net public
+  debt**, not gross; **10841–10843 are the durability breakdown**, not consumer
+  groups; **25 and 195 are savings-account yields**, not balances.
+- **Periodicity is now the measured one, everywhere.** The inherited label was
+  wrong in 43 of the 169 entries — series 11 is daily and was labelled monthly;
+  the PTAX series 3695/3697/3698 are monthly in the SGS and were labelled daily.
+- **`bcb_indicadores_atuais` reported a six-week-old dollar as current.** It read
+  series 3698, the *monthly* PTAX (last point 01/07/2026), while the daily series
+  already had 12/08/2026. It now reads series 1.
+- **The `codigos_principais` resource repeated the same errors** — `selic_meta`
+  pointed at the effective rate and `selic_acumulada` at the target, exactly
+  inverted; `divida_bruta` pointed at net debt. Rebuilt.
+- **A nonexistent series code no longer advises "reduce the period".** The SGS
+  does not answer 404 for an unknown code: it answers **HTTP 200 with its
+  "invalid request" HTML page**, which is exactly what it answers for an invented
+  code. That case is now told apart from the other cause of the same symptom (a
+  long daily window cut by time) and reported as *series does not exist*. It is
+  also no longer retried — like a 4xx, it is deterministic.
+
+### Added
+- **`fonteNome` on every curated entry**, published by `bcb_series_populares` and
+  `bcb_buscar_serie`: `portal` when the name is transcribed from the BCB dataset
+  (82 series, which also carry `unidade`), `medido` when the series has no
+  dataset anywhere — no portal entry, no metadata endpoint, and the legacy SOAP
+  facade publishes no names either — so the name is inherited and only the
+  periodicity and order of magnitude were verified. Presenting both kinds with
+  the same face is what let 21 wrong names survive for versions.
+- `src/catalogo-curado.test.ts` pins what the verification established, with the
+  arbitrating fact next to each assertion.
+
+### Removed
+- **30 series, each with a fact from the source against it.** Four codes the SGS
+  does not recognise at all (14, 13523, 21860, 13690); series dead for a decade
+  returning zero (10845–10850, stopped in 2014/2015; 7165–7167, stopped in 2009;
+  12466–12468, stopped in 05/2023; 7832, stopped in 08/2019); and series whose
+  data contradicts the advertised name (7479 returns index levels, not a 12-month
+  change; 21637–21640 and 29039–29040 are monthly with magnitudes incompatible
+  with an FX quote; 22099, 24370, 28763, 28785, 4538 and 4539 likewise).
+- The catalog therefore holds **139 series**, all verified.
+
 ## [1.6.1] - 2026-08-13
 
 A correctness fix. No surface change: same 15 tools, same schemas, same fields.

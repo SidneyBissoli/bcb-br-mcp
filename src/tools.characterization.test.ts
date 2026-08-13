@@ -182,10 +182,15 @@ describe("bcb_serie_ultimos", () => {
     const out = structured(await call("bcb_serie_ultimos", { codigo: 432, quantidade: 3 }));
 
     expect(fetchCalls[0]).toBe("https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/3?formato=json");
+    // MUDANÇA DELIBERADA (13/08/2026): o nome da 432 não é o mesmo do baseline.
+    // O catálogo curado trazia 432 e 1178 TROCADAS entre si. O portal e o dado
+    // dão razão ao BCB: a 432 é a meta do Copom (constante em 14,00 entre
+    // reuniões) e a 1178 é a Selic anualizada base 252 (13,90–14,15 no mesmo
+    // dia). Não reverta esta asserção — ver `bcb/docs/06`.
     expect(out).toEqual({
       serie: {
         codigo: 432,
-        nome: "Taxa de juros - Selic anualizada base 252",
+        nome: "Taxa de juros - Meta Selic definida pelo Copom",
         categoria: "Juros",
         periodicidade: "Diária"
       },
@@ -343,19 +348,23 @@ describe("bcb_indicadores_atuais", () => {
       ["bcdata.sgs.432/dados/ultimos/1", [{ data: "01/03/2020", valor: "4.25" }]],
       ["bcdata.sgs.433/dados/ultimos/1", [{ data: "01/03/2020", valor: "0.07" }]],
       ["bcdata.sgs.13522/dados/ultimos/1", [{ data: "01/03/2020", valor: "3.30" }]],
-      ["bcdata.sgs.3698/dados/ultimos/1", [{ data: "01/03/2020", valor: "5.20" }]],
+      ["bcdata.sgs.1/dados/ultimos/1", [{ data: "01/03/2020", valor: "5.20" }]],
       ["bcdata.sgs.24364/dados/ultimos/1", []] // sem dados => erro por indicador, não da tool
     ]);
 
     const out = structured(await call("bcb_indicadores_atuais"));
 
+    // MUDANÇA DELIBERADA (13/08/2026): o dólar do painel saiu da 3698 para a 1.
+    // A 3698 é a PTAX MENSAL — media-se pelo dia 1º —, então um painel de
+    // "indicadores atuais" mostrava 01/07 quando a série diária já trazia 12/08.
+    // O rótulo da Selic também mudou: a 432 é a meta do Copom, não "a Selic".
     expect(typeof out.consultadoEm).toBe("string");
     expect(out.indicadores).toEqual([
-      { indicador: "Selic (a.a.)", codigo: 432, data: "01/03/2020", valor: 4.25 },
+      { indicador: "Selic - meta Copom (% a.a.)", codigo: 432, data: "01/03/2020", valor: 4.25 },
       { indicador: "IPCA mensal (%)", codigo: 433, data: "01/03/2020", valor: 0.07 },
       { indicador: "IPCA 12 meses (%)", codigo: 13522, data: "01/03/2020", valor: 3.3 },
-      { indicador: "Dólar PTAX (venda)", codigo: 3698, data: "01/03/2020", valor: 5.2 },
-      { indicador: "IBC-Br", codigo: 24364, erro: "Sem dados disponíveis" }
+      { indicador: "Dólar comercial - venda (diário)", codigo: 1, data: "01/03/2020", valor: 5.2 },
+      { indicador: "IBC-Br (com ajuste sazonal)", codigo: 24364, erro: "Sem dados disponíveis" }
     ]);
   });
 });

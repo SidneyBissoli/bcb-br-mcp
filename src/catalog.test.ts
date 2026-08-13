@@ -204,8 +204,14 @@ describe("buscarSeries", () => {
   });
 
   it("termo numérico busca o código exato", () => {
+    // A 433 é uma das 57 séries sem dataset no portal, daí `fonteNome: "medido"`:
+    // o nome é herdado e o que se verificou contra a origem foi a periodicidade
+    // e a ordem de grandeza. Ver `SeriePopular` e `bcb/docs/06`.
     expect(buscarSeries("433", SERIES_POPULARES, entradas, 50).series).toEqual([
-      { codigo: 433, nome: "IPCA - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", origem: "curado" }
+      {
+        codigo: 433, nome: "IPCA - Variação mensal", categoria: "Inflação",
+        periodicidade: "Mensal", origem: "curado", fonteNome: "medido"
+      }
     ]);
     expect(buscarSeries("27826", SERIES_POPULARES, entradas, 50).series[0].origem).toBe("indice");
     expect(buscarSeries("999999", SERIES_POPULARES, entradas, 50)).toEqual({ total: 0, series: [] });

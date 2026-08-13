@@ -1,6 +1,6 @@
 {
   "name": "bcb-br-mcp",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "mcpName": "io.github.SidneyBissoli/bcb-br-mcp",
   "description": "MCP server for the Brazilian Central Bank (Banco Central do Brasil, BCB) — SGS/BCB time series: Selic, IPCA, exchange rates, GDP and 150+ economic and financial indicators.",
   "type": "module",

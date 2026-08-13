@@ -33,7 +33,7 @@ export const WORKER_CONFIG = {
 // A static `import "../package.json"` is avoided on purpose: it breaks tsc's rootDir
 // and createRequire is unavailable in the Worker runtime (no nodejs_compat).
 // The fallback is only used if no entry point injects a version; keep it = package.json.
-let serverVersion = "1.5.0";
+let serverVersion = "1.7.0";
 
 export function setServerVersion(version: string): void {
   serverVersion = version;
@@ -59,11 +59,33 @@ export interface SerieMetadados {
   especial: boolean;
 }
 
+/**
+ * Procedência do nome de uma série curada — de onde ele veio, não o quanto
+ * confiamos nele.
+ *
+ * Existe porque a verificação de 13/08/2026 mostrou que "o catálogo diz" não é
+ * afirmação de mesma força para todas as séries: 82 das 169 têm dataset no
+ * Portal de Dados Abertos e podem ser transcritas do BCB, e as outras 87 não
+ * têm — nem por lá, nem pela fachada SOAP legada, nem por endpoint de metadados,
+ * que não existe. Para essas, o único árbitro é o próprio dado, que confirma
+ * magnitude e periodicidade mas não nomeia. Anunciar as duas coisas com a mesma
+ * cara foi o que deixou 21 séries trocadas passarem despercebidas por versões.
+ */
+export type ProcedenciaNome =
+  /** Título transcrito do dataset do BCB no Portal de Dados Abertos. */
+  | "portal"
+  /** Sem dataset no portal; nome herdado, com magnitude e periodicidade medidas. */
+  | "medido";
+
 export interface SeriePopular {
   codigo: number;
   nome: string;
   categoria: string;
   periodicidade: string;
+  /** De onde veio o `nome` — ver `ProcedenciaNome`. */
+  fonteNome: ProcedenciaNome;
+  /** Unidade publicada pelo portal; ausente quando não há dataset. */
+  unidade?: string;
 }
 
 export interface ToolResult {
@@ -136,6 +158,22 @@ export class ErroHttpBcb extends Error {
   }
 }
 
+/**
+ * Série que a origem não reconhece.
+ *
+ * O SGS não responde 404 a código inexistente: responde **200 com a página
+ * institucional de "requisição inválida"** — medido em 13/08/2026, um código
+ * inventado (999999999) e os códigos 14, 13523, 21860 e 13690 produzem
+ * exatamente a mesma resposta. Ter um tipo próprio é o que permite não repetir
+ * a consulta: como um 4xx, isto é determinístico.
+ */
+export class ErroSerieInexistente extends Error {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "ErroSerieInexistente";
+  }
+}
+
 export async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -175,18 +213,37 @@ export async function fetchBcbApi(
       try {
         return await response.json();
       } catch {
-        // Medido em 11/08/2026 (`bcb/docs/04`): uma janela diária larga pode ser
-        // cortada por volta de 30 s e voltar 200 com a página institucional em
-        // HTML. Sem esta mensagem o usuário recebia um erro de parsing cru.
+        // 200 com a página institucional em HTML tem DUAS causas, e mandar o
+        // usuário para a errada custa caro:
+        //
+        // (a) série inexistente. Medido em 13/08/2026: um código certamente
+        //     inválido (999999999) devolve exatamente a mesma página que os
+        //     códigos 14 e 13523 — a origem não usa 404 para isso.
+        // (b) consulta cortada por tempo, por volta de 30 s numa janela diária
+        //     larga (`bcb/docs/04`).
+        //
+        // `ultimos/N` nunca é caso (b): pede no máximo 20 observações. Então a
+        // forma da URL separa os dois sem uma requisição a mais.
+        const pediuPoucasObservacoes = /\/dados\/ultimos\/\d+/.test(url);
+        if (pediuPoucasObservacoes) {
+          // Determinístico como um 4xx: o código não existe e não vai passar a
+          // existir na tentativa seguinte. Repetir aqui gastava as retentativas
+          // inteiras, com backoff, para chegar à mesma resposta.
+          throw new ErroSerieInexistente(
+            "A API do BCB respondeu com a página de 'requisição inválida' a um pedido pequeno — " +
+            "é assim que ela indica série INEXISTENTE (não usa 404). Confira o código da série."
+          );
+        }
         throw new Error(
-          "Resposta da API do BCB não é JSON — a origem provavelmente cortou a consulta por tempo. " +
-          "Janelas longas em séries diárias fazem isso; reduza o período solicitado."
+          "Resposta da API do BCB não é JSON — ou a série não existe, ou a origem cortou a " +
+          "consulta por tempo (janelas longas em séries diárias fazem isso). " +
+          "Confira o código da série e, se ele estiver certo, reduza o período solicitado."
         );
       }
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      if (lastError.message.includes("não encontrada")) {
+      if (lastError instanceof ErroSerieInexistente || lastError.message.includes("não encontrada")) {
         throw lastError;
       }
 

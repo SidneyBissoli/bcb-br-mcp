@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 An MCP server, published to npm as `bcb-br-mcp`, exposing three public APIs of
 the Brazilian Central Bank as 15 tools over STDIO and Streamable HTTP: the SGS
-time series (Selic, IPCA, FX, GDP and 150+ indicators), the **Focus**
+time series (Selic, IPCA, FX, GDP and 139 verified indicators), the **Focus**
 market-expectations survey (Olinda OData) and **PTAX** exchange rates. Pure
 TypeScript, ESM, two runtime dependencies: `@modelcontextprotocol/server` (MCP SDK
 v2) and `@sbissoli/mcp-stats` (motor de estatística do portfólio). No database;
@@ -265,12 +265,23 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   sobre um punhado de pontos. Por isso `bcb_correlacao` **recusa** periodicidades
   diferentes em vez de avisar como o `bcb_comparar`, e por isso `alinharSeries`
   devolve `completas` e `parciais` contados.
-- **A periodicidade do catálogo curado NÃO é confiável para decidir grade.** A
-  série 11 está catalogada como "Mensal" e a origem a publica todo dia útil.
-  Decisão de compatibilidade de grade usa a periodicidade **medida** pelo
-  espaçamento das datas; o catálogo só entra quando não há medição (menos de 3
-  observações). Há mais rótulos errados no catálogo — ver a pendência registrada
-  no `bcb/roadmap.md`.
+- **O catálogo curado foi VERIFICADO contra a origem em 13/08/2026** e agora tem
+  139 séries, cada uma com `fonteNome`: `portal` (82) = nome transcrito do
+  dataset do BCB; `medido` (57) = sem dataset em lugar nenhum, nome herdado e só
+  periodicidade/magnitude medidas. **Não "melhore" um nome `portal` à mão** — ele
+  vale por ser o que a fonte diz, e nomes editados à mão foram o que produziu
+  ~metade dos erros anteriores (432 e 1178 trocadas, 20540/20541 com PF e PJ
+  invertidas, 29033–29038 vendidas como Focus sendo endividamento das famílias).
+  A periodicidade do catálogo é a **medida**; ainda assim, decisão de grade usa a
+  medição da consulta, não o rótulo. Ao acrescentar série: confira em
+  `package_search?q=codigo_sgs:N` e, sem dataset, meça `ultimos/20` e entre como
+  `medido`. Invariantes em `src/catalogo-curado.test.ts`; medição em `bcb/docs/06`.
+- **A origem NÃO responde 404 a código inexistente** — responde **200 com a
+  página de "requisição inválida"**, a mesma que devolve para um código
+  inventado. Tratado em `shared.ts` (`ErroSerieInexistente`, não-retentável),
+  distinguido do corte por tempo pela forma da URL: `ultimos/N` pede no máximo 20
+  observações e nunca é corte por tempo. A origem oscila entre servir essa página
+  e pendurar a conexão nesses códigos — o smoke aceita as duas.
 - **O SGS não publica número-índice de preço**, só variação. O deflator é
   reconstruído encadeando as variações mensais — conferido contra a fonte:
   12 variações da 433 compostas batem com o acumulado em 12 meses da 13522 com

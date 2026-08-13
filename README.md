@@ -38,7 +38,7 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 - **Historical data** - Query time series values by code with date filters
 - **Latest values** - Get the most recent N values of any series
 - **Metadata** - Detailed information about series (frequency, source, etc.)
-- **Popular series catalog** - 150+ economic indicators organized in 12 categories
+- **Popular series catalog** - 139 economic indicators verified against the source, organized by category
 - **Smart search** - Find series by keyword (accent-insensitive)
 - **Current indicators** - Latest values for key economic indicators
 - **Long periods, handled** - The BCB API caps daily series at a 10-year window
@@ -77,7 +77,7 @@ Reference catalogs the server exposes as MCP **resources** (read-only contextual
 
 | URI | Description |
 |-----|-------------|
-| `bcb://series/populares` | Catalog of 150+ popular BCB economic series, organized by category (JSON) |
+| `bcb://series/populares` | Catalog of 139 verified BCB economic series, organized by category (JSON) |
 | `bcb://series/categorias` | List of available categories in the series catalog (JSON) |
 | `bcb://series/principais` | Codes of the most-used indicators — Selic, IPCA, USD/BRL, GDP, etc. (JSON) |
 
@@ -189,143 +189,213 @@ Compare IPCA, IGP-M, and INPC in 2024
 → Uses bcb_comparar with codes [433, 189, 188], dataInicial 2024-01-01, dataFinal 2024-12-31
 ```
 
-## Series Catalog (150+)
+## Series Catalog (139)
 
-The server includes a catalog of 150+ series organized in 12 categories.
+The curated catalog holds **139 series, each verified against the source** on 2026-08-13.
 
-### Interest Rates
+The `fonteNome` field on every entry says where its name comes from:
 
-| Code | Description |
-|------|-------------|
-| 11 | Selic rate - monthly accumulated |
-| 432 | Selic rate - annualized (base 252) |
-| 1178 | Selic target rate (Copom) |
-| 12 | CDI daily rate |
-| 4389 | CDI annualized (base 252) |
-| 226 | Reference Rate (TR) - daily |
-| 256 | Long-Term Interest Rate (TJLP) |
+- **`portal`** (82 series) — the name is transcribed from the series' dataset on the
+  BCB Open Data Portal, and `unidade` carries the published unit of measure.
+- **`medido`** (57 series) — the series has no dataset on the portal, so the name is
+  inherited; what was verified against the source is its periodicity and order of magnitude.
 
-### Inflation (30+ series)
+Periodicity is always the **measured** one (from the spacing between observations), never an
+inherited label. Market expectations are **not** here — use `bcb_focus_expectativas`.
 
-| Code | Description |
-|------|-------------|
-| 433 | IPCA - Monthly change |
-| 13522 | IPCA - 12-month accumulated |
-| 7478 | IPCA-15 - Monthly change |
-| 188 | INPC - Monthly change |
-| 189 | IGP-M - Monthly change |
-| 190 | IGP-DI - Monthly change |
-| 7447 | IGP-10 - Monthly change |
-| 10841-10850 | IPCA by group (Food, Housing, Transportation, etc.) |
-| 4449 | IPCA - Administered prices |
-| 11428 | IPCA - Market prices |
-| 16121-16122 | IPCA - Core measures |
+### Juros (14)
 
-### Exchange Rates (15+ series)
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 11 | Taxa de juros - Selic | Diária | `portal` |
+| 432 | Taxa de juros - Meta Selic definida pelo Copom | Diária | `portal` |
+| 1178 | Taxa de juros - Selic anualizada base 252 | Diária | `portal` |
+| 4189 | Taxa de juros - Selic acumulada no mês anualizada base 252 | Mensal | `portal` |
+| 4390 | Taxa de juros - Selic acumulada no mês | Mensal | `portal` |
+| 12 | Taxa de juros - CDI diária | Diária | `medido` |
+| 4389 | Taxa de juros - CDI anualizada base 252 | Diária | `medido` |
+| 4391 | Taxa de juros - CDI acumulada no mês | Mensal | `medido` |
+| 4392 | Taxa de juros - CDI acumulada no mês anualizada | Mensal | `medido` |
+| 226 | Taxa Referencial (TR) - diária | Diária | `medido` |
+| 7811 | Taxa Referencial (TR) - mensal | Mensal | `medido` |
+| 7812 | Taxa Referencial (TR) - anualizada | Mensal | `medido` |
+| 256 | Taxa de Juros de Longo Prazo (TJLP) | Mensal | `medido` |
+| 253 | Taxa de juros - CDB pré-fixado - 30 dias | Diária | `medido` |
 
-| Code | Description |
-|------|-------------|
-| 1 | USD/BRL - US Dollar (sell) |
-| 10813 | USD/BRL - US Dollar (buy) |
-| 3698/3697 | USD/BRL PTAX (sell/buy) |
-| 21619/21620 | EUR/BRL - Euro (sell/buy) |
-| 21623/21624 | GBP/BRL - British Pound (sell/buy) |
-| 21621/21622 | JPY/BRL - Japanese Yen (sell/buy) |
-| 21637/21638 | ARS/BRL - Argentine Peso (sell/buy) |
-| 21639/21640 | CNY/BRL - Chinese Yuan (sell/buy) |
+### Inflação (28)
 
-### Economic Activity (25+ series)
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 433 | IPCA - Variação mensal | Mensal | `medido` |
+| 13522 | IPCA - Variação acumulada em 12 meses | Mensal | `medido` |
+| 7478 | IPCA-15 - Variação mensal | Mensal | `medido` |
+| 10764 | IPCA-E - Variação mensal | Mensal | `medido` |
+| 16121 | Índice nacional de preços ao consumidor - Amplo (IPCA) - Núcleo por exclusão - ex2 | Mensal | `portal` |
+| 16122 | Índice nacional de preços ao consumidor - Amplo (IPCA) - Núcleo de dupla ponderação | Mensal | `portal` |
+| 11426 | Índice nacional de preços ao consumidor - Amplo (IPCA) - Núcleo médias aparadas sem suavização | Mensal | `portal` |
+| 11427 | Índice nacional de preços ao consumidor - Amplo (IPCA) - Núcleo por exclusão - Sem monitorados e alimentos no domicílio | Mensal | `portal` |
+| 10841 | Índice de Preços ao Consumidor-Amplo (IPCA) - Bens não-duráveis | Mensal | `portal` |
+| 10842 | Índice de Preços ao Consumidor-Amplo (IPCA) - Bens semi-duráveis | Mensal | `portal` |
+| 10843 | Índice de Preços ao Consumidor-Amplo (IPCA) - Duráveis | Mensal | `portal` |
+| 10844 | Índice de Preços ao Consumidor-Amplo (IPCA) - Serviços | Mensal | `portal` |
+| 4449 | Índice nacional de preços ao consumidor-Amplo (IPCA) - Preços monitorados - Total | Mensal | `portal` |
+| 11428 | Índice nacional de preços ao consumidor - Amplo (IPCA) - Itens livres | Mensal | `portal` |
+| 188 | INPC - Variação mensal | Mensal | `medido` |
+| 189 | IGP-M - Variação mensal | Mensal | `medido` |
+| 7447 | IGP-10 - Variação mensal | Mensal | `medido` |
+| 7448 | IGP-M - 1ª prévia | Mensal | `medido` |
+| 7449 | IGP-M - 2ª prévia | Mensal | `medido` |
+| 190 | IGP-DI - Variação mensal | Mensal | `medido` |
+| 7450 | IPA-M - Variação mensal | Mensal | `medido` |
+| 225 | IPA-DI - Geral - Variação mensal | Mensal | `medido` |
+| 7459 | IPA-DI - Produtos industriais | Mensal | `medido` |
+| 7460 | IPA-DI - Produtos agrícolas | Mensal | `medido` |
+| 191 | IPC-DI - Variação mensal | Mensal | `medido` |
+| 193 | IPC-Fipe - Variação mensal | Mensal | `medido` |
+| 17679 | IPC-3i - Variação mensal | Mensal | `medido` |
+| 17680 | IPC-C1 - Variação mensal | Mensal | `medido` |
 
-| Code | Description |
-|------|-------------|
-| 4380 | Monthly GDP (R$ millions) |
-| 4382 | GDP - 12-month accumulated (R$ millions) |
-| 4385 | Monthly GDP in USD |
-| 7324 | Annual GDP in USD |
-| 24363/24364 | IBC-Br Economic Activity Index (unadjusted/seasonally adjusted) |
-| 29601-29606 | IBC-Br by sector (Agriculture, Industry, Services) |
-| 22099 | Quarterly GDP - Rate of change |
-| 21859 | Industrial production - Monthly change |
-| 21862 | Installed capacity utilization |
+### Câmbio (13)
 
-### Employment (10+ series)
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 1 | Taxa de câmbio - Livre - Dólar americano (venda) - diário | Diária | `portal` |
+| 10813 | Taxa de câmbio - Livre - Dólar americano (compra) | Diária | `portal` |
+| 3698 | Taxa de câmbio - PTAX - Dólar americano (venda) | Mensal | `medido` |
+| 3697 | Taxa de câmbio - PTAX - Dólar americano (compra) | Mensal | `medido` |
+| 3695 | Taxa de câmbio - PTAX - Dólar americano (média) | Mensal | `medido` |
+| 21619 | Taxa de câmbio - Euro (venda) | Diária | `medido` |
+| 21620 | Taxa de câmbio - Euro (compra) | Diária | `medido` |
+| 21623 | Taxa de câmbio - Libra Esterlina (venda) | Diária | `medido` |
+| 21624 | Taxa de câmbio - Libra Esterlina (compra) | Diária | `medido` |
+| 21621 | Taxa de câmbio - Iene (venda) | Diária | `medido` |
+| 21622 | Taxa de câmbio - Iene (compra) | Diária | `medido` |
+| 21625 | Taxa de câmbio - Franco Suíço (venda) | Diária | `medido` |
+| 21626 | Taxa de câmbio - Franco Suíço (compra) | Diária | `medido` |
 
-| Code | Description |
-|------|-------------|
-| 24369 | Unemployment rate - PNAD |
-| 24370 | Labor force participation rate |
-| 24380 | Average real income |
-| 24381 | Real income mass |
-| 28561 | CAGED - Formal job creation |
+### Atividade Econômica (21)
 
-### Fiscal (10+ series)
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 4380 | PIB mensal - Valores correntes (R$ milhões) | Mensal | `medido` |
+| 4381 | PIB acumulado no ano - Valores correntes (R$ milhões) | Mensal | `medido` |
+| 4382 | PIB acumulado dos últimos 12 meses - Valores correntes (R$ milhões) | Mensal | `medido` |
+| 4385 | PIB mensal em US$ (milhões) | Mensal | `medido` |
+| 4386 | PIB acumulado no ano em US$ (milhões) | Mensal | `medido` |
+| 7324 | PIB anual em US$ (milhões) | Anual | `medido` |
+| 24363 | Índice de Atividade Econômica do Banco Central - IBC-Br | Mensal | `portal` |
+| 24364 | Índice de Atividade Econômica do Banco Central (IBC-Br) - com ajuste sazonal | Mensal | `portal` |
+| 29601 | Índice de Atividade Econômica do Banco Central (IBC-Br) Agropecuária | Mensal | `portal` |
+| 29602 | Índice de Atividade Econômica do Banco Central (IBC-Br) Agropecuária - com ajuste sazonal | Mensal | `portal` |
+| 29603 | Índice de Atividade Econômica do Banco Central (IBC-Br) Indústria | Mensal | `portal` |
+| 29604 | Índice de Atividade Econômica do Banco Central (IBC-Br) Indústria - com ajuste sazonal | Mensal | `portal` |
+| 29605 | Índice de Atividade Econômica do Banco Central (IBC-Br) Serviços | Mensal | `portal` |
+| 29606 | Índice de Atividade Econômica do Banco Central (IBC-Br) Serviços - com ajuste sazonal | Mensal | `portal` |
+| 22103 | Exportação de bens e serviços - Trimestral | Trimestral | `medido` |
+| 22104 | Importação de bens e serviços - Trimestral | Trimestral | `medido` |
+| 22109 | Consumo das famílias - Trimestral | Trimestral | `medido` |
+| 22110 | Consumo do governo - Trimestral | Trimestral | `medido` |
+| 22111 | Formação bruta de capital fixo - Trimestral | Trimestral | `medido` |
+| 21859 | Produção industrial - Geral - Variação mensal | Mensal | `medido` |
+| 21862 | Utilização da capacidade instalada - Indústria | Mensal | `medido` |
 
-| Code | Description |
-|------|-------------|
-| 4503 | Net public sector debt (% GDP) |
-| 4513 | General government gross debt (% GDP) |
-| 4537 | Primary balance (% GDP) |
-| 4539 | Nominal balance (% GDP) |
-| 5364 | Central government total revenue |
+### Emprego (4)
 
-### External Sector (15+ series)
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 24369 | Taxa de desocupação - PNAD Contínua | Mensal | `medido` |
+| 24380 | Rendimento médio real habitual - Todos os trabalhos | Mensal | `medido` |
+| 24381 | Massa de rendimento real habitual | Mensal | `medido` |
+| 28561 | CAGED - Saldo de empregos formais | Mensal | `medido` |
 
-| Code | Description |
-|------|-------------|
-| 3546 | International reserves - daily |
-| 22707 | Trade balance - Monthly |
-| 22708 | Exports - Monthly |
-| 22709 | Imports - Monthly |
-| 22701 | Current account - Balance |
-| 22846 | Foreign direct investment |
-| 13690 | Total external debt |
+### Fiscal (7)
 
-### Credit (30+ series)
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 4503 | Dívida Líquida do Setor Público (% PIB) - Total - Governo Federal e Banco Central | Mensal | `portal` |
+| 4513 | Dívida Líquida do Setor Público (% PIB) - Total - Setor público consolidado | Mensal | `portal` |
+| 4505 | Dívida Líquida do Setor Público (% PIB) - Total - Banco Central | Mensal | `portal` |
+| 4536 | Dívida líquida do governo geral (% PIB) | Mensal | `portal` |
+| 4537 | Dívida bruta do governo geral (% PIB) - Metodologia utilizada até 2007 | Mensal | `portal` |
+| 5364 | Receita total do governo central | Mensal | `medido` |
+| 5793 | NFSP sem desvalorização cambial (% PIB) - Fluxo acumulado em 12 meses - Resultado primário - Total - Setor público consolidado | Mensal | `portal` |
 
-| Code | Description |
-|------|-------------|
-| 20539 | Total credit balance |
-| 20540/20541 | Credit balance - Individuals/Corporations |
-| 20714 | Average interest rate - Total |
-| 20749 | Average rate - Vehicle financing |
-| 20772 | Average rate - Mortgage |
-| 20783 | Average spread - Total |
-| 21082 | Default rate - Total |
-| 21128/21129 | Default rate - Credit card |
+### Setor Externo (12)
 
-### Monetary Aggregates
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 3546 | Reservas internacionais - Conceito liquidez - Total | Mensal | `medido` |
+| 13621 | Reservas internacionais - Conceito caixa - Total - diária | Diária | `portal` |
+| 22707 | Balança comercial - Balanço de Pagamentos - mensal - saldo | Mensal | `portal` |
+| 22708 | Exportação de bens - Balanço de Pagamentos - mensal | Mensal | `portal` |
+| 22709 | Importação de bens - Balanço de Pagamentos - mensal | Mensal | `portal` |
+| 22714 | Bens exportados sob merchanting - exportações positivas - mensal | Mensal | `portal` |
+| 22701 | Transações correntes - mensal - saldo | Mensal | `portal` |
+| 22704 | Balança comercial e Serviços - mensal - saldo | Mensal | `portal` |
+| 22715 | Bens importados sob merchanting - exportações negativas - mensal | Mensal | `portal` |
+| 22716 | Balança comercial - ouro não monetário - Balanço de Pagamentos - mensal - saldo | Mensal | `portal` |
+| 22846 | Renda secundária - Demais setores - Transferências pessoais - mensal - receita | Mensal | `portal` |
+| 22885 | Investimentos diretos no país - IDP - mensal - líquido | Mensal | `portal` |
 
-| Code | Description |
-|------|-------------|
-| 1788 | Monetary base |
-| 27788-27791 | Money supply M1, M2, M3, M4 |
-| 27815 | Money multiplier |
+### Crédito (30)
 
-### Savings
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 20539 | Saldo da carteira de crédito - Total | Mensal | `portal` |
+| 20540 | Saldo da carteira de crédito - Pessoas jurídicas - Total | Mensal | `portal` |
+| 20541 | Saldo da carteira de crédito - Pessoas físicas - Total | Mensal | `portal` |
+| 20542 | Saldo da carteira de crédito com recursos livres - Total | Mensal | `portal` |
+| 20570 | Saldo da carteira de crédito com recursos livres - Pessoas físicas - Total | Mensal | `portal` |
+| 20592 | Saldo da carteira de crédito com recursos livres - Pessoas físicas - Outros créditos livres | Mensal | `portal` |
+| 20615 | Saldo da carteira de crédito com recursos direcionados - Pessoas físicas - Financiamento agroindustrial com recursos do BNDES | Mensal | `portal` |
+| 20631 | Concessões de crédito - Total | Mensal | `portal` |
+| 20665 | Concessões de crédito com recursos livres - Pessoas físicas - Cheque especial | Mensal | `portal` |
+| 20714 | Taxa média de juros das operações de crédito - Total | Mensal | `portal` |
+| 20716 | Taxa média de juros das operações de crédito - Pessoas físicas - Total | Mensal | `portal` |
+| 20740 | Taxa média de juros das operações de crédito com recursos livres - Pessoas físicas - Total | Mensal | `portal` |
+| 20749 | Taxa média de juros das operações de crédito com recursos livres - Pessoas físicas - Aquisição de veículos | Mensal | `portal` |
+| 20772 | Taxa média de juros das operações de crédito com recursos direcionados - Pessoas físicas - Financiamento imobiliário com taxas de mercado | Mensal | `portal` |
+| 25497 | Taxa média mensal de juros das operações de crédito com recursos direcionados - Pessoas físicas - Financiamento imobiliário com taxas de mercado | Mensal | `portal` |
+| 20783 | Spread médio das operações de crédito - Total | Mensal | `portal` |
+| 20785 | Spread médio das operações de crédito - Pessoas físicas - Total | Mensal | `portal` |
+| 20786 | Spread médio das operações de crédito com recursos livres - Total | Mensal | `portal` |
+| 21082 | Inadimplência da carteira de crédito - Total | Mensal | `portal` |
+| 21084 | Inadimplência da carteira de crédito - Pessoas físicas - Total | Mensal | `portal` |
+| 21085 | Inadimplência da carteira de crédito com recursos livres - Total | Mensal | `portal` |
+| 21128 | Inadimplência da carteira de crédito com recursos livres - Pessoas físicas - Cartão de crédito parcelado | Mensal | `portal` |
+| 21129 | Inadimplência da carteira de crédito com recursos livres - Pessoas físicas - Cartão de crédito total | Mensal | `portal` |
+| 13685 | Inadimplência da carteira de crédito das instituições financeiras sob controle privado - Total | Mensal | `portal` |
+| 29033 | Comprometimento de renda das famílias com juros da dívida com o Sistema Financeiro Nacional - Com ajuste sazonal (RNDBF) | Mensal | `portal` |
+| 29034 | Comprometimento de renda das famílias com o serviço da dívida com o Sistema Financeiro Nacional - Com ajuste sazonal (RNDBF) | Mensal | `portal` |
+| 29035 | Comprometimento de renda das famílias com o serviço da dívida com o Sistema Financeiro Nacional exceto crédito habitacional - Com ajuste sazonal (RNDBF) | Mensal | `portal` |
+| 29036 | Comprometimento de renda das famílias com amortização da dívida com o Sistema Financeiro Nacional - Com ajuste sazonal (RNDBF) | Mensal | `portal` |
+| 29037 | Endividamento das famílias com o Sistema Financeiro Nacional em relação à renda acumulada dos últimos doze meses (RNDBF) | Mensal | `portal` |
+| 29038 | Endividamento das famílias com o Sistema Financeiro Nacional exceto crédito habitacional em relação à renda acumulada dos últimos 12 meses (RNDBF) | Mensal | `portal` |
 
-| Code | Description |
-|------|-------------|
-| 25 | Savings - Monthly yield |
-| 195 | Savings - Total balance |
-| 7165 | Savings - Net deposits |
+### Agregados Monetários (8)
 
-### Market Indices
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 1788 | BM - Base monetária restrita (saldo em final de período) | Mensal | `portal` |
+| 1833 | Base Monetária Ampliada (saldo em final de período) | Mensal | `portal` |
+| 27788 | Meios de pagamento - M1 (média dos dias úteis do mês) - Novo | Mensal | `portal` |
+| 27789 | Meios de pagamento - Papel moeda em poder do público (saldo em final de período) - Novo | Mensal | `portal` |
+| 27790 | Meios de pagamento - Depósitos à vista (saldo em final de período) - Novo | Mensal | `portal` |
+| 27791 | Meios de pagamento - M1 (saldo em final de período) - Novo | Mensal | `portal` |
+| 27815 | Meios de pagamento amplos - M4 (saldo em final de periodo) - Novo | Mensal | `portal` |
+| 7530 | Comportamento monetário - Comportamento do público - C | Mensal | `portal` |
 
-| Code | Description |
-|------|-------------|
-| 12466 | IMA-B |
-| 12467 | IMA-B5 |
-| 12468 | IMA-B5+ |
-| 7832 | Ibovespa - Monthly |
+### Poupança (2)
 
-### Expectations (Focus Survey)
+| Code | Name | Periodicity | Name source |
+|------|------|-------------|-------------|
+| 25 | Depósitos de poupança até 03.05.2012 - Rentabilidade no período | Diária | `portal` |
+| 195 | Depósitos de poupança a partir de 04.05.2012 - Rentabilidade no período | Diária | `portal` |
 
-| Code | Description |
-|------|-------------|
-| 29033/29034 | IPCA expectation (current/next year) |
-| 29035/29036 | Selic expectation (current/next year) |
-| 29037/29038 | GDP expectation (current/next year) |
-| 29039/29040 | Exchange rate expectation (current/next year) |
+
+The full machine-readable catalog is served as the `bcb://series/populares` resource and by
+`bcb_series_populares`. Thousands of further series are reachable through `bcb_buscar_serie`,
+which also queries the BCB Open Data Portal index.
 
 ## Finding Other Series
 
@@ -372,7 +442,7 @@ rounded (to 4 decimals).
 
 ### Smart Search
 
-`bcb_buscar_serie` searches two layers: the curated catalog of 150+ series (which ranks first, with reviewed
+`bcb_buscar_serie` searches two layers: the curated curated catalog of 139 verified series (which ranks first, with the name source declared
 names) and the index of the BCB Open Data Portal, with thousands of series identified by code. Terms are
 accent- and case-insensitive, and several terms are combined with AND:
 
@@ -487,7 +557,7 @@ This server uses the Brazilian Central Bank's public API:
 
 - Initial release
 - 6 basic tools
-- Catalog with 150+ series
+- Catalog with 139 verified series
 
 ## Contributing
 

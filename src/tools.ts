@@ -90,199 +90,200 @@ export {
 
 export const BCB_API_BASE = "https://api.bcb.gov.br/dados/serie/bcdata.sgs";
 
+/**
+ * Catálogo curado: a camada de destaque da busca, e a origem de `serie.nome` em
+ * toda consulta de valores.
+ *
+ * **Verificado série a série contra a origem em 13/08/2026** (`bcb/docs/06`), o
+ * que era dívida antiga: a lista havia sido montada sem verificação e cerca de
+ * metade do que era conferível estava trocado — 432 e 1178 invertidas entre si,
+ * 29033–29038 anunciadas como Focus quando são endividamento das famílias,
+ * 20540 e 20541 com pessoa física e jurídica ao contrário, e por aí.
+ *
+ * Como ler cada campo:
+ *
+ * - `nome` com `fonteNome: "portal"` é **transcrição** do título que o BCB
+ *   publica no dataset da série no Portal de Dados Abertos. Não editar para
+ *   ficar mais bonito: o valor deste catálogo é ser o que a fonte diz, e nomes
+ *   "melhorados" à mão foram exatamente o que produziu os erros anteriores.
+ * - `nome` com `fonteNome: "medido"` é herdado — essas 57 séries **não têm
+ *   dataset no portal**, e não há outra rota de nome (não existe endpoint de
+ *   metadados, e o WSDL legado do SGS não publica nome). Delas foi medido o que
+ *   o dado revela: magnitude e periodicidade. Nome compatível com o dado não é
+ *   nome verificado, e o campo existe para não confundir as duas coisas.
+ * - `periodicidade` é sempre a **MEDIDA** pelo espaçamento das observações,
+ *   nunca o rótulo herdado — que errava em 43 das 169 entradas antigas.
+ * - `categoria` é nossa: o portal não categoriza.
+ *
+ * 30 entradas foram REMOVIDAS na mesma verificação, cada uma com um fato da
+ * origem contra: 4 códigos que não existem no SGS (14, 13523, 21860, 13690 —
+ * a origem responde a eles a mesma página de "requisição inválida" que responde
+ * a um código inventado), séries mortas há mais de uma década devolvendo zero, e
+ * séries cujo dado desmente o nome. O motivo de cada uma está no CHANGELOG.
+ *
+ * Ao acrescentar série: verifique no portal antes
+ * (`package_search?q=codigo_sgs:N`) e, se não houver dataset, meça `ultimos/20`
+ * e entre com `fonteNome: "medido"`.
+ */
 export const SERIES_POPULARES: SeriePopular[] = [
-  // ==================== JUROS E TAXAS ====================
-  { codigo: 11, nome: "Taxa de juros - Selic acumulada no mês", categoria: "Juros", periodicidade: "Mensal" },
-  { codigo: 432, nome: "Taxa de juros - Selic anualizada base 252", categoria: "Juros", periodicidade: "Diária" },
-  { codigo: 1178, nome: "Taxa de juros - Selic - Meta definida pelo Copom", categoria: "Juros", periodicidade: "Diária" },
-  { codigo: 4189, nome: "Taxa de juros - Selic acumulada no mês anualizada", categoria: "Juros", periodicidade: "Mensal" },
-  { codigo: 4390, nome: "Taxa de juros - Selic mensal", categoria: "Juros", periodicidade: "Mensal" },
-  { codigo: 12, nome: "Taxa de juros - CDI diária", categoria: "Juros", periodicidade: "Diária" },
-  { codigo: 4389, nome: "Taxa de juros - CDI anualizada base 252", categoria: "Juros", periodicidade: "Diária" },
-  { codigo: 4391, nome: "Taxa de juros - CDI acumulada no mês", categoria: "Juros", periodicidade: "Mensal" },
-  { codigo: 4392, nome: "Taxa de juros - CDI acumulada no mês anualizada", categoria: "Juros", periodicidade: "Mensal" },
-  { codigo: 226, nome: "Taxa Referencial (TR) - diária", categoria: "Juros", periodicidade: "Diária" },
-  { codigo: 7811, nome: "Taxa Referencial (TR) - mensal", categoria: "Juros", periodicidade: "Mensal" },
-  { codigo: 7812, nome: "Taxa Referencial (TR) - anualizada", categoria: "Juros", periodicidade: "Mensal" },
-  { codigo: 256, nome: "Taxa de Juros de Longo Prazo (TJLP)", categoria: "Juros", periodicidade: "Mensal" },
-  { codigo: 253, nome: "Taxa de juros - CDB pré-fixado - 30 dias", categoria: "Juros", periodicidade: "Diária" },
-  { codigo: 14, nome: "Taxa de juros - Poupança", categoria: "Juros", periodicidade: "Mensal" },
+  // ==================== JUROS ====================
+  { codigo: 11, nome: "Taxa de juros - Selic", categoria: "Juros", periodicidade: "Diária", fonteNome: "portal", unidade: "Percentual ao dia" },
+  { codigo: 432, nome: "Taxa de juros - Meta Selic definida pelo Copom", categoria: "Juros", periodicidade: "Diária", fonteNome: "portal", unidade: "Percentual ao ano" },
+  { codigo: 1178, nome: "Taxa de juros - Selic anualizada base 252", categoria: "Juros", periodicidade: "Diária", fonteNome: "portal", unidade: "Percentual ao ano" },
+  { codigo: 4189, nome: "Taxa de juros - Selic acumulada no mês anualizada base 252", categoria: "Juros", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual ao ano" },
+  { codigo: 4390, nome: "Taxa de juros - Selic acumulada no mês", categoria: "Juros", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual ao mês" },
+  { codigo: 12, nome: "Taxa de juros - CDI diária", categoria: "Juros", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 4389, nome: "Taxa de juros - CDI anualizada base 252", categoria: "Juros", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 4391, nome: "Taxa de juros - CDI acumulada no mês", categoria: "Juros", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 4392, nome: "Taxa de juros - CDI acumulada no mês anualizada", categoria: "Juros", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 226, nome: "Taxa Referencial (TR) - diária", categoria: "Juros", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 7811, nome: "Taxa Referencial (TR) - mensal", categoria: "Juros", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7812, nome: "Taxa Referencial (TR) - anualizada", categoria: "Juros", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 256, nome: "Taxa de Juros de Longo Prazo (TJLP)", categoria: "Juros", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 253, nome: "Taxa de juros - CDB pré-fixado - 30 dias", categoria: "Juros", periodicidade: "Diária", fonteNome: "medido" },
 
   // ==================== INFLAÇÃO ====================
-  { codigo: 433, nome: "IPCA - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 13522, nome: "IPCA - Variação acumulada em 12 meses", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 7478, nome: "IPCA-15 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 7479, nome: "IPCA-15 - Variação acumulada em 12 meses", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10764, nome: "IPCA-E - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 16121, nome: "IPCA - Núcleo por exclusão - EX0", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 16122, nome: "IPCA - Núcleo de dupla ponderação", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 11426, nome: "IPCA - Núcleo de médias aparadas com suavização", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 11427, nome: "IPCA - Núcleo de médias aparadas sem suavização", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10841, nome: "IPCA - Alimentação e bebidas", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10842, nome: "IPCA - Habitação", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10843, nome: "IPCA - Artigos de residência", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10844, nome: "IPCA - Serviços", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10845, nome: "IPCA - Vestuário", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10846, nome: "IPCA - Transportes", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10847, nome: "IPCA - Saúde e cuidados pessoais", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10848, nome: "IPCA - Despesas pessoais", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10849, nome: "IPCA - Educação", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 10850, nome: "IPCA - Comunicação", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 4449, nome: "IPCA - Preços administrados", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 11428, nome: "IPCA - Preços livres", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 188, nome: "INPC - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 13523, nome: "INPC - Variação acumulada em 12 meses", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 189, nome: "IGP-M - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 7447, nome: "IGP-10 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 7448, nome: "IGP-M - 1ª prévia", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 7449, nome: "IGP-M - 2ª prévia", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 190, nome: "IGP-DI - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 7450, nome: "IPA-M - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 225, nome: "IPA-DI - Geral - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 7459, nome: "IPA-DI - Produtos industriais", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 7460, nome: "IPA-DI - Produtos agrícolas", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 191, nome: "IPC-DI - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 193, nome: "IPC-Fipe - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 17679, nome: "IPC-3i - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
-  { codigo: 17680, nome: "IPC-C1 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal" },
+  { codigo: 433, nome: "IPCA - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 13522, nome: "IPCA - Variação acumulada em 12 meses", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7478, nome: "IPCA-15 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 10764, nome: "IPCA-E - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 16121, nome: "Índice nacional de preços ao consumidor - Amplo (IPCA) - Núcleo por exclusão - ex2", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 16122, nome: "Índice nacional de preços ao consumidor - Amplo (IPCA) - Núcleo de dupla ponderação", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 11426, nome: "Índice nacional de preços ao consumidor - Amplo (IPCA) - Núcleo médias aparadas sem suavização", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 11427, nome: "Índice nacional de preços ao consumidor - Amplo (IPCA) - Núcleo por exclusão - Sem monitorados e alimentos no domicílio", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 10841, nome: "Índice de Preços ao Consumidor-Amplo (IPCA) - Bens não-duráveis", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 10842, nome: "Índice de Preços ao Consumidor-Amplo (IPCA) - Bens semi-duráveis", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 10843, nome: "Índice de Preços ao Consumidor-Amplo (IPCA) - Duráveis", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 10844, nome: "Índice de Preços ao Consumidor-Amplo (IPCA) - Serviços", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 4449, nome: "Índice nacional de preços ao consumidor-Amplo (IPCA) - Preços monitorados - Total", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 11428, nome: "Índice nacional de preços ao consumidor - Amplo (IPCA) - Itens livres", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
+  { codigo: 188, nome: "INPC - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 189, nome: "IGP-M - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7447, nome: "IGP-10 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7448, nome: "IGP-M - 1ª prévia", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7449, nome: "IGP-M - 2ª prévia", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 190, nome: "IGP-DI - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7450, nome: "IPA-M - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 225, nome: "IPA-DI - Geral - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7459, nome: "IPA-DI - Produtos industriais", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7460, nome: "IPA-DI - Produtos agrícolas", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 191, nome: "IPC-DI - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 193, nome: "IPC-Fipe - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 17679, nome: "IPC-3i - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 17680, nome: "IPC-C1 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
 
   // ==================== CÂMBIO ====================
-  { codigo: 1, nome: "Taxa de câmbio - Livre - Dólar americano (venda)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 10813, nome: "Taxa de câmbio - Livre - Dólar americano (compra)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 3698, nome: "Taxa de câmbio - PTAX - Dólar americano (venda)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 3697, nome: "Taxa de câmbio - PTAX - Dólar americano (compra)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 3695, nome: "Taxa de câmbio - PTAX - Dólar americano (média)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21619, nome: "Taxa de câmbio - Euro (venda)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21620, nome: "Taxa de câmbio - Euro (compra)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21623, nome: "Taxa de câmbio - Libra Esterlina (venda)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21624, nome: "Taxa de câmbio - Libra Esterlina (compra)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21621, nome: "Taxa de câmbio - Iene (venda)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21622, nome: "Taxa de câmbio - Iene (compra)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21625, nome: "Taxa de câmbio - Franco Suíço (venda)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21626, nome: "Taxa de câmbio - Franco Suíço (compra)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21637, nome: "Taxa de câmbio - Peso Argentino (venda)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21638, nome: "Taxa de câmbio - Peso Argentino (compra)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21639, nome: "Taxa de câmbio - Yuan Chinês (venda)", categoria: "Câmbio", periodicidade: "Diária" },
-  { codigo: 21640, nome: "Taxa de câmbio - Yuan Chinês (compra)", categoria: "Câmbio", periodicidade: "Diária" },
+  { codigo: 1, nome: "Taxa de câmbio - Livre - Dólar americano (venda) - diário", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "portal", unidade: "Taxa unidade monetária corrente/dólar americano" },
+  { codigo: 10813, nome: "Taxa de câmbio - Livre - Dólar americano (compra)", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "portal", unidade: "Taxa unidade monetária corrente/dólar americano" },
+  { codigo: 3698, nome: "Taxa de câmbio - PTAX - Dólar americano (venda)", categoria: "Câmbio", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 3697, nome: "Taxa de câmbio - PTAX - Dólar americano (compra)", categoria: "Câmbio", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 3695, nome: "Taxa de câmbio - PTAX - Dólar americano (média)", categoria: "Câmbio", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 21619, nome: "Taxa de câmbio - Euro (venda)", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 21620, nome: "Taxa de câmbio - Euro (compra)", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 21623, nome: "Taxa de câmbio - Libra Esterlina (venda)", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 21624, nome: "Taxa de câmbio - Libra Esterlina (compra)", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 21621, nome: "Taxa de câmbio - Iene (venda)", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 21622, nome: "Taxa de câmbio - Iene (compra)", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 21625, nome: "Taxa de câmbio - Franco Suíço (venda)", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "medido" },
+  { codigo: 21626, nome: "Taxa de câmbio - Franco Suíço (compra)", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "medido" },
 
-  // ==================== PIB E ATIVIDADE ECONÔMICA ====================
-  { codigo: 4380, nome: "PIB mensal - Valores correntes (R$ milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 4381, nome: "PIB acumulado no ano - Valores correntes (R$ milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 4382, nome: "PIB acumulado dos últimos 12 meses - Valores correntes (R$ milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 4385, nome: "PIB mensal em US$ (milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 4386, nome: "PIB acumulado no ano em US$ (milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 7324, nome: "PIB anual em US$ (milhões)", categoria: "Atividade Econômica", periodicidade: "Anual" },
-  { codigo: 24363, nome: "IBC-Br - Índice de Atividade Econômica (sem ajuste)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 24364, nome: "IBC-Br - Índice de Atividade Econômica (com ajuste sazonal)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 29601, nome: "IBC-Br - Agropecuária (sem ajuste)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 29602, nome: "IBC-Br - Agropecuária (com ajuste sazonal)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 29603, nome: "IBC-Br - Indústria (sem ajuste)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 29604, nome: "IBC-Br - Indústria (com ajuste sazonal)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 29605, nome: "IBC-Br - Serviços (sem ajuste)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 29606, nome: "IBC-Br - Serviços (com ajuste sazonal)", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 22099, nome: "PIB trimestral - Taxa de variação (%)", categoria: "Atividade Econômica", periodicidade: "Trimestral" },
-  { codigo: 22103, nome: "Exportação de bens e serviços - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral" },
-  { codigo: 22104, nome: "Importação de bens e serviços - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral" },
-  { codigo: 22109, nome: "Consumo das famílias - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral" },
-  { codigo: 22110, nome: "Consumo do governo - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral" },
-  { codigo: 22111, nome: "Formação bruta de capital fixo - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral" },
-  { codigo: 21859, nome: "Produção industrial - Geral - Variação mensal", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 21860, nome: "Produção industrial - Geral - Variação acum. 12 meses", categoria: "Atividade Econômica", periodicidade: "Mensal" },
-  { codigo: 21862, nome: "Utilização da capacidade instalada - Indústria", categoria: "Atividade Econômica", periodicidade: "Mensal" },
+  // ==================== ATIVIDADE ECONÔMICA ====================
+  { codigo: 4380, nome: "PIB mensal - Valores correntes (R$ milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 4381, nome: "PIB acumulado no ano - Valores correntes (R$ milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 4382, nome: "PIB acumulado dos últimos 12 meses - Valores correntes (R$ milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 4385, nome: "PIB mensal em US$ (milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 4386, nome: "PIB acumulado no ano em US$ (milhões)", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7324, nome: "PIB anual em US$ (milhões)", categoria: "Atividade Econômica", periodicidade: "Anual", fonteNome: "medido" },
+  { codigo: 24363, nome: "Índice de Atividade Econômica do Banco Central - IBC-Br", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "portal", unidade: "Índice" },
+  { codigo: 24364, nome: "Índice de Atividade Econômica do Banco Central (IBC-Br) - com ajuste sazonal", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "portal", unidade: "Índice" },
+  { codigo: 29601, nome: "Índice de Atividade Econômica do Banco Central (IBC-Br) Agropecuária", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "portal", unidade: "Índice" },
+  { codigo: 29602, nome: "Índice de Atividade Econômica do Banco Central (IBC-Br) Agropecuária - com ajuste sazonal", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "portal", unidade: "Índice" },
+  { codigo: 29603, nome: "Índice de Atividade Econômica do Banco Central (IBC-Br) Indústria", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "portal", unidade: "Índice" },
+  { codigo: 29604, nome: "Índice de Atividade Econômica do Banco Central (IBC-Br) Indústria - com ajuste sazonal", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "portal", unidade: "Índice" },
+  { codigo: 29605, nome: "Índice de Atividade Econômica do Banco Central (IBC-Br) Serviços", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "portal", unidade: "Índice" },
+  { codigo: 29606, nome: "Índice de Atividade Econômica do Banco Central (IBC-Br) Serviços - com ajuste sazonal", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "portal", unidade: "Índice" },
+  { codigo: 22103, nome: "Exportação de bens e serviços - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral", fonteNome: "medido" },
+  { codigo: 22104, nome: "Importação de bens e serviços - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral", fonteNome: "medido" },
+  { codigo: 22109, nome: "Consumo das famílias - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral", fonteNome: "medido" },
+  { codigo: 22110, nome: "Consumo do governo - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral", fonteNome: "medido" },
+  { codigo: 22111, nome: "Formação bruta de capital fixo - Trimestral", categoria: "Atividade Econômica", periodicidade: "Trimestral", fonteNome: "medido" },
+  { codigo: 21859, nome: "Produção industrial - Geral - Variação mensal", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 21862, nome: "Utilização da capacidade instalada - Indústria", categoria: "Atividade Econômica", periodicidade: "Mensal", fonteNome: "medido" },
 
   // ==================== EMPREGO ====================
-  { codigo: 24369, nome: "Taxa de desocupação - PNAD Contínua", categoria: "Emprego", periodicidade: "Mensal" },
-  { codigo: 28763, nome: "Taxa de desocupação - PNAD Contínua - Trimestral", categoria: "Emprego", periodicidade: "Trimestral" },
-  { codigo: 24370, nome: "Taxa de participação na força de trabalho", categoria: "Emprego", periodicidade: "Mensal" },
-  { codigo: 24380, nome: "Rendimento médio real habitual - Todos os trabalhos", categoria: "Emprego", periodicidade: "Mensal" },
-  { codigo: 24381, nome: "Massa de rendimento real habitual", categoria: "Emprego", periodicidade: "Mensal" },
-  { codigo: 28785, nome: "Pessoal ocupado - Total (milhões)", categoria: "Emprego", periodicidade: "Mensal" },
-  { codigo: 28561, nome: "CAGED - Saldo de empregos formais", categoria: "Emprego", periodicidade: "Mensal" },
+  { codigo: 24369, nome: "Taxa de desocupação - PNAD Contínua", categoria: "Emprego", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 24380, nome: "Rendimento médio real habitual - Todos os trabalhos", categoria: "Emprego", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 24381, nome: "Massa de rendimento real habitual", categoria: "Emprego", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 28561, nome: "CAGED - Saldo de empregos formais", categoria: "Emprego", periodicidade: "Mensal", fonteNome: "medido" },
 
-  // ==================== DÍVIDA PÚBLICA E FISCAL ====================
-  { codigo: 4503, nome: "Dívida líquida do setor público (% PIB)", categoria: "Fiscal", periodicidade: "Mensal" },
-  { codigo: 4513, nome: "Dívida bruta do governo geral (% PIB)", categoria: "Fiscal", periodicidade: "Mensal" },
-  { codigo: 4505, nome: "Dívida líquida do governo federal (% PIB)", categoria: "Fiscal", periodicidade: "Mensal" },
-  { codigo: 4536, nome: "Necessidade de financiamento - Setor público (% PIB)", categoria: "Fiscal", periodicidade: "Mensal" },
-  { codigo: 4537, nome: "Resultado primário - Setor público (% PIB)", categoria: "Fiscal", periodicidade: "Mensal" },
-  { codigo: 4538, nome: "Juros nominais - Setor público (% PIB)", categoria: "Fiscal", periodicidade: "Mensal" },
-  { codigo: 4539, nome: "Resultado nominal - Setor público (% PIB)", categoria: "Fiscal", periodicidade: "Mensal" },
-  { codigo: 5364, nome: "Receita total do governo central", categoria: "Fiscal", periodicidade: "Mensal" },
-  { codigo: 5793, nome: "Despesa total do governo central", categoria: "Fiscal", periodicidade: "Mensal" },
+  // ==================== FISCAL ====================
+  { codigo: 4503, nome: "Dívida Líquida do Setor Público (% PIB) - Total - Governo Federal e Banco Central", categoria: "Fiscal", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 4513, nome: "Dívida Líquida do Setor Público (% PIB) - Total - Setor público consolidado", categoria: "Fiscal", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 4505, nome: "Dívida Líquida do Setor Público (% PIB) - Total - Banco Central", categoria: "Fiscal", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 4536, nome: "Dívida líquida do governo geral (% PIB)", categoria: "Fiscal", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 4537, nome: "Dívida bruta do governo geral (% PIB) - Metodologia utilizada até 2007", categoria: "Fiscal", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 5364, nome: "Receita total do governo central", categoria: "Fiscal", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 5793, nome: "NFSP sem desvalorização cambial (% PIB) - Fluxo acumulado em 12 meses - Resultado primário - Total - Setor público consolidado", categoria: "Fiscal", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
 
   // ==================== SETOR EXTERNO ====================
-  { codigo: 3546, nome: "Reservas internacionais - Conceito liquidez - Total", categoria: "Setor Externo", periodicidade: "Diária" },
-  { codigo: 13621, nome: "Reservas internacionais - Conceito liquidez - Mensal", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22707, nome: "Balança comercial - Saldo mensal (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22708, nome: "Exportação de bens - Mensal (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22709, nome: "Importação de bens - Mensal (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22714, nome: "Balança comercial - Saldo acumulado 12 meses (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22701, nome: "Transações correntes - Saldo mensal (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22704, nome: "Transações correntes - Saldo acumulado 12 meses (% PIB)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22715, nome: "Serviços - Saldo mensal (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22716, nome: "Renda primária - Saldo mensal (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22846, nome: "Investimento direto no país - Mensal (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 22885, nome: "Investimento em carteira - Mensal (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
-  { codigo: 13690, nome: "Dívida externa total (US$ milhões)", categoria: "Setor Externo", periodicidade: "Mensal" },
+  { codigo: 3546, nome: "Reservas internacionais - Conceito liquidez - Total", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 13621, nome: "Reservas internacionais - Conceito caixa - Total - diária", categoria: "Setor Externo", periodicidade: "Diária", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22707, nome: "Balança comercial - Balanço de Pagamentos - mensal - saldo", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22708, nome: "Exportação de bens - Balanço de Pagamentos - mensal", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22709, nome: "Importação de bens - Balanço de Pagamentos - mensal", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22714, nome: "Bens exportados sob merchanting - exportações positivas - mensal", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22701, nome: "Transações correntes - mensal - saldo", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22704, nome: "Balança comercial e Serviços - mensal - saldo", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22715, nome: "Bens importados sob merchanting - exportações negativas - mensal", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22716, nome: "Balança comercial - ouro não monetário - Balanço de Pagamentos - mensal - saldo", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22846, nome: "Renda secundária - Demais setores - Transferências pessoais - mensal - receita", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
+  { codigo: 22885, nome: "Investimentos diretos no país - IDP - mensal - líquido", categoria: "Setor Externo", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de dólares americanos" },
 
   // ==================== CRÉDITO ====================
-  { codigo: 20539, nome: "Saldo da carteira de crédito - Total", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20540, nome: "Saldo da carteira de crédito - Pessoas físicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20541, nome: "Saldo da carteira de crédito - Pessoas jurídicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20542, nome: "Saldo de crédito com recursos livres - Total", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20570, nome: "Saldo de crédito com recursos livres - Pessoas físicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20592, nome: "Saldo de crédito com recursos livres - Pessoas jurídicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20615, nome: "Saldo de crédito com recursos direcionados - Total", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20631, nome: "Concessões de crédito - Total", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20665, nome: "Concessões de crédito - Cheque especial - Pessoas físicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20714, nome: "Taxa média de juros - Crédito total", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20716, nome: "Taxa média de juros - Crédito pessoas físicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20740, nome: "Taxa média de juros - Crédito recursos livres - PF", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20749, nome: "Taxa média de juros - Aquisição de veículos - PF", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20772, nome: "Taxa média de juros - Financiamento imobiliário - PF", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 25497, nome: "Taxa média de juros - Financiamento imobiliário taxas de mercado", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20783, nome: "Spread médio - Crédito total", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20785, nome: "Spread médio - Crédito pessoas físicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 20786, nome: "Spread médio - Crédito pessoas jurídicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 21082, nome: "Inadimplência - Crédito total", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 21084, nome: "Inadimplência - Crédito pessoas físicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 21085, nome: "Inadimplência - Crédito pessoas jurídicas", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 21128, nome: "Inadimplência - Cartão de crédito parcelado - PF", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 21129, nome: "Inadimplência - Cartão de crédito total - PF", categoria: "Crédito", periodicidade: "Mensal" },
-  { codigo: 13685, nome: "Inadimplência - Instituições financeiras privadas", categoria: "Crédito", periodicidade: "Mensal" },
+  { codigo: 20539, nome: "Saldo da carteira de crédito - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Unidades monetárias correntes" },
+  { codigo: 20540, nome: "Saldo da carteira de crédito - Pessoas jurídicas - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de reais" },
+  { codigo: 20541, nome: "Saldo da carteira de crédito - Pessoas físicas - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de reais" },
+  { codigo: 20542, nome: "Saldo da carteira de crédito com recursos livres - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de reais" },
+  { codigo: 20570, nome: "Saldo da carteira de crédito com recursos livres - Pessoas físicas - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de reais" },
+  { codigo: 20592, nome: "Saldo da carteira de crédito com recursos livres - Pessoas físicas - Outros créditos livres", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de reais" },
+  { codigo: 20615, nome: "Saldo da carteira de crédito com recursos direcionados - Pessoas físicas - Financiamento agroindustrial com recursos do BNDES", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de reais" },
+  { codigo: 20631, nome: "Concessões de crédito - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de reais" },
+  { codigo: 20665, nome: "Concessões de crédito com recursos livres - Pessoas físicas - Cheque especial", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhões de reais" },
+  { codigo: 20714, nome: "Taxa média de juros das operações de crédito - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual ao ano" },
+  { codigo: 20716, nome: "Taxa média de juros das operações de crédito - Pessoas físicas - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual ao ano" },
+  { codigo: 20740, nome: "Taxa média de juros das operações de crédito com recursos livres - Pessoas físicas - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual ao ano" },
+  { codigo: 20749, nome: "Taxa média de juros das operações de crédito com recursos livres - Pessoas físicas - Aquisição de veículos", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual ao ano" },
+  { codigo: 20772, nome: "Taxa média de juros das operações de crédito com recursos direcionados - Pessoas físicas - Financiamento imobiliário com taxas de mercado", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual ao ano" },
+  { codigo: 25497, nome: "Taxa média mensal de juros das operações de crédito com recursos direcionados - Pessoas físicas - Financiamento imobiliário com taxas de mercado", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual ao mês" },
+  { codigo: 20783, nome: "Spread médio das operações de crédito - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Pontos percentuais" },
+  { codigo: 20785, nome: "Spread médio das operações de crédito - Pessoas físicas - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Pontos percentuais" },
+  { codigo: 20786, nome: "Spread médio das operações de crédito com recursos livres - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Pontos percentuais" },
+  { codigo: 21082, nome: "Inadimplência da carteira de crédito - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 21084, nome: "Inadimplência da carteira de crédito - Pessoas físicas - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 21085, nome: "Inadimplência da carteira de crédito com recursos livres - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 21128, nome: "Inadimplência da carteira de crédito com recursos livres - Pessoas físicas - Cartão de crédito parcelado", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 21129, nome: "Inadimplência da carteira de crédito com recursos livres - Pessoas físicas - Cartão de crédito total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 13685, nome: "Inadimplência da carteira de crédito das instituições financeiras sob controle privado - Total", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 29033, nome: "Comprometimento de renda das famílias com juros da dívida com o Sistema Financeiro Nacional - Com ajuste sazonal (RNDBF)", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 29034, nome: "Comprometimento de renda das famílias com o serviço da dívida com o Sistema Financeiro Nacional - Com ajuste sazonal (RNDBF)", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 29035, nome: "Comprometimento de renda das famílias com o serviço da dívida com o Sistema Financeiro Nacional exceto crédito habitacional - Com ajuste sazonal (RNDBF)", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 29036, nome: "Comprometimento de renda das famílias com amortização da dívida com o Sistema Financeiro Nacional - Com ajuste sazonal (RNDBF)", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 29037, nome: "Endividamento das famílias com o Sistema Financeiro Nacional em relação à renda acumulada dos últimos doze meses (RNDBF)", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
+  { codigo: 29038, nome: "Endividamento das famílias com o Sistema Financeiro Nacional exceto crédito habitacional em relação à renda acumulada dos últimos 12 meses (RNDBF)", categoria: "Crédito", periodicidade: "Mensal", fonteNome: "portal", unidade: "Percentual" },
 
   // ==================== AGREGADOS MONETÁRIOS ====================
-  { codigo: 1788, nome: "Base monetária - Saldo fim de período", categoria: "Agregados Monetários", periodicidade: "Mensal" },
-  { codigo: 1833, nome: "Base monetária ampliada - M4 - Saldo fim de período", categoria: "Agregados Monetários", periodicidade: "Mensal" },
-  { codigo: 27788, nome: "Meios de pagamento - M1 - Saldo fim de período", categoria: "Agregados Monetários", periodicidade: "Mensal" },
-  { codigo: 27789, nome: "Meios de pagamento - M2 - Saldo fim de período", categoria: "Agregados Monetários", periodicidade: "Mensal" },
-  { codigo: 27790, nome: "Meios de pagamento - M3 - Saldo fim de período", categoria: "Agregados Monetários", periodicidade: "Mensal" },
-  { codigo: 27791, nome: "Meios de pagamento - M4 - Saldo fim de período", categoria: "Agregados Monetários", periodicidade: "Mensal" },
-  { codigo: 27815, nome: "Multiplicador monetário - Base para M4", categoria: "Agregados Monetários", periodicidade: "Mensal" },
-  { codigo: 7530, nome: "Multiplicador monetário - Média do mês", categoria: "Agregados Monetários", periodicidade: "Mensal" },
+  { codigo: 1788, nome: "BM - Base monetária restrita (saldo em final de período)", categoria: "Agregados Monetários", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhares de unidades monetárias correntes" },
+  { codigo: 1833, nome: "Base Monetária Ampliada (saldo em final de período)", categoria: "Agregados Monetários", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhares de unidades monetárias correntes" },
+  { codigo: 27788, nome: "Meios de pagamento - M1 (média dos dias úteis do mês) - Novo", categoria: "Agregados Monetários", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhares de unidades monetárias correntes" },
+  { codigo: 27789, nome: "Meios de pagamento - Papel moeda em poder do público (saldo em final de período) - Novo", categoria: "Agregados Monetários", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhares de unidades monetárias correntes" },
+  { codigo: 27790, nome: "Meios de pagamento - Depósitos à vista (saldo em final de período) - Novo", categoria: "Agregados Monetários", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhares de unidades monetárias correntes" },
+  { codigo: 27791, nome: "Meios de pagamento - M1 (saldo em final de período) - Novo", categoria: "Agregados Monetários", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhares de unidades monetárias correntes" },
+  { codigo: 27815, nome: "Meios de pagamento amplos - M4 (saldo em final de periodo) - Novo", categoria: "Agregados Monetários", periodicidade: "Mensal", fonteNome: "portal", unidade: "Milhares de unidades monetárias correntes" },
+  { codigo: 7530, nome: "Comportamento monetário - Comportamento do público - C", categoria: "Agregados Monetários", periodicidade: "Mensal", fonteNome: "portal", unidade: "Índice" },
 
   // ==================== POUPANÇA ====================
-  { codigo: 25, nome: "Poupança - Rendimento no mês de referência", categoria: "Poupança", periodicidade: "Mensal" },
-  { codigo: 195, nome: "Poupança - Saldo total", categoria: "Poupança", periodicidade: "Mensal" },
-  { codigo: 7165, nome: "Poupança - Captação líquida", categoria: "Poupança", periodicidade: "Mensal" },
-  { codigo: 7166, nome: "Poupança - Depósitos", categoria: "Poupança", periodicidade: "Mensal" },
-  { codigo: 7167, nome: "Poupança - Retiradas", categoria: "Poupança", periodicidade: "Mensal" },
-
-  // ==================== ÍNDICES DE MERCADO ====================
-  { codigo: 12466, nome: "IMA-B - Índice de Mercado ANBIMA (Base)", categoria: "Índices de Mercado", periodicidade: "Diária" },
-  { codigo: 12467, nome: "IMA-B5 - Índice de Mercado ANBIMA (até 5 anos)", categoria: "Índices de Mercado", periodicidade: "Diária" },
-  { codigo: 12468, nome: "IMA-B5+ - Índice de Mercado ANBIMA (acima 5 anos)", categoria: "Índices de Mercado", periodicidade: "Diária" },
-  { codigo: 7832, nome: "Ibovespa - Índice mensal", categoria: "Índices de Mercado", periodicidade: "Mensal" },
-
-  // ==================== EXPECTATIVAS (Focus) ====================
-  { codigo: 29033, nome: "Expectativa IPCA - Mediana - Ano corrente", categoria: "Expectativas", periodicidade: "Semanal" },
-  { codigo: 29034, nome: "Expectativa IPCA - Mediana - Próximo ano", categoria: "Expectativas", periodicidade: "Semanal" },
-  { codigo: 29035, nome: "Expectativa Selic - Mediana - Ano corrente", categoria: "Expectativas", periodicidade: "Semanal" },
-  { codigo: 29036, nome: "Expectativa Selic - Mediana - Próximo ano", categoria: "Expectativas", periodicidade: "Semanal" },
-  { codigo: 29037, nome: "Expectativa PIB - Mediana - Ano corrente", categoria: "Expectativas", periodicidade: "Semanal" },
-  { codigo: 29038, nome: "Expectativa PIB - Mediana - Próximo ano", categoria: "Expectativas", periodicidade: "Semanal" },
-  { codigo: 29039, nome: "Expectativa Câmbio - Mediana - Ano corrente", categoria: "Expectativas", periodicidade: "Semanal" },
-  { codigo: 29040, nome: "Expectativa Câmbio - Mediana - Próximo ano", categoria: "Expectativas", periodicidade: "Semanal" }
+  { codigo: 25, nome: "Depósitos de poupança até 03.05.2012 - Rentabilidade no período", categoria: "Poupança", periodicidade: "Diária", fonteNome: "portal", unidade: "Percentual ao mês" },
+  { codigo: 195, nome: "Depósitos de poupança a partir de 04.05.2012 - Rentabilidade no período", categoria: "Poupança", periodicidade: "Diária", fonteNome: "portal", unidade: "Percentual ao mês" }
 ];
 
 // ==================== TOOL HANDLERS ====================
@@ -585,12 +586,19 @@ export async function handleIndicadoresAtuais(
   maxRetries?: number
 ): Promise<ToolResult> {
   try {
+    // Códigos e rótulos revistos na verificação de 13/08/2026. Duas correções:
+    //
+    // - a 432 é a META do Copom, não "a Selic" genérica (a efetiva é a 1178) —
+    //   o rótulo antigo deixava ambíguo qual das duas estava na tela;
+    // - o dólar saiu da 3698 para a 1. A 3698 é a PTAX **mensal**: num painel de
+    //   "indicadores atuais" ela mostrava 01/07 enquanto a 1 já trazia 12/08.
+    //   Um valor de seis semanas atrás rotulado como atual é pior que ausência.
     const indicadores = [
-      { codigo: 432, nome: "Selic (a.a.)" },
+      { codigo: 432, nome: "Selic - meta Copom (% a.a.)" },
       { codigo: 433, nome: "IPCA mensal (%)" },
       { codigo: 13522, nome: "IPCA 12 meses (%)" },
-      { codigo: 3698, nome: "Dólar PTAX (venda)" },
-      { codigo: 24364, nome: "IBC-Br" }
+      { codigo: 1, nome: "Dólar comercial - venda (diário)" },
+      { codigo: 24364, nome: "IBC-Br (com ajuste sazonal)" }
     ];
 
     const resultados = await Promise.all(
@@ -1118,11 +1126,33 @@ const SERIE_REF_SCHEMA = {
   required: ["codigo", "nome"]
 };
 
+// Variante para quem LISTA o catálogo curado (`bcb_series_populares`): além da
+// identificação, a procedência do nome. O campo é publicado, e não apenas
+// interno, porque a diferença entre "o BCB chama assim" e "herdamos este nome"
+// muda o que o cliente pode afirmar — e foi justamente apresentar as duas com a
+// mesma cara que deixou nomes trocados passarem por versões. Ver `SeriePopular`.
+const SERIE_CURADA_SCHEMA = {
+  ...SERIE_REF_SCHEMA,
+  properties: {
+    ...SERIE_REF_SCHEMA.properties,
+    fonteNome: {
+      type: "string" as const,
+      enum: ["portal", "medido"],
+      description:
+        "Procedência do `nome`: 'portal' = transcrito do dataset da série no Portal de Dados Abertos do " +
+        "BCB; 'medido' = a série não tem dataset no portal, o nome é herdado e só a periodicidade e a " +
+        "ordem de grandeza foram verificadas contra a origem."
+    },
+    unidade: {
+      type: "string" as const,
+      description: "Unidade de medida publicada pelo portal. Ausente nas séries sem dataset (fonteNome 'medido')."
+    }
+  }
+};
+
 // Variante para as tools que CONSULTAM série: quando o código está fora da
 // curadoria, a periodicidade é inferida do espaçamento das observações (a API do
-// SGS não publica metadados). `bcb_series_populares` segue com o fragmento acima
-// de propósito — ele lista o catálogo curado, onde nada é inferido, e anunciar um
-// campo que a tool nunca produz seria sujar a superfície.
+// SGS não publica metadados).
 const SERIE_REF_CONSULTADA_SCHEMA = {
   ...SERIE_REF_SCHEMA,
   properties: {
@@ -1296,23 +1326,29 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "Retorna: codigo, nome, periodicidade, categoria, fonte, `ultimoValor` e URLs diretas da API " +
     "(urlConsulta, urlUltimos10). " +
     "Limite da fonte: a API do SGS NÃO publica endpoint de metadados por série — não há unidade de medida " +
-    "disponível. Nome e categoria vêm do catálogo curado do servidor (150+ séries) e, fora dele, a " +
-    "periodicidade é inferida do espaçamento das observações, sinalizada por `periodicidadeInferida`. " +
+    "disponível. Nome e categoria vêm do catálogo curado do servidor (139 séries verificadas contra a " +
+    "origem) e, fora dele, a periodicidade é inferida do espaçamento das observações, sinalizada por " +
+    "`periodicidadeInferida`. " +
     BEHAVIOR_NOTE,
 
   bcb_series_populares:
-    "Lista o catálogo interno curado de 150+ séries econômicas do BCB com seus códigos, agrupadas por " +
+    "Lista o catálogo interno curado de 139 séries econômicas do BCB com seus códigos, agrupadas por " +
     "categoria (Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, " +
-    "Agregados Monetários, Poupança, Índices de Mercado, Expectativas); aceita filtro por categoria. " +
+    "Agregados Monetários, Poupança); aceita filtro por categoria. " +
     "Quando usar: para navegar/descobrir as séries disponíveis por tema. Quando NÃO usar: para busca " +
     "por palavra-chave use bcb_buscar_serie; esta ferramenta não busca valores. " +
     "Retorna: `totalSeries`, `categorias` (nº de categorias) e `series` — objeto agrupado por categoria " +
     "quando sem filtro, ou array plano quando filtrado por categoria; cada item tem codigo, nome, " +
-    "categoria e periodicidade. Catálogo local: não faz chamada de rede.",
+    "categoria, periodicidade e `fonteNome`. Catálogo local: não faz chamada de rede. " +
+    "Procedência: `fonteNome` = 'portal' quando o nome é transcrito do dataset da série no Portal de " +
+    "Dados Abertos do BCB (82 séries, com `unidade`), e 'medido' quando a série não tem dataset lá — " +
+    "nesse caso o nome é herdado e o que foi verificado contra a origem é a periodicidade e a ordem de " +
+    "grandeza. Expectativas do Focus NÃO estão aqui: use bcb_focus_expectativas.",
 
   bcb_buscar_serie:
     "Busca séries do BCB por palavra-chave (ou pelo código) em DUAS camadas: o catálogo curado local de " +
-    "150+ séries, que vem primeiro e com nome revisado, e o índice do Portal de Dados Abertos do BCB, " +
+    "139 séries verificadas contra a origem, que vem primeiro e com `fonteNome` dizendo se o nome é " +
+    "transcrito do portal do BCB ou herdado, e o índice do Portal de Dados Abertos do BCB, " +
     "com milhares de séries identificadas por código. Ignora acentos e maiúsculas ('inflacao' encontra " +
     "'Inflação'); vários termos são combinados com E ('ipca servicos'). " +
     "Quando usar: para descobrir o código de uma série antes de consultar valores. Quando NÃO usar: para " +
@@ -1329,7 +1365,8 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
   bcb_indicadores_atuais:
     "Atalho que retorna, em uma única chamada, o valor mais recente dos principais indicadores da " +
-    "economia brasileira: Selic anualizada, IPCA mensal, IPCA acumulado 12 meses, Dólar PTAX (venda) " +
+    "economia brasileira: Selic (meta do Copom), IPCA mensal, IPCA acumulado 12 meses, dólar comercial " +
+    "de venda (série diária) " +
     "e IBC-Br. Não recebe parâmetros. " +
     "Quando usar: para um panorama econômico rápido. Quando NÃO usar: para qualquer outra série, para " +
     "dados históricos ou para escolher o período use bcb_serie_ultimos ou bcb_serie_valores. " +
@@ -1557,8 +1594,8 @@ const RAW_TOOL_DEFINITIONS = [
           description:
             "Séries encontradas. Objeto agrupado por categoria quando sem filtro; array plano quando filtrado por categoria.",
           anyOf: [
-            { type: "array" as const, items: SERIE_REF_SCHEMA },
-            { type: "object" as const, additionalProperties: { type: "array" as const, items: SERIE_REF_SCHEMA } }
+            { type: "array" as const, items: SERIE_CURADA_SCHEMA },
+            { type: "object" as const, additionalProperties: { type: "array" as const, items: SERIE_CURADA_SCHEMA } }
           ]
         },
         observacao: { type: "string" as const, description: "Dica de uso" }
@@ -1615,6 +1652,14 @@ const RAW_TOOL_DEFINITIONS = [
                 type: "string" as const,
                 enum: ["curado", "indice"],
                 description: "Camada de onde veio o achado"
+              },
+              fonteNome: {
+                type: "string" as const,
+                enum: ["portal", "medido"],
+                description:
+                  "Só quando `origem` = curado. 'portal' = nome transcrito do dataset da série no Portal de " +
+                  "Dados Abertos do BCB; 'medido' = série sem dataset no portal, nome herdado e apenas " +
+                  "periodicidade e ordem de grandeza verificadas contra a origem."
               },
               dataset: { type: "string" as const, description: "Página do dataset no portal de dados abertos (só quando `origem` = indice)" }
             },
@@ -2155,20 +2200,49 @@ export interface ResourceDefinition {
   read: () => string;
 }
 
+/**
+ * Atalho de códigos por tema — recurso publicado (`bcb://series/codigos`).
+ *
+ * Carregava os MESMOS erros do catálogo curado, e por isso foi refeito na
+ * verificação de 13/08/2026: apontava `selic_meta` para a 1178 (que é a Selic
+ * efetiva) e `selic_acumulada` para a 432 (que é a meta) — exatamente
+ * invertidos —, `divida_bruta` para a 4513 (dívida LÍQUIDA consolidada) e
+ * `resultado_primario` para a 4537 (dívida bruta em metodologia de até 2007).
+ * Um atalho errado é pior que atalho nenhum: ele é feito para ser usado sem
+ * conferência.
+ *
+ * Não há entrada de dívida bruta corrente: entre as séries verificadas, a única
+ * de dívida bruta é a 4537, em metodologia descontinuada em 2007. Preferimos
+ * omitir a chave a apontá-la como se fosse a corrente — quem precisa acha pela
+ * `bcb_buscar_serie`.
+ */
 export const CODIGOS_PRINCIPAIS = {
-  juros: { selic_meta: 1178, selic_acumulada: 432, cdi: 4389, tr: 226 },
+  juros: {
+    selic_meta: 432,        // meta definida pelo Copom (constante entre reuniões)
+    selic_efetiva: 1178,    // Selic anualizada base 252, a taxa que de fato ocorre
+    selic_acumulada_mes: 4390,
+    cdi: 4389,
+    tr: 226
+  },
   inflacao: { ipca_mensal: 433, ipca_12m: 13522, igpm: 189, inpc: 188 },
-  cambio: { dolar_venda: 1, dolar_ptax: 3698, euro: 21619 },
+  // PTAX diária vem das tools de câmbio; a 3698 do SGS é MENSAL (medido).
+  cambio: { dolar_venda: 1, dolar_compra: 10813, dolar_ptax_mensal: 3698, euro: 21619 },
   atividade: { pib_mensal: 4380, ibc_br: 24364 },
   emprego: { desemprego: 24369, rendimento_medio: 24380 },
-  fiscal: { divida_bruta: 4513, divida_liquida: 4503, resultado_primario: 4537 }
+  fiscal: {
+    divida_liquida_setor_publico: 4513,
+    divida_liquida_governo_geral: 4536,
+    resultado_primario: 5793
+  }
 };
 
 export const RESOURCE_DEFINITIONS: ResourceDefinition[] = [
   {
     name: "series_populares",
     uri: "bcb://series/populares",
-    description: "Catálogo de 150+ séries econômicas populares do BCB organizadas por categoria",
+    description:
+      "Catálogo de 139 séries econômicas do BCB, verificadas contra a origem, organizadas por categoria; " +
+      "cada entrada traz `fonteNome` (nome transcrito do portal do BCB ou herdado com periodicidade medida)",
     mimeType: "application/json",
     read: () => JSON.stringify(SERIES_POPULARES, null, 2)
   },

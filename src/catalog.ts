@@ -31,7 +31,7 @@
 // Só primitivos: a curadoria de séries entra por parâmetro (e não por import de
 // `tools.ts`) para a busca ser testável sem estado global e para não haver ciclo
 // entre os módulos de tool.
-import { fetchBcbApi, normalizeString, type SeriePopular } from "./shared.js";
+import { fetchBcbApi, normalizeString, type ProcedenciaNome, type SeriePopular } from "./shared.js";
 
 export const CKAN_PACKAGE_LIST = "https://dadosabertos.bcb.gov.br/api/3/action/package_list";
 export const CKAN_DATASET_BASE = "https://dadosabertos.bcb.gov.br/dataset";
@@ -201,8 +201,14 @@ export interface SerieEncontrada {
   nome: string;
   categoria?: string;
   periodicidade?: string;
-  /** `curado` = catálogo local com nome/categoria revisados; `indice` = portal. */
+  /** `curado` = catálogo local verificado contra a origem; `indice` = portal. */
   origem: OrigemSerie;
+  /**
+   * Só nos achados do catálogo curado: se o nome foi transcrito do dataset do
+   * BCB (`portal`) ou herdado, com apenas periodicidade e magnitude medidas
+   * (`medido`). Ver `SeriePopular` — a distinção é publicada de propósito.
+   */
+  fonteNome?: ProcedenciaNome;
   /** Página do dataset no portal (só para achados do índice). */
   dataset?: string;
 }
@@ -213,7 +219,8 @@ function comoEncontrada(serie: SeriePopular): SerieEncontrada {
     nome: serie.nome,
     categoria: serie.categoria,
     periodicidade: serie.periodicidade,
-    origem: "curado"
+    origem: "curado",
+    fonteNome: serie.fonteNome
   };
 }
 
