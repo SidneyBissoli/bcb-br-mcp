@@ -23,6 +23,7 @@ import {
   formatarDataSgs,
   harmonizar,
   inferirPeriodicidade,
+  ordenarPorData,
   parseDataSgs,
   sondarPeriodicidade
 } from "./series.js";
@@ -57,6 +58,15 @@ function diarias(inicioIso: string, n: number): Array<{ data: string; valor: str
   const t0 = Date.parse(`${inicioIso}T00:00:00Z`);
   return Array.from({ length: n }, (_, i) => ({
     data: formatarDataSgs(t0 + i * 86400000),
+    valor: String(i)
+  }));
+}
+
+/** Gera observações mensais (dia 1º) a partir de uma data ISO. */
+function mensais(inicioIso: string, n: number): Array<{ data: string; valor: string }> {
+  const d = new Date(`${inicioIso}T00:00:00Z`);
+  return Array.from({ length: n }, (_, i) => ({
+    data: formatarDataSgs(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + i, 1)),
     valor: String(i)
   }));
 }
@@ -276,6 +286,44 @@ describe("buscarUltimosSgs", () => {
     expect(r.observacoes.length).toBe(100);
     // são as ÚLTIMAS 100 das 400 devolvidas
     expect(r.observacoes[r.observacoes.length - 1].data).toBe(formatarDataSgs(Date.parse("2025-01-01T00:00:00Z") + 399 * 86400000));
+  });
+
+  // A origem devolve `ultimos/N` do mais NOVO para o mais velho em 22 das 169
+  // séries curadas (medido em 12/08/2026 — a 4513 é uma delas). Sem ordenar,
+  // `handleVariacao` calcula a variação ao contrário.
+  it("ordena o que a origem devolve em ordem decrescente", async () => {
+    const crescente = mensais("2025-01-01", 12);
+    mock([["dados/ultimos/12", [...crescente].reverse()]]);
+
+    const r = await buscarUltimosSgs(4513, 12, 5000, 1);
+
+    expect(r.observacoes.map(o => o.data)).toEqual(crescente.map(o => o.data));
+    expect(r.periodicidade).toBe("mensal");
+  });
+
+  it("põe observação sem data parseável no fim, sem descartar", async () => {
+    mock([["dados/ultimos/4", [
+      { data: "01/03/2025", valor: "3" },
+      { data: "sem data", valor: "9" },
+      { data: "01/01/2025", valor: "1" },
+      { data: "01/02/2025", valor: "2" }
+    ]]]);
+
+    const r = await buscarUltimosSgs(4513, 4, 5000, 1);
+
+    expect(r.observacoes.map(o => o.data)).toEqual(["01/01/2025", "01/02/2025", "01/03/2025", "sem data"]);
+  });
+});
+
+describe("ordenarPorData", () => {
+  it("é estável entre observações da mesma data", () => {
+    const r = ordenarPorData([
+      { data: "01/02/2025", valor: "b" },
+      { data: "01/01/2025", valor: "a" },
+      { data: "01/02/2025", valor: "c" }
+    ]);
+
+    expect(r.map(o => o.valor)).toEqual(["a", "b", "c"]);
   });
 });
 

@@ -5,6 +5,33 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-08-13
+
+A correctness fix. No surface change: same 15 tools, same schemas, same fields.
+
+### Fixed
+- **`bcb_variacao` computed the change backwards on part of the SGS.** The
+  `ultimos/N` endpoint does not guarantee chronological order, and measurement
+  over the whole curated catalog found **22 of 169 series served newest-first**
+  (among them the gross and net public debt, central government revenue and
+  expenditure, M1, M4 and the money multiplier). The tool takes `data[0]` as the
+  starting value, so on those series it published an inverted sign with
+  `dataInicial` *later* than `dataFinal` — series 4513 came back as −7.40% over a
+  window in which it rose 8.00%. The failure was silent: a well-formed response
+  with a wrong number.
+- Same root cause, smaller effect: `bcb_serie_ultimos` listed those series
+  newest-first, and `bcb_serie_metadados` reported the *oldest* observation of
+  the window as `ultimoValor`.
+- Every set of observations coming from the SGS now passes through a single
+  ordering step (`ordenarPorData` in `src/series.ts`). Observations whose date
+  cannot be parsed keep their relative order and go last, rather than being
+  dropped. The date-window path measured ascending in all 151 series checked, but
+  it is normalised too — the guarantee is ours now, not the source's.
+
+### Unchanged on purpose
+- `maximo`/`minimo`/`media` never depended on order and did not move.
+- The chunked path already sorted on merge, so long windows were never affected.
+
 ## [1.6.0] - 2026-08-11
 
 Cross-series statistics and inflation adjustment — the half of D2 that the

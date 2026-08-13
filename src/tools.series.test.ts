@@ -66,6 +66,71 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// ==================== ordem cronológica da origem ====================
+
+/**
+ * Regressão do defeito medido em produção em 12/08/2026.
+ *
+ * O `ultimos/N` do SGS devolve do mais NOVO para o mais velho em 22 das 169
+ * séries curadas. A `bcb_variacao` toma `data[0]` como valor inicial, então na
+ * 4513 (dívida bruta) ela publicava −7,40% num período em que a série SUBIU
+ * 8,00%, com `dataInicial` posterior à `dataFinal`. Os valores abaixo são os que
+ * a origem serviu naquele dia, na ordem em que ela os serviu.
+ */
+describe("bcb_variacao — a origem não garante ordem em ultimos/N", () => {
+  const decrescente4513 = [
+    { data: "01/06/2026", valor: "68.48" }, { data: "01/05/2026", valor: "67.89" },
+    { data: "01/04/2026", valor: "67.13" }, { data: "01/03/2026", valor: "66.67" },
+    { data: "01/02/2026", valor: "65.46" }, { data: "01/01/2026", valor: "64.94" },
+    { data: "01/12/2025", valor: "65.24" }, { data: "01/11/2025", valor: "65.18" },
+    { data: "01/10/2025", valor: "64.68" }, { data: "01/09/2025", valor: "64.57" },
+    { data: "01/08/2025", valor: "64.04" }, { data: "01/07/2025", valor: "63.41" }
+  ];
+
+  it("calcula a variação no sentido do tempo, não no da resposta", async () => {
+    mockFetch([["dados/ultimos/12", decrescente4513]]);
+
+    const out = structured(await call("bcb_variacao", { codigo: 4513, periodos: 12 }));
+
+    const periodo = out.periodo as Record<string, unknown>;
+    expect(periodo.dataInicial).toBe("01/07/2025");
+    expect(periodo.dataFinal).toBe("01/06/2026");
+
+    const analise = out.analise as Record<string, unknown>;
+    expect(analise.valorInicial).toBe(63.41);
+    expect(analise.valorFinal).toBe(68.48);
+    expect(analise.diferencaAbsoluta).toBeCloseTo(5.07, 4);
+    expect(analise.variacaoPercentual).toBeCloseTo(7.9956, 4);
+    expect(analise.variacaoFormatada).toBe("+8.00%");
+  });
+
+  it("os extremos não dependem da ordem (já vinham certos, e continuam)", async () => {
+    mockFetch([["dados/ultimos/12", decrescente4513]]);
+
+    const out = structured(await call("bcb_variacao", { codigo: 4513, periodos: 12 }));
+
+    expect(out.estatisticas).toMatchObject({ maximo: 68.48, minimo: 63.41 });
+  });
+
+  it("bcb_serie_ultimos devolve do mais velho para o mais novo", async () => {
+    mockFetch([["dados/ultimos/12", decrescente4513]]);
+
+    const out = structured(await call("bcb_serie_ultimos", { codigo: 4513, quantidade: 12 }));
+    const dados = out.dados as Array<{ data: string; valor: number }>;
+
+    expect(dados[0]).toEqual({ data: "01/07/2025", valor: 63.41 });
+    expect(dados[dados.length - 1]).toEqual({ data: "01/06/2026", valor: 68.48 });
+  });
+
+  it("bcb_serie_metadados aponta a observação mais recente, não a primeira da resposta", async () => {
+    mockFetch([["dados/ultimos/20", decrescente4513]]);
+
+    const out = structured(await call("bcb_serie_metadados", { codigo: 4513 }));
+
+    expect(out.ultimoValor).toEqual({ data: "01/06/2026", valor: 68.48 });
+  });
+});
+
 // ==================== chunking ====================
 
 describe("bcb_serie_valores — limite de 10 anos da origem", () => {

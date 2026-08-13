@@ -143,6 +143,39 @@ export async function sondarPeriodicidade(
   }
 }
 
+/**
+ * Ordena observações da origem em ordem cronológica crescente.
+ *
+ * **A origem NÃO garante ordem em `ultimos/N`.** Medido em 12/08/2026 sobre as
+ * 169 séries do catálogo: 22 delas devolvem do mais NOVO para o mais velho
+ * (entre outras 4513, 4503, 5364, 5793, 27788, 27791, 27815, 195), enquanto o
+ * caminho `dados?dataInicial=` veio crescente em todas as 151 medidas. Não há
+ * padrão declarado pelo BCB e não há como saber de antemão qual série é qual —
+ * então toda leitura passa por aqui.
+ *
+ * Não é preciosismo: `handleVariacao` toma `data[0]` como valor inicial e o
+ * último como final. Na 4513 isso publicava −7,40% onde a série subiu +8,00%,
+ * com `dataInicial` posterior à `dataFinal`. Falha silenciosa, resposta
+ * bem-formada — a mesma classe que a fase já encontrou quatro vezes.
+ *
+ * Observação sem data parseável vai para o fim, preservando a ordem relativa:
+ * é a convenção que `fundir` já usava, e mantê-la evita descartar dado que a
+ * origem mandou.
+ */
+export function ordenarPorData(observacoes: SerieValor[]): SerieValor[] {
+  const comData: Array<{ t: number; obs: SerieValor }> = [];
+  const semData: SerieValor[] = [];
+
+  for (const obs of observacoes) {
+    const t = parseDataSgs(obs.data);
+    if (t === null) semData.push(obs);
+    else comData.push({ t, obs });
+  }
+
+  comData.sort((a, b) => a.t - b.t);
+  return [...comData.map(x => x.obs), ...semData];
+}
+
 /** Dias que uma observação ocupa, por periodicidade — dimensiona janelas. */
 const DIAS_POR_OBSERVACAO: Record<Periodicidade, number> = {
   diaria: 1.45, // dias corridos por dia útil (252 úteis / 365 corridos)
@@ -359,7 +392,9 @@ export async function buscarSerieSgs(
       urlSerie(codigo, pedido.dataInicial, pedido.dataFinal), timeoutMs, maxRetries
     )) as SerieValor[];
     requisicoes += 1;
-    const observacoes = Array.isArray(dados) ? dados : [];
+    // Medido crescente em todas as janelas de data, mas a garantia não é da
+    // origem: normalizar aqui também custa um sort e fecha a classe inteira.
+    const observacoes = ordenarPorData(Array.isArray(dados) ? dados : []);
     return { observacoes, periodicidade: inferirPeriodicidade(observacoes), requisicoes };
   } catch (erro) {
     if (!(erro instanceof ErroHttpBcb) || erro.status !== 406) throw erro;
@@ -409,7 +444,9 @@ export async function buscarUltimosSgs(
   if (quantidade <= TETO_ULTIMOS) {
     const url = `${BCB_SGS_BASE}.${codigo}/dados/ultimos/${quantidade}?formato=json`;
     const dados = (await fetchBcbApi(url, timeoutMs, maxRetries)) as SerieValor[];
-    const observacoes = Array.isArray(dados) ? dados : [];
+    // `ultimos/N` é o caminho onde a origem devolve descendente em parte das
+    // séries — ver `ordenarPorData`.
+    const observacoes = ordenarPorData(Array.isArray(dados) ? dados : []);
     return { observacoes, periodicidade: inferirPeriodicidade(observacoes), requisicoes: 1 };
   }
 

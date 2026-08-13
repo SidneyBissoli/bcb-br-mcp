@@ -243,6 +243,15 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   **200 com HTML**. O worker tem timeout de 10 s, ou seja: uma janela que a origem
   aceita não completa no canal hospedado. Por isso a fatia é de **3 anos** (~2,6 s)
   e não de 10. Não "otimize" isso para menos requisições sem reler `bcb/docs/04`.
+- **`ultimos/N` NÃO devolve em ordem cronológica.** Medido sobre as 169 séries
+  curadas: **22 vêm do mais novo para o mais velho** (4513, 4503, 4505, 4536,
+  4537, 5364, 5793, 1178, 4189, 4390, 4389, 4391, 4392, 25497, 27788, 27791,
+  27815, 195, 7165, 7166, 7167, 29034), enquanto o caminho por janela de datas
+  veio crescente em 151 de 151. A direção não se deduz do código nem da família:
+  4390 vem invertida e 433 não. Isso publicava variação com **sinal trocado** na
+  `bcb_variacao` (a 4513 saía −7,40% num período em que subiu 8,00%). Toda
+  observação vinda do SGS passa por `ordenarPorData` em `series.ts` — não leia
+  `dados[0]` como "o mais antigo" fora dali.
 - **`ultimos/N` tem teto de 20 em TODA periodicidade** (não só nas diárias — a
   mensal 433 também devolve 400), embora o schema anuncie até 1000. Acima de 20,
   `series.ts` cumpre a promessa por janela de datas.

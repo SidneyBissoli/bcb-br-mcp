@@ -250,6 +250,52 @@ try {
     })());
   }
 
+  // Ordem cronológica onde a ORIGEM entrega ao contrário.
+  //
+  // A 4513 é uma das 22 séries (de 169 curadas) em que `ultimos/N` vem do mais
+  // novo para o mais velho. Mock nenhum prova isto: o valor do check está em
+  // pedir à origem de verdade a série que a serve invertida. Ver o CHANGELOG
+  // 1.6.1 e `bcb/docs/06`.
+  const invertida = await call("bcb_variacao", { codigo: 4513, periodos: 12 });
+  const invOut = invertida.result?.structuredContent;
+  checkUpstream(
+    "bcb_variacao numa série que a origem serve do mais novo para o mais velho",
+    invertida.result,
+    `${invOut?.periodo?.dataInicial} a ${invOut?.periodo?.dataFinal} = ${invOut?.analise?.variacaoFormatada}`
+  );
+  if (!invertida.result?.isError) {
+    const ano = s => Number(String(s).slice(6));
+    const mes = s => Number(String(s).slice(3, 5));
+    const chave = s => ano(s) * 12 + mes(s);
+    check(
+      "  → o período sai no sentido do tempo (inicial ANTES de final)",
+      chave(invOut?.periodo?.dataInicial) < chave(invOut?.periodo?.dataFinal)
+    );
+    check(
+      "  → o sinal acompanha o movimento da série, não a ordem da resposta",
+      Math.sign(invOut?.analise?.valorFinal - invOut?.analise?.valorInicial) ===
+        Math.sign(invOut?.analise?.variacaoPercentual),
+      `${invOut?.analise?.valorInicial} -> ${invOut?.analise?.valorFinal}`
+    );
+    check(
+      "  → os extremos seguem sendo observações da fonte",
+      invOut?.estatisticas?.maximo >= invOut?.analise?.valorFinal &&
+        invOut?.estatisticas?.minimo <= invOut?.analise?.valorInicial
+    );
+  }
+
+  const invUlt = await call("bcb_serie_ultimos", { codigo: 4513, quantidade: 12 });
+  const invUltOut = invUlt.result?.structuredContent;
+  checkUpstream(
+    "bcb_serie_ultimos normaliza a ordem da mesma série",
+    invUlt.result,
+    `${invUltOut?.dados?.[0]?.data} .. ${invUltOut?.dados?.at(-1)?.data}`
+  );
+  if (!invUlt.result?.isError) {
+    const chaves = (invUltOut?.dados ?? []).map(d => Number(d.data.slice(6)) * 12 + Number(d.data.slice(3, 5)));
+    check("  → crescente do primeiro ao último ponto", chaves.every((k, i) => i === 0 || k >= chaves[i - 1]));
+  }
+
   // Periodicidade inferida onde a fonte não publica metadados (endpoint 404).
   const meta = await call("bcb_serie_metadados", { codigo: 24369 });
   const metaOut = meta.result?.structuredContent;
