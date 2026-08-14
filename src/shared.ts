@@ -30,10 +30,13 @@ export const WORKER_CONFIG = {
 // version is injected by each entry point instead of imported here:
 //   - index.ts (Node/stdio) reads it via createRequire and calls setServerVersion()
 //   - the Worker reads it via a JSON import inlined by esbuild and calls it too
-// A static `import "../package.json"` is avoided on purpose: it breaks tsc's rootDir
-// and createRequire is unavailable in the Worker runtime (no nodejs_compat).
+// A static `import "../package.json"` is avoided on purpose: it breaks tsc's rootDir.
+// (Uma versão anterior deste comentário dizia que o runtime do Worker não tem
+// `nodejs_compat`; é FALSO — o flag está em `worker/wrangler.jsonc` desde a
+// fundação, e o D4 mediu isso no workerd. O motivo de injetar a versão é o
+// rootDir, só.)
 // The fallback is only used if no entry point injects a version; keep it = package.json.
-let serverVersion = "1.7.0";
+let serverVersion = "1.8.0";
 
 export function setServerVersion(version: string): void {
   serverVersion = version;
@@ -94,6 +97,29 @@ export interface ToolResult {
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 }
+
+// ==================== TEXTOS VERBATIM DA ORIGEM ====================
+//
+// Moram aqui, e não em `cambio.ts`, porque desde o D4 têm DOIS consumidores: as
+// tools de câmbio (que os publicam no payload) e o registro de fontes da
+// proveniência (que os publica como `notices` do bloco). Duas cópias do mesmo
+// texto verbatim é como uma delas envelhece sem ninguém notar.
+
+/**
+ * Disclaimer de responsabilidade do BCB sobre a PTAX, repassado VERBATIM ao
+ * usuário final — é o único texto tipo-ToS que o BCB publica (`bcb/docs/01` §3).
+ */
+export const DISCLAIMER_PTAX =
+  "O Banco Central não assume qualquer responsabilidade pela não simultaneidade ou falta das informações " +
+  "prestadas, assim como por eventuais erros de paridades das moedas. Não assume, também, responsabilidade " +
+  "por qualquer perda ou dano oriundo de tais interrupções, atrasos, falhas ou imperfeições, bem como pelo " +
+  "uso inadequado das informações.";
+
+/** Procedência de terceiro dentro do dado da PTAX (`bcb/docs/01` §3). */
+export const QUALIFICACAO_PARIDADE =
+  "As paridades das moedas contra o dólar americano NÃO são apuradas pelo Banco Central: são obtidas junto a " +
+  "agências de informação (Refinitiv) e redistribuídas pelo BCB. Trate-as como dado de terceiro qualificado, " +
+  "não como dado do BCB.";
 
 // ==================== OUTPUT HELPERS ====================
 
@@ -174,6 +200,83 @@ export class ErroSerieInexistente extends Error {
   }
 }
 
+// ==================== COLETOR DE EXTRAÇÃO (D4) ====================
+//
+// O bloco de proveniência precisa publicar o instante REAL da extração na
+// origem, e três fatos medidos em 13/08/2026 (`bcb/docs/07`) definem esta forma:
+//
+//  1. Uma chamada faz de 0 a 6 requisições — não existe "o" instante. A regra
+//     adotada é o instante mais ANTIGO entre os acessos que alimentaram a
+//     resposta (precedente medical).
+//  2. Há cache: o índice do portal vale 24 h e responde SEM tocar a origem
+//     (medido: 2ª busca em 3 ms, zero requisições). Carimbar `new Date()` ali
+//     afirmaria uma extração que não aconteceu — com erro de até um dia, no
+//     campo de peso legal. Por isso o cache registra o instante ORIGINAL.
+//  3. Variável de módulo estaria errada no hospedado: o isolate atende
+//     requisições concorrentes e a proveniência de um usuário vazaria na
+//     resposta de outro. `AsyncLocalStorage` isola por despacho — medido no
+//     workerd, com a mesma `compatibility_date` e os mesmos flags do worker:
+//     sobrevive a `await`, sobrevive a `Promise.all` e não contamina.
+
+import { AsyncLocalStorage } from "node:async_hooks";
+
+/** Um acesso a dado da origem dentro de uma chamada de tool. */
+export interface AcessoOrigem {
+  url: string;
+  /** Instante da extração na origem — de cache, é o instante do fetch ORIGINAL. */
+  instante: Date;
+  deCache: boolean;
+}
+
+const coletor = new AsyncLocalStorage<AcessoOrigem[]>();
+
+/**
+ * Abre um coletor para uma chamada. Fora dele, `registrarAcesso` é no-op e a
+ * proveniência degrada para o instante da chamada — nunca quebra.
+ */
+export function comColetorDeExtracao<T>(fn: () => Promise<T>): Promise<T> {
+  return coletor.run([], fn);
+}
+
+/** Registra um acesso a dado da origem. Chamado no ponto de rede e no cache. */
+export function registrarAcesso(url: string, instante: Date, deCache = false): void {
+  coletor.getStore()?.push({ url, instante, deCache });
+}
+
+/** Só para os testes: o que foi registrado na chamada corrente. */
+export function acessosRegistrados(): AcessoOrigem[] {
+  return [...(coletor.getStore() ?? [])];
+}
+
+export interface ExtracaoAgregada {
+  /** Instante mais antigo entre os acessos; a hora da chamada se não houve nenhum. */
+  retrievedAt: Date;
+  /** `true` só se TODO acesso veio de cache; `null` quando não houve acesso à origem. */
+  servedFromCache: boolean | null;
+  /** Quantos acessos alimentaram a resposta (0 = respondida só com dado do servidor). */
+  acessos: number;
+}
+
+/**
+ * Agrega os acessos da chamada corrente. `filtro` restringe a uma fonte quando
+ * a resposta mistura procedências (ex.: portal × catálogo curado).
+ */
+export function extracaoDaChamada(filtro?: (url: string) => boolean): ExtracaoAgregada {
+  const todos = coletor.getStore() ?? [];
+  const acessos = filtro ? todos.filter(a => filtro(a.url)) : todos;
+
+  if (acessos.length === 0) {
+    return { retrievedAt: new Date(), servedFromCache: null, acessos: 0 };
+  }
+
+  const maisAntigo = acessos.reduce((a, b) => (a.instante <= b.instante ? a : b));
+  return {
+    retrievedAt: maisAntigo.instante,
+    servedFromCache: acessos.every(a => a.deCache),
+    acessos: acessos.length
+  };
+}
+
 export async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -211,7 +314,11 @@ export async function fetchBcbApi(
       }
 
       try {
-        return await response.json();
+        const dados = await response.json();
+        // Instante da extração para o bloco de proveniência (D4). Registrado só
+        // no sucesso: uma tentativa que falhou não extraiu dado nenhum.
+        registrarAcesso(url, new Date(), false);
+        return dados;
       } catch {
         // 200 com a página institucional em HTML tem DUAS causas, e mandar o
         // usuário para a errada custa caro:

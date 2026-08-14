@@ -5,6 +5,55 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-08-13
+
+Every successful response now carries **where the data came from, when it was
+actually extracted, and under which licence** — the portfolio's provenance
+contract v1.0. Additive: nothing was removed from the tool contract, and the 15
+tools, their inputs and their existing output fields are untouched. Measurements
+behind the design are in `bcb/docs/07`.
+
+### Added
+- **Provenance block on all 15 tools**, in two channels: `provenance` +
+  `attribution` inside `structuredContent`, and a `_meta` mirror under
+  `br.com.sidneybissoli.bcb/*` (out of band, zero model tokens). Each block names
+  the source, the canonical URL that reproduces the query, the data vintage, the
+  extraction instant and the licence.
+- **`retrieved_at` is the real upstream extraction instant, not "now".** The
+  portal index is served from a 24-hour cache, and a search answered from cache
+  reports the instant the index was actually fetched — which can be a day old,
+  and is the legally relevant date. Claiming "now" there would assert an
+  extraction that never happened.
+- **One block per provenance, never merged.** `bcb_buscar_serie` and
+  `bcb_serie_metadados` separate the BCB from the server's own curated catalogue;
+  `bcb_cambio_cotacao` separates BCB-compiled dollar rates from cross-currency
+  parities, which come from an information agency (Refinitiv) and are only
+  redistributed by the BCB. These three tools publish an array of blocks.
+- **`NOTICE.md`** with the ODbL v1.0 obligations, the per-API responsible
+  department, the verbatim BCB disclaimer and the third-party parity
+  qualification. The Portuguese README now states the data licence too — it
+  previously mentioned only the MIT licence of the code, which is a different
+  thing.
+- **Tool-selection eval** (`src/evals/`): 42 pt-BR fixtures across seven clusters,
+  validated offline against the live catalogue inside `npm test`. Not published to
+  npm.
+
+### Fixed
+- **`bcb_comparar`'s mixed-periodicity warning now decides by the MEASURED
+  periodicity**, not by the curated catalogue's label — the same rule
+  `bcb_correlacao` already followed. Series 11 is catalogued as monthly and the
+  source publishes it every business day; deciding by the label kept the warning
+  silent in exactly the case that needed it.
+
+### Changed
+- The ODbL licence facts were re-verified against the source on 2026-08-13:
+  4,259 of the portal's 4,260 datasets declare `odc-odbl`. The block publishes the
+  canonical HTTPS licence URL; the one the portal declares resolves, but only over
+  plain HTTP.
+- New runtime dependency `@sbissoli/mcp-provenance` (which brings `zod` in
+  transitively). The published surface is still hand-written JSON Schema served
+  verbatim.
+
 ## [1.7.0] - 2026-08-13
 
 The curated catalog was verified against the source, series by series, for the

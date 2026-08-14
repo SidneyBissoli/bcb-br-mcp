@@ -63,10 +63,28 @@ function call(tool: string, args: Record<string, unknown> = {}): Promise<ToolRes
   return dispatchTool(tool, args, 5000, 1);
 }
 
+/**
+ * Payload SEM o canal de proveniência, para que as asserções valor a valor
+ * abaixo sigam sendo o que sempre foram.
+ *
+ * O D4 acrescentou `provenance` e `attribution` a toda resposta de sucesso. A
+ * tentação seria trocar os `toEqual` por `toMatchObject` — isso relaxaria o
+ * gate inteiro, que é justamente o que o `CLAUDE.md` proíbe, e faria esta suíte
+ * parar de perceber campo REMOVIDO. Em vez disso: os dois campos novos são
+ * retirados aqui e verificados por conta própria (`provenienciaDe`), então cada
+ * `toEqual` continua exigindo igualdade exata do resto.
+ */
 function structured(result: ToolResult): Record<string, unknown> {
   expect(result.isError).toBeUndefined();
   expect(result.structuredContent).toBeDefined();
-  return result.structuredContent as Record<string, unknown>;
+  const payload = { ...(result.structuredContent as Record<string, unknown>) };
+
+  // Presença é obrigatória: se sumir, o teste falha aqui em vez de passar calado.
+  expect(payload.provenance).toBeDefined();
+  expect(Array.isArray(payload.attribution)).toBe(true);
+  delete payload.provenance;
+  delete payload.attribution;
+  return payload;
 }
 
 beforeEach(() => {

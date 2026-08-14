@@ -31,7 +31,13 @@
 // Só primitivos: a curadoria de séries entra por parâmetro (e não por import de
 // `tools.ts`) para a busca ser testável sem estado global e para não haver ciclo
 // entre os módulos de tool.
-import { fetchBcbApi, normalizeString, type ProcedenciaNome, type SeriePopular } from "./shared.js";
+import {
+  fetchBcbApi,
+  normalizeString,
+  registrarAcesso,
+  type ProcedenciaNome,
+  type SeriePopular
+} from "./shared.js";
 
 export const CKAN_PACKAGE_LIST = "https://dadosabertos.bcb.gov.br/api/3/action/package_list";
 export const CKAN_DATASET_BASE = "https://dadosabertos.bcb.gov.br/dataset";
@@ -160,7 +166,14 @@ async function renovar(timeoutMs?: number, maxRetries?: number): Promise<Snapsho
  * chamou cai no catálogo curado.
  */
 export async function obterCatalogo(timeoutMs?: number, maxRetries?: number): Promise<ResultadoCatalogo> {
-  if (cache && Date.now() < cache.expiraEm) return { snapshot: cache };
+  if (cache && Date.now() < cache.expiraEm) {
+    // Acerto de cache: a extração aconteceu quando o índice foi obtido, podendo
+    // ser de até 24 h atrás — e é essa a data juridicamente relevante. Sem este
+    // registro o bloco de proveniência afirmaria uma extração que não houve
+    // (medido em `bcb/docs/07`: a 2ª busca responde com ZERO requisição).
+    registrarAcesso(CKAN_PACKAGE_LIST, new Date(cache.obtidoEm), true);
+    return { snapshot: cache };
+  }
 
   if (!renovacaoEmVoo) {
     renovacaoEmVoo = renovar(timeoutMs, maxRetries)
@@ -178,6 +191,9 @@ export async function obterCatalogo(timeoutMs?: number, maxRetries?: number): Pr
   } catch (error) {
     const motivo = error instanceof Error ? error.message : String(error);
     if (cache) {
+      // Retrato VENCIDO servido por degradação — a extração segue sendo a do
+      // fetch original, e agora ela é ainda mais antiga que 24 h.
+      registrarAcesso(CKAN_PACKAGE_LIST, new Date(cache.obtidoEm), true);
       return {
         snapshot: cache,
         aviso:

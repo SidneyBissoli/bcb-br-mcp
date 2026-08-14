@@ -559,6 +559,54 @@ try {
     check("  → símbolos utilizáveis em bcb_cambio_cotacao", (moedasOut?.moedas ?? []).some(m => m.simbolo === "EUR"));
   }
 
+  // ==================== proveniência (D4) ====================
+  //
+  // Aqui o smoke não pergunta "veio bloco?" — isso o `provenance.test.ts` já
+  // prova offline. Pergunta o que só a origem responde: se o instante afirmado
+  // é o da extração de agora, e se o bloco da PTAX em moeda não-USD separa a
+  // procedência de terceiro. Bloco bem-formado com data errada passa em
+  // qualquer validador de schema.
+  const provSerie = await call("bcb_serie_ultimos", { codigo: 433, quantidade: 3 });
+  const provOut = provSerie.result?.structuredContent;
+  checkUpstream("proveniência: bcb_serie_ultimos traz o bloco", provSerie.result);
+  if (!provSerie.result?.isError) {
+    const b = provOut?.provenance;
+    const hoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    check("  → licença declarada é a ODbL", (b?.license ?? "").includes("ODbL"));
+    check("  → a extração é de AGORA, não do build", (b?.retrieved_at ?? "").startsWith(hoje), b?.retrieved_at);
+    check("  → source_url reproduz a consulta na origem", (b?.source_url ?? "").includes("bcdata.sgs.433"));
+    check("  → citação pronta nomeia a série", (b?.citation ?? "").includes("433"));
+    check("  → lista de atribuição não vem vazia", (provOut?.attribution ?? []).length > 0);
+  }
+
+  // A busca é a única tool servida de cache: o instante tem de ser o da
+  // obtenção do índice, e não o de agora. Duas chamadas seguidas provam.
+  await call("bcb_buscar_serie", { termo: "selic" });
+  const busca2 = await call("bcb_buscar_serie", { termo: "cambio" });
+  const busca2Out = busca2.result?.structuredContent;
+  checkUpstream("proveniência: 2ª busca é servida de cache", busca2.result);
+  if (!busca2.result?.isError) {
+    const doPortal = (busca2Out?.provenance ?? []).find(x => String(x.source).includes("Portal"));
+    const doServidor = (busca2Out?.provenance ?? []).find(x => String(x.source).includes("catálogo curado"));
+    check("  → um bloco por procedência (portal × catálogo do servidor)", !!doPortal && !!doServidor);
+    // Comparar por INSTANTE, não por string: o bloco sai em horário de Brasília
+    // (-03:00) e o `obtidoEm` do catálogo sai em UTC — são o mesmo momento
+    // escrito de dois jeitos. O contrato serializa truncando no segundo.
+    const seg = iso => Math.floor(new Date(iso).getTime() / 1000);
+    check(
+      "  → o instante do portal é o da obtenção do índice, não o de agora",
+      !!doPortal && seg(doPortal.retrieved_at) === seg(busca2Out?.catalogo?.obtidoEm),
+      `${doPortal?.retrieved_at} × ${busca2Out?.catalogo?.obtidoEm}`
+    );
+  }
+
+  // Fronteira BCB × agência de informação, dentro da mesma resposta.
+  if (!ptax.result?.isError) {
+    const fontes = (ptaxOut?.provenance ?? []).map(x => String(x.source));
+    check("  → paridade não-USD ganha bloco de procedência própria", fontes.some(f => f.includes("Refinitiv")));
+    check("  → e o bloco do BCB continua presente ao lado", fontes.some(f => f.includes("PTAX") && !f.includes("Refinitiv")));
+  }
+
   // Leitura de resource.
   const leitura = await client.rpc("resources/read", { uri: "bcb://series/principais" });
   check("resources/read bcb://series/principais", !!leitura.result?.contents?.[0]?.text);

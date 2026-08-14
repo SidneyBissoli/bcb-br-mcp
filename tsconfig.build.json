@@ -2,6 +2,11 @@
   // Build de publicação: mesmo compilador do tsconfig.json, sem os testes.
   // `npm run typecheck` usa o tsconfig.json (que INCLUI os testes, para que
   // erros de tipo neles também quebrem o gate); `npm run build` usa este.
+  //
+  // `src/evals/` também fica de fora, e não é preferência: ele importa
+  // `@sbissoli/mcp-evals`, que é devDependency. Compilado para `dist/`, o
+  // pacote publicado passaria a apontar, em runtime, para algo que o consumidor
+  // não instala. O eval roda do fonte, por tsx.
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/evals"]
 }

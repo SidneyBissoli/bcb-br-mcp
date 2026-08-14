@@ -8,8 +8,14 @@ An MCP server, published to npm as `bcb-br-mcp`, exposing three public APIs of
 the Brazilian Central Bank as 15 tools over STDIO and Streamable HTTP: the SGS
 time series (Selic, IPCA, FX, GDP and 139 verified indicators), the **Focus**
 market-expectations survey (Olinda OData) and **PTAX** exchange rates. Pure
-TypeScript, ESM, two runtime dependencies: `@modelcontextprotocol/server` (MCP SDK
-v2) and `@sbissoli/mcp-stats` (motor de estatística do portfólio). No database;
+TypeScript, ESM, three runtime dependencies: `@modelcontextprotocol/server` (MCP SDK
+v2), `@sbissoli/mcp-stats` (motor de estatística do portfólio) e
+`@sbissoli/mcp-provenance` (contrato de proveniência). Este último traz **zod de
+volta, como dependência transitiva** — custo aceito de propósito no D4: a regra
+do portfólio é não reimplementar componente da Fase 0 localmente, e uma
+proveniência local faria o campo `motor` do bloco `derivacao` mentir, que é o
+mesmo argumento que decidiu a correlação na sessão 06. O zod é interno; a
+superfície publicada continua sendo JSON Schema escrito à mão. No database;
 the only state is module-level — the curated series catalog and the 24-hour cache
 of the Open Data Portal index (metadata only).
 
@@ -22,14 +28,20 @@ Two consumer channels, both in production and both protected:
 ## Commands
 
 ```bash
-npm run build          # limpa dist/ e compila com tsconfig.build.json (sem testes)
+npm run build          # limpa dist/ e compila com tsconfig.build.json (sem testes nem evals)
 npm start              # node dist/index.js (servidor MCP em stdio)
 npm test               # vitest run
 npm run typecheck      # tsc --noEmit (inclui os testes — o build os exclui)
 npm run smoke          # smoke contra o worker hospedado
 node scripts/smoke-mcp.mjs --stdio        # o mesmo smoke sobre dist/index.js local
 node scripts/dump-surface.mjs --stdio     # dump normalizado da superfície (ver baselines/)
+npx tsx src/evals/run.ts                  # eval de seleção com MODELO REAL — CUSTA DINHEIRO
 ```
+
+O eval pago consome a API da Anthropic, cobrada à parte de qualquer assinatura.
+**Nunca rodar sem o decisor pedir a rodada**; sem `ANTHROPIC_API_KEY` o script
+imprime instruções e sai com 0. O sinal offline é `src/evals/fixtures.test.ts`,
+que roda dentro do `npm test`.
 
 O Worker (`worker/`, não publicado no npm) é uma instância do template de
 hosting da Fase 0 (`mcp-br-commons/templates/cloudflare-worker`) e tem scripts
@@ -67,6 +79,7 @@ trouxe a segunda e a terceira API):
 | `src/stats.ts` | Adaptador do `@sbissoli/mcp-stats` (D2) — distribuição, **correlação** e as convenções de arredondamento e de derivação do servidor. |
 | `src/tools.ts` | Tools do SGS + montagem do catálogo canônico + `dispatchTool`. |
 | `src/catalog.ts` | Índice do Portal de Dados Abertos (CKAN) para a busca real: cache de 24 h, renovação bloqueante, só metadados. |
+| `src/provenance.ts` | Adaptador do `@sbissoli/mcp-provenance` (D4) — contexto pt-BR/-03:00, registro `FONTES_BCB`, construtor por chamada e os helpers de schema `comProveniencia`/`comProvenienciaMulti`. |
 | `src/olinda.ts` | Tradução do OData: montagem de URL, literais, datas, `consultarOData`. Concentra as pegadinhas da fonte. |
 | `src/focus.ts` | Expectativas de Mercado (Focus) — 3 tools. |
 | `src/cambio.ts` | PTAX — 2 tools, com disclaimer e qualificação de paridade. |
@@ -95,6 +108,36 @@ divergido de verdade (contrato HTTP sem `minItems`/`maxItems`, sem `default`,
 sem `additionalProperties`; resources publicados com nomes diferentes;
 descrições de tool 12× menores em produção). A medição está em
 `baselines/README.md` — leia antes de mexer na superfície.
+
+**Proveniência (contrato v1.0 do portfólio, desde o D4).** Toda resposta de
+sucesso carrega `provenance` + `attribution` em `structuredContent`, com espelho
+em `_meta` sob `br.com.sidneybissoli.bcb/*`. Três coisas aqui não são iguais às
+dos servidores irmãos, e cada uma tem um fato por trás (medições em
+`bcb/docs/07`):
+
+- **O canal de rodapé de texto NÃO existe aqui.** No ibge e no medical o canal
+  de texto é Markdown; aqui ele é o payload serializado em JSON
+  (`structuredResult`), e anexar rodapé produziria um bloco de texto que não é
+  JSON válido. O bloco já vai no texto, dentro do payload.
+- **O array multi-bloco NÃO é por API.** Nenhuma tool mistura APIs e a licença é
+  a mesma nas três (ODbL), então segregar por API não segregaria licença nenhuma.
+  O array serve a duas fronteiras de PROCEDÊNCIA: servidor × BCB
+  (`bcb_series_populares`, `bcb_buscar_serie`, `bcb_serie_metadados`) e BCB ×
+  agência de informação (`bcb_cambio_cotacao` em moeda não-USD). A lista está em
+  `TOOLS_MULTI_PROVENIENCIA`, em `tools.ts`.
+- **`retrieved_at` é o instante REAL da extração**, coletado por
+  `AsyncLocalStorage` aberto no `dispatchTool` e alimentado no ponto único de
+  rede (`fetchBcbApi`) e no acerto de cache do catálogo. Uma busca servida do
+  cache de 24 h reporta o instante do fetch ORIGINAL — que pode ser de ontem, e
+  é a data com peso legal. Carimbar `new Date()` ali seria afirmar uma extração
+  que não aconteceu. Regra de agregação: instante mais ANTIGO entre os acessos;
+  `served_from_cache` só quando TUDO veio de cache. A serialização do contrato
+  trunca no segundo.
+
+O canal é acrescentado aos `outputSchema` num lugar só, na montagem de
+`TOOL_DEFINITIONS` — tool nova o herda sem depender de ninguém lembrar. O gate é
+`src/provenance.test.ts`, que inclui uma asserção de cobertura: tool publicada
+sem caso de teste quebra a suíte.
 
 **Schemas:** os JSON Schemas em `TOOL_DEFINITIONS` são a superfície publicada e
 vão ao ar VERBATIM (via `fromJsonSchema`). Não devolva schemas derivados de zod
@@ -161,6 +204,14 @@ landing page. O contador `legacy_root_post` em `/metrics` mede quem ainda usa.
   a conformidade: cliente que valida (o Inspector valida) rejeita a resposta
   inteira. Os casos cobrem os caminhos que produzem `null`, que é onde isso
   quebra. **Ao acrescentar campo em resposta, acrescente o caso aqui.**
+- `src/provenance.test.ts` — o gate do canal de proveniência. Existe porque um
+  bloco pode casar com o schema e ainda assim MENTIR, e o `output-contract` não
+  pega isso. Cobre as 15 tools (com asserção de cobertura), o instante servido de
+  cache, a ausência de contaminação entre chamadas concorrentes e as duas
+  fronteiras de procedência.
+- `src/evals/fixtures.test.ts` — sinal offline do eval de seleção: valida as 42
+  fixtures pt-BR contra o catálogo VIVO (montado de `TOOL_DEFINITIONS`). Renomear
+  ou remover tool quebra aqui na hora, sem rede e sem custo.
 - `src/register.test.ts` — fidelidade registro↔wire pelo cliente v2 sobre
   transporte em memória.
 - `worker/tests/` — auth, rate limit, agregação de uso, status, superfície.

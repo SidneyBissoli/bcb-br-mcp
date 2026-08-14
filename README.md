@@ -458,10 +458,30 @@ exist.
 ### Data source and licence
 
 Data obtained from the Banco Central do Brasil (SGS / Olinda-Expectativas / PTAX), published under the
-**Open Data Commons Open Database License (ODbL) v1.0** — https://opendatacommons.org/licenses/odbl/.
-Exchange-rate answers pass through the BCB's own liability disclaimer verbatim; cross-currency parities are
-**not** compiled by the BCB — they come from an information agency (Refinitiv) and are redistributed by the
-BCB, and the tools say so.
+**Open Data Commons Open Database License (ODbL) v1.0** — https://opendatacommons.org/licenses/odbl/1-0/.
+Re-verified against the source on 2026-08-13: 4,259 of the portal's 4,260 datasets declare
+`license_id: "odc-odbl"`. This is **not** CC0, CC BY, or public domain — ODbL carries attribution,
+share-alike (on derived databases) and anti-DRM clauses. Exchange-rate answers pass through the BCB's own
+liability disclaimer verbatim; cross-currency parities are **not** compiled by the BCB — they come from an
+information agency (Refinitiv) and are redistributed by the BCB, and the tools say so.
+
+The server's own code is MIT; the data is not. See [NOTICE.md](NOTICE.md).
+
+### Provenance block
+
+Every successful tool response carries a provenance block (portfolio contract v1.0) in two channels:
+`structuredContent.provenance` + `attribution` (visible to the model) and a `_meta` mirror under
+`br.com.sidneybissoli.bcb/*` (out of band, zero tokens). Each block names the source, the canonical URL that
+reproduces the query, the data vintage, the **real** upstream extraction instant, and the licence.
+
+Two details that are easy to get wrong and are handled here:
+
+- **`retrieved_at` is the real extraction instant, not "now".** The portal index is served from a 24-hour
+  cache, so a search answered from cache reports the instant the index was actually fetched — which can be a
+  day old, and is the legally relevant date.
+- **One block per provenance, never merged.** `bcb_buscar_serie` separates the BCB portal index from the
+  server's own curated catalogue; `bcb_serie_metadados` separates the live SGS reading from the catalogue;
+  `bcb_cambio_cotacao` separates BCB-compiled dollar rates from agency-sourced cross-currency parities.
 
 ## Development
 

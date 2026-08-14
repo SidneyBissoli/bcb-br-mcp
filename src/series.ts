@@ -262,7 +262,7 @@ export interface ResultadoSerie {
   requisicoes: number;
 }
 
-function urlSerie(codigo: number, inicio?: string, fim?: string): string {
+export function urlSerie(codigo: number, inicio?: string, fim?: string): string {
   let url = `${BCB_SGS_BASE}.${codigo}/dados?formato=json`;
   if (inicio) url += `&dataInicial=${inicio}`;
   if (fim) url += `&dataFinal=${fim}`;

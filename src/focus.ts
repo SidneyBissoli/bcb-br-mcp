@@ -36,9 +36,40 @@ import {
   somarDiasIso,
   textoOuNulo
 } from "./olinda.js";
-import { erroResult, leituraRemota, mensagemDeErro, structuredResult, type ToolDefinition, type ToolResult } from "./shared.js";
+import { erroResult, leituraRemota, mensagemDeErro, type ToolDefinition, type ToolResult } from "./shared.js";
+import {
+  provenienciaBcb,
+  resultadoComProveniencia,
+  type Proveniencia
+} from "./provenance.js";
 
 export type Horizonte = "mensal" | "trimestral" | "anual" | "inflacao_12m" | "inflacao_24m";
+
+/**
+ * Bloco de proveniência de uma consulta ao Focus.
+ *
+ * A competência sai do campo `Data` das próprias coletas — **o Focus é vintage
+ * por construção**, e é a única das três APIs em que a fonte publica a data em
+ * que a expectativa foi coletada. Zero requisição a mais.
+ */
+function provFocus(opts: {
+  url: string;
+  recurso: string;
+  detalhe: string;
+  coletas: Array<{ coletadoEm: string | null }>;
+}): Proveniencia {
+  const datas = opts.coletas.map(c => c.coletadoEm).filter((d): d is string => d !== null).sort();
+  const vintage =
+    datas.length === 0 ? null : datas[0] === datas[datas.length - 1] ? datas[0] : `${datas[0]}–${datas[datas.length - 1]}`;
+
+  return provenienciaBcb({
+    fonte: "FOCUS",
+    url: opts.url,
+    dataset: { id: opts.recurso, name: "Expectativas de Mercado (Focus)", version: null },
+    dataVintage: vintage,
+    detalheCitacao: opts.detalhe
+  });
+}
 
 /** Janela de coleta padrão quando o usuário não informa datas. */
 const JANELA_PADRAO_DIAS = 30;
@@ -311,7 +342,15 @@ export async function handleFocusExpectativas(
         `${JANELA_PADRAO_DIAS} dias.`;
     }
 
-    return structuredResult(payload);
+    return resultadoComProveniencia(
+      payload,
+      provFocus({
+        url,
+        recurso: args.top5 === true ? (recurso.top5 as string) : recurso.consenso,
+        detalhe: `${args.indicador}, horizonte ${args.horizonte}`,
+        coletas: normalizadas
+      })
+    );
   } catch (error) {
     return erroResult(`Erro ao consultar expectativas do Focus: ${mensagemDeErro(error)}`);
   }
@@ -376,7 +415,15 @@ export async function handleFocusSelic(
         `janela padrão é de ${JANELA_PADRAO_DIAS} dias.`;
     }
 
-    return structuredResult(payload);
+    return resultadoComProveniencia(
+      payload,
+      provFocus({
+        url,
+        recurso: args.top5 === true ? RECURSO_SELIC.top5 : RECURSO_SELIC.consenso,
+        detalhe: "Selic, eixo reunião do Copom",
+        coletas: normalizadas
+      })
+    );
   } catch (error) {
     return erroResult(`Erro ao consultar expectativas de Selic: ${mensagemDeErro(error)}`);
   }
@@ -579,7 +626,27 @@ export async function handleFocusReferencias(
       "Chame esta tool SEM `indicador` para ver a lista de nomes publicados por escopo.";
   }
 
-  return structuredResult(payload);
+  return resultadoComProveniencia(
+    payload,
+    provenienciaBcb({
+      fonte: "FOCUS",
+      // Vários recursos numa resposta só: o `source_url` é o endpoint-base e cada
+      // escopo entra com a própria URL em `field_sources`.
+      url: EXPECTATIVAS_ODATA,
+      dataset: {
+        id: consultas.map(c => c.plano.recurso).join(", "),
+        name: "descoberta de indicadores e referências",
+        version: null
+      },
+      dataVintage: `${dataInicial}–${dataFinal}`,
+      detalheCitacao: "referências publicadas por escopo",
+      fontesPorCampo: consultas.map(({ plano, url }) => ({
+        fields: [`escopos[escopo=${plano.escopo}]`],
+        source_url: url,
+        dataset_id: plano.recurso
+      }))
+    })
+  );
 }
 
 // ==================== SCHEMAS ====================

@@ -509,7 +509,21 @@ Contribuições são bem-vindas! Por favor:
 
 ## Licença
 
-MIT - veja [LICENSE](LICENSE) para detalhes.
+**Duas licenças, e elas não são a mesma coisa.**
+
+- **Código:** MIT — veja [LICENSE](LICENSE).
+- **Dados:** do Banco Central do Brasil, sob **Open Data Commons Open Database
+  License (ODbL) v1.0** — https://opendatacommons.org/licenses/odbl/1-0/.
+  Não é CC0, não é CC BY, não é domínio público: a ODbL exige **atribuição**,
+  tem **share-alike** sobre bases derivadas e cláusula **anti-DRM**.
+
+Toda resposta de sucesso carrega um bloco de proveniência com fonte, URL da
+consulta, competência do dado, instante real da extração e licença. As respostas
+de câmbio repassam o disclaimer do BCB literalmente, e as paridades de moedas
+não-dólar são qualificadas como dado de agência de informação (Refinitiv)
+redistribuído pelo BCB — não como dado apurado pelo Banco Central.
+
+Detalhes e obrigações em [NOTICE.md](NOTICE.md).
 
 ## Autor
 

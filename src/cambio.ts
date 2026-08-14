@@ -30,22 +30,25 @@ import {
   somarDiasIso,
   textoOuNulo
 } from "./olinda.js";
-import { erroResult, leituraRemota, mensagemDeErro, structuredResult, type ToolDefinition, type ToolResult } from "./shared.js";
+import {
+  DISCLAIMER_PTAX,
+  QUALIFICACAO_PARIDADE,
+  erroResult,
+  leituraRemota,
+  mensagemDeErro,
+  type ToolDefinition,
+  type ToolResult
+} from "./shared.js";
+import { provenienciaBcb, resultadoComProveniencia } from "./provenance.js";
 
 /** Janela padrão quando não se informa data nenhuma: cobre feriados e fins de semana. */
 const JANELA_PADRAO_DIAS = 7;
 
-/** Repassado literalmente, como o `docs/01` exige. */
-export const DISCLAIMER_PTAX =
-  "O Banco Central não assume qualquer responsabilidade pela não simultaneidade ou falta das informações " +
-  "prestadas, assim como por eventuais erros de paridades das moedas. Não assume, também, responsabilidade " +
-  "por qualquer perda ou dano oriundo de tais interrupções, atrasos, falhas ou imperfeições, bem como pelo " +
-  "uso inadequado das informações.";
-
-export const QUALIFICACAO_PARIDADE =
-  "As paridades das moedas contra o dólar americano NÃO são apuradas pelo Banco Central: são obtidas junto a " +
-  "agências de informação (Refinitiv) e redistribuídas pelo BCB. Trate-as como dado de terceiro qualificado, " +
-  "não como dado do BCB.";
+// Os dois textos verbatim moram em `shared.ts` desde o D4: além do payload,
+// agora eles alimentam os `notices` do bloco de proveniência, e duas cópias do
+// mesmo texto verbatim é como uma delas envelhece sem ninguém notar. Ficam
+// re-exportados daqui porque testes e schemas os importam deste módulo.
+export { DISCLAIMER_PTAX, QUALIFICACAO_PARIDADE } from "./shared.js";
 
 export interface CotacaoNormalizada {
   /** Data e hora da cotação como a fonte publica. */
@@ -77,6 +80,8 @@ export function normalizarCotacao(linha: Record<string, unknown>, dolar: boolean
 
 interface UrlCotacao {
   url: string;
+  /** Nome do recurso OData escolhido, sem a query string (para a proveniência). */
+  recurso: string;
   dolar: boolean;
   dataInicial: string;
   dataFinal: string;
@@ -135,7 +140,9 @@ export function montarUrlCotacao(args: {
   // O recurso já carrega query string, então o formato entra com `&`.
   const url = `${PTAX_ODATA}/${recurso}&$format=json`;
 
-  return { url, dolar, dataInicial: inicio, dataFinal: fim, janelaPadrao };
+  // `recurso` sai junto para o bloco de proveniência identificar o conjunto
+  // consultado; só o nome, sem a query string.
+  return { url, recurso: recurso.split("(")[0], dolar, dataInicial: inicio, dataFinal: fim, janelaPadrao };
 }
 
 export interface ArgsCotacao {
@@ -188,7 +195,25 @@ export async function handleCambioCotacao(
         "bcb_cambio_moedas.";
     }
 
-    return structuredResult(payload);
+    // Fronteira de procedência DENTRO da mesma resposta: a cotação do dólar é
+    // apurada pelo BCB; a paridade de qualquer outra moeda vem de agência de
+    // informação e é só redistribuída pelo BCB (`bcb/docs/01` §3). São licenças
+    // com a mesma letra e procedências diferentes — por isso, dois blocos.
+    const datas = todas.map(c => c.dataHora).filter((d): d is string => d !== null).sort();
+    const vintage = datas.length === 0 ? null : datas[0] === datas[datas.length - 1] ? datas[0] : `${datas[0]}–${datas[datas.length - 1]}`;
+    const bloco = (fonte: "PTAX" | "PARIDADE_REFINITIV") =>
+      provenienciaBcb({
+        fonte,
+        url: montada.url,
+        dataset: { id: montada.recurso, name: "Cotações e boletins de câmbio", version: null },
+        dataVintage: vintage,
+        detalheCitacao: `moeda ${(args.moeda ?? "USD").toUpperCase()}`
+      });
+
+    return resultadoComProveniencia(
+      payload,
+      montada.dolar ? [bloco("PTAX")] : [bloco("PTAX"), bloco("PARIDADE_REFINITIV")]
+    );
   } catch (error) {
     return erroResult(`Erro ao consultar cotação de câmbio: ${mensagemDeErro(error)}`);
   }
@@ -219,16 +244,26 @@ export async function handleCambioMoedas(
       moedas = moedas.filter(m => (m.simbolo ?? "").includes(termo) || (m.nome ?? "").toUpperCase().includes(termo));
     }
 
-    return structuredResult({
-      termo: args.termo ?? null,
-      totalMoedas: moedas.length,
-      moedas,
-      disclaimer: DISCLAIMER_PTAX,
-      qualificacaoParidade: QUALIFICACAO_PARIDADE,
-      urlConsulta: url,
-      consultadoEm: new Date().toISOString(),
-      observacao: "Use o `simbolo` em bcb_cambio_cotacao. O dólar americano (USD) é o padrão da tool de cotação."
-    });
+    return resultadoComProveniencia(
+      {
+        termo: args.termo ?? null,
+        totalMoedas: moedas.length,
+        moedas,
+        disclaimer: DISCLAIMER_PTAX,
+        qualificacaoParidade: QUALIFICACAO_PARIDADE,
+        urlConsulta: url,
+        consultadoEm: new Date().toISOString(),
+        observacao: "Use o `simbolo` em bcb_cambio_cotacao. O dólar americano (USD) é o padrão da tool de cotação."
+      },
+      // Só metadado (símbolo e nome de moeda), não cotação: uma procedência só.
+      provenienciaBcb({
+        fonte: "PTAX",
+        url,
+        dataset: { id: "Moedas", name: "Moedas com boletim de câmbio", version: null },
+        dataVintage: null,
+        detalheCitacao: "lista de moedas"
+      })
+    );
   } catch (error) {
     return erroResult(`Erro ao listar moedas: ${mensagemDeErro(error)}`);
   }

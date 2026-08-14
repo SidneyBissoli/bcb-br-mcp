@@ -10,7 +10,7 @@
  * License: MIT
  */
 
-import { obterCatalogo, buscarSeries } from "./catalog.js";
+import { CKAN_PACKAGE_LIST, obterCatalogo, buscarSeries } from "./catalog.js";
 import { FOCUS_TOOL_DEFINITIONS, dispatchFocusTool } from "./focus.js";
 import { CAMBIO_TOOL_DEFINITIONS, dispatchCambioTool } from "./cambio.js";
 import {
@@ -35,6 +35,7 @@ import {
   harmonizar,
   hojeSgs,
   inferirPeriodicidade,
+  urlSerie,
   type Agregacao,
   type FrequenciaAlvo,
   type Periodicidade,
@@ -43,6 +44,7 @@ import {
 import {
   CONFIG,
   calculateVariation,
+  comColetorDeExtracao,
   erroResult,
   fetchBcbApi,
   formatDateForApi,
@@ -55,6 +57,16 @@ import {
   type SerieValor,
   type ToolResult
 } from "./shared.js";
+import {
+  NOTA_DERIVACAO_DEFLACAO,
+  NOTA_DERIVACAO_ESTATISTICA,
+  NOTA_DERIVACAO_HARMONIZACAO,
+  comProveniencia,
+  comProvenienciaMulti,
+  provenienciaBcb,
+  resultadoComProveniencia,
+  type Proveniencia
+} from "./provenance.js";
 
 export {
   ROTULO_PERIODICIDADE,
@@ -311,6 +323,93 @@ function refSerie(codigo: number, periodicidade: Periodicidade | null): Record<s
   };
 }
 
+/**
+ * Competência do dado para o bloco de proveniência: o intervalo coberto pelas
+ * observações devolvidas.
+ *
+ * O SGS não publica versão do dado e **não tem endpoint de metadados**
+ * (`bcb/docs/04`), então a competência sai do que já veio na resposta — zero
+ * requisição a mais. As datas saem no formato da própria fonte.
+ */
+function vintageDeObservacoes(observacoes: Array<{ data: string }>): string | null {
+  if (observacoes.length === 0) return null;
+  const primeira = observacoes[0].data;
+  const ultima = observacoes[observacoes.length - 1].data;
+  return primeira === ultima ? primeira : `${primeira}–${ultima}`;
+}
+
+/**
+ * Bloco de proveniência do catálogo curado do servidor.
+ *
+ * Existe separado porque o catálogo NÃO é extração do BCB no momento da
+ * chamada: são 139 séries mantidas no repositório, com 82 nomes transcritos do
+ * portal e 57 herdados. Medido: `bcb_series_populares` responde com ZERO
+ * requisição à origem (`bcb/docs/07`).
+ */
+function provCatalogoCurado(detalhe?: string): Proveniencia {
+  return provenienciaBcb({
+    fonte: "CATALOGO_CURADO",
+    url: "https://github.com/SidneyBissoli/bcb-br-mcp/blob/main/src/tools.ts",
+    dataset: { id: "catalogo-curado", name: "Catálogo curado de séries do SGS", version: null },
+    dataVintage: "2026-08-13",
+    ...(detalhe ? { detalheCitacao: detalhe } : {})
+  });
+}
+
+/** Bloco de proveniência de uma consulta ao SGS. */
+function provSerieSgs(
+  codigo: number,
+  observacoes: Array<{ data: string }>,
+  janela: { dataInicial?: string; dataFinal?: string } = {},
+  derivado?: { nota: string }
+): Proveniencia {
+  const info = SERIES_POPULARES.find(s => s.codigo === codigo);
+  return provenienciaBcb({
+    fonte: "SGS",
+    url: urlSerie(
+      codigo,
+      janela.dataInicial ? formatDateForApi(janela.dataInicial) : undefined,
+      janela.dataFinal ? formatDateForApi(janela.dataFinal) : undefined
+    ),
+    dataset: { id: `bcdata.sgs.${codigo}`, name: info?.nome ?? null, version: null },
+    dataVintage: vintageDeObservacoes(observacoes),
+    detalheCitacao: `série ${codigo}${info ? ` (${info.nome})` : ""}`,
+    ...(derivado ? { derivado } : {})
+  });
+}
+
+/**
+ * Bloco de proveniência de uma resposta que funde VÁRIAS séries do SGS.
+ *
+ * O `source_url` não pode ser o de uma série só — escolher uma entre cinco
+ * mentiria por omissão sobre as outras quatro. Vai o endpoint-base, e cada série
+ * entra em `field_sources` com a própria URL.
+ */
+function provMultiSerieSgs(
+  series: Array<{ codigo: number; campo: string; inicio?: string; fim?: string; vintage?: string | null }>,
+  detalhe: string,
+  derivado?: { nota: string }
+): Proveniencia {
+  return provenienciaBcb({
+    fonte: "SGS",
+    url: "https://api.bcb.gov.br/dados/serie",
+    dataset: {
+      id: series.map(s => `bcdata.sgs.${s.codigo}`).join(", "),
+      name: detalhe,
+      version: null
+    },
+    dataVintage: series.map(s => s.vintage).find(v => v != null) ?? null,
+    detalheCitacao: `${detalhe} (séries ${series.map(s => s.codigo).join(", ")})`,
+    fontesPorCampo: series.map(s => ({
+      fields: [s.campo],
+      source_url: urlSerie(s.codigo, s.inicio, s.fim),
+      dataset_id: `bcdata.sgs.${s.codigo}`,
+      data_vintage: s.vintage ?? null
+    })),
+    ...(derivado ? { derivado } : {})
+  });
+}
+
 /** Campos de transparência da consulta: só aparecem quando houve o que contar. */
 function blocoRede(resultado: ResultadoSerie): Record<string, unknown> {
   return {
@@ -345,44 +444,54 @@ export async function handleSerieValores(
     const observacoes = resultado.observacoes;
 
     if (observacoes.length === 0) {
-      return structuredResult({
-        serie,
-        totalRegistros: 0,
-        dados: [],
-        observacao: `Nenhum dado encontrado para a série ${args.codigo} no período solicitado.`,
-        ...blocoRede(resultado)
-      });
+      return resultadoComProveniencia(
+        {
+          serie,
+          totalRegistros: 0,
+          dados: [],
+          observacao: `Nenhum dado encontrado para a série ${args.codigo} no período solicitado.`,
+          ...blocoRede(resultado)
+        },
+        provSerieSgs(args.codigo, observacoes, args)
+      );
     }
 
     const dados = observacoes.map(d => ({ data: d.data, valor: parseFloat(d.valor) }));
 
     if (args.frequencia) {
       const h = harmonizar(dados, args.frequencia, args.agregacao ?? "ultimo", resultado.periodicidade);
-      return structuredResult({
-        serie,
-        totalRegistros: h.dados.length,
-        periodoInicial: h.dados[0]?.data,
-        periodoFinal: h.dados[h.dados.length - 1]?.data,
-        dados: h.dados,
-        harmonizacao: {
-          frequencia: h.frequencia,
-          agregacao: h.agregacao,
-          observacoesOriginais: dados.length,
-          derived: true,
-          nota: h.nota
+      return resultadoComProveniencia(
+        {
+          serie,
+          totalRegistros: h.dados.length,
+          periodoInicial: h.dados[0]?.data,
+          periodoFinal: h.dados[h.dados.length - 1]?.data,
+          dados: h.dados,
+          harmonizacao: {
+            frequencia: h.frequencia,
+            agregacao: h.agregacao,
+            observacoesOriginais: dados.length,
+            derived: true,
+            nota: h.nota
+          },
+          ...blocoRede(resultado)
         },
-        ...blocoRede(resultado)
-      });
+        // Harmonizar agrega observações: é derivação, e o bloco diz qual.
+        provSerieSgs(args.codigo, observacoes, args, { nota: NOTA_DERIVACAO_HARMONIZACAO })
+      );
     }
 
-    return structuredResult({
-      serie,
-      totalRegistros: dados.length,
-      periodoInicial: observacoes[0].data,
-      periodoFinal: observacoes[observacoes.length - 1].data,
-      dados,
-      ...blocoRede(resultado)
-    });
+    return resultadoComProveniencia(
+      {
+        serie,
+        totalRegistros: dados.length,
+        periodoInicial: observacoes[0].data,
+        periodoFinal: observacoes[observacoes.length - 1].data,
+        dados,
+        ...blocoRede(resultado)
+      },
+      provSerieSgs(args.codigo, observacoes, args)
+    );
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao consultar série ${args.codigo}: ${error instanceof Error ? error.message : String(error)}` }],
@@ -403,21 +512,27 @@ export async function handleSerieUltimos(
     const serie = refSerie(args.codigo, resultado.periodicidade);
 
     if (resultado.observacoes.length === 0) {
-      return structuredResult({
-        serie,
-        totalRegistros: 0,
-        dados: [],
-        observacao: `Nenhum dado encontrado para a série ${args.codigo}.`,
-        ...blocoRede(resultado)
-      });
+      return resultadoComProveniencia(
+        {
+          serie,
+          totalRegistros: 0,
+          dados: [],
+          observacao: `Nenhum dado encontrado para a série ${args.codigo}.`,
+          ...blocoRede(resultado)
+        },
+        provSerieSgs(args.codigo, resultado.observacoes)
+      );
     }
 
-    return structuredResult({
-      serie,
-      totalRegistros: resultado.observacoes.length,
-      dados: resultado.observacoes.map(d => ({ data: d.data, valor: parseFloat(d.valor) })),
-      ...blocoRede(resultado)
-    });
+    return resultadoComProveniencia(
+      {
+        serie,
+        totalRegistros: resultado.observacoes.length,
+        dados: resultado.observacoes.map(d => ({ data: d.data, valor: parseFloat(d.valor) })),
+        ...blocoRede(resultado)
+      },
+      provSerieSgs(args.codigo, resultado.observacoes)
+    );
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao consultar últimos valores da série ${args.codigo}: ${error instanceof Error ? error.message : String(error)}` }],
@@ -465,20 +580,31 @@ export async function handleSerieMetadados(
       ? ROTULO_PERIODICIDADE[resultado.periodicidade]
       : undefined;
 
-    return structuredResult({
-      codigo: args.codigo,
-      nome: serieInfo?.nome || `Série ${args.codigo}`,
-      periodicidade: periodicidadeCatalogo || periodicidadeInferida || "Não informada",
-      ...(!periodicidadeCatalogo && periodicidadeInferida ? { periodicidadeInferida: true } : {}),
-      categoria: serieInfo?.categoria || "Não categorizada",
-      fonte: "Banco Central do Brasil",
-      ...(ultima ? { ultimoValor: { data: ultima.data, valor: parseFloat(ultima.valor) } } : {}),
-      urlConsulta,
-      urlUltimos10,
-      observacao: serieInfo
-        ? "Nome e categoria vêm do catálogo curado do servidor; a API do SGS não publica endpoint de metadados."
-        : "Série fora do catálogo curado: nome genérico. A API do SGS não publica endpoint de metadados, então a periodicidade é inferida do espaçamento das observações."
-    });
+    // Duas procedências na MESMA resposta, e é o caso que o array existe para
+    // servir: a periodicidade e o último valor são extração do SGS agora; o
+    // nome e a categoria vêm do catálogo curado do servidor, que tem licença e
+    // instante próprios. Foi dar a mesma cara a essas duas coisas que deixou 21
+    // nomes trocados sobreviverem por versões (sessão 07).
+    const proveniencia: Proveniencia[] = [provSerieSgs(args.codigo, observacoes)];
+    if (serieInfo) proveniencia.push(provCatalogoCurado(`série ${args.codigo}`));
+
+    return resultadoComProveniencia(
+      {
+        codigo: args.codigo,
+        nome: serieInfo?.nome || `Série ${args.codigo}`,
+        periodicidade: periodicidadeCatalogo || periodicidadeInferida || "Não informada",
+        ...(!periodicidadeCatalogo && periodicidadeInferida ? { periodicidadeInferida: true } : {}),
+        categoria: serieInfo?.categoria || "Não categorizada",
+        fonte: "Banco Central do Brasil",
+        ...(ultima ? { ultimoValor: { data: ultima.data, valor: parseFloat(ultima.valor) } } : {}),
+        urlConsulta,
+        urlUltimos10,
+        observacao: serieInfo
+          ? "Nome e categoria vêm do catálogo curado do servidor; a API do SGS não publica endpoint de metadados."
+          : "Série fora do catálogo curado: nome genérico. A API do SGS não publica endpoint de metadados, então a periodicidade é inferida do espaçamento das observações."
+      },
+      proveniencia
+    );
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao consultar metadados da série ${args.codigo}: ${error instanceof Error ? error.message : String(error)}` }],
@@ -504,12 +630,16 @@ export async function handleSeriesPopulares(
       porCategoria[serie.categoria].push(serie);
     }
 
-    return structuredResult({
-      totalSeries: series.length,
-      categorias: Object.keys(porCategoria).length,
-      series: args.categoria ? series : porCategoria,
-      observacao: "Use bcb_serie_valores ou bcb_serie_ultimos com o código para consultar os dados"
-    });
+    // Zero requisição à origem: a resposta é inteiramente do catálogo curado.
+    return resultadoComProveniencia(
+      {
+        totalSeries: series.length,
+        categorias: Object.keys(porCategoria).length,
+        series: args.categoria ? series : porCategoria,
+        observacao: "Use bcb_serie_valores ou bcb_serie_ultimos com o código para consultar os dados"
+      },
+      provCatalogoCurado()
+    );
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao listar séries: ${error instanceof Error ? error.message : String(error)}` }],
@@ -571,7 +701,23 @@ export async function handleBuscarSerie(
       payload.sugestao = "Tente termos mais gerais (selic, ipca, dolar, cambio, pib, credito, emprego) ou o código da série.";
     }
 
-    return structuredResult(payload);
+    // Duas camadas, duas procedências — e aqui o instante importa de verdade: o
+    // índice do portal é servido de cache de 24 h, então o `retrieved_at` do
+    // bloco do portal pode ser de ontem. É o que o coletor preserva (`docs/07`).
+    const proveniencia: Proveniencia[] = [provCatalogoCurado(`busca por "${args.termo}"`)];
+    if (snapshot) {
+      proveniencia.unshift(
+        provenienciaBcb({
+          fonte: "PORTAL",
+          url: CKAN_PACKAGE_LIST,
+          dataset: { id: "package_list", name: "Índice de datasets do portal", version: null },
+          dataVintage: snapshot.obtidoEm,
+          detalheCitacao: "índice de datasets (package_list)"
+        })
+      );
+    }
+
+    return resultadoComProveniencia(payload, proveniencia);
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao buscar séries: ${error instanceof Error ? error.message : String(error)}` }],
@@ -617,7 +763,13 @@ export async function handleIndicadoresAtuais(
       })
     );
 
-    return structuredResult({ consultadoEm: new Date().toISOString(), indicadores: resultados });
+    return resultadoComProveniencia(
+      { consultadoEm: new Date().toISOString(), indicadores: resultados },
+      provMultiSerieSgs(
+        indicadores.map(i => ({ codigo: i.codigo, campo: i.nome })),
+        "painel de indicadores atuais"
+      )
+    );
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao consultar indicadores: ${error instanceof Error ? error.message : String(error)}` }],
@@ -665,19 +817,22 @@ export async function handleVariacao(
     // porquê de os extremos saírem verbatim moram em `stats.ts`.
     const { maximo, minimo, media, amplitude } = estatisticasDaSerie(data.map(d => parseFloat(d.valor)));
 
-    return structuredResult({
-      serie: { codigo: args.codigo, nome: serieInfo?.nome || `Série ${args.codigo}`, categoria: serieInfo?.categoria || "Desconhecida" },
-      periodo: { dataInicial: data[0].data, dataFinal: data[data.length - 1].data, totalPeriodos: data.length },
-      analise: {
-        valorInicial, valorFinal,
-        diferencaAbsoluta: arredondarDerivado(diferencaAbsoluta),
-        variacaoPercentual: arredondarDerivado(variacao),
-        variacaoFormatada: `${variacao >= 0 ? "+" : ""}${variacao.toFixed(2)}%`
+    return resultadoComProveniencia(
+      {
+        serie: { codigo: args.codigo, nome: serieInfo?.nome || `Série ${args.codigo}`, categoria: serieInfo?.categoria || "Desconhecida" },
+        periodo: { dataInicial: data[0].data, dataFinal: data[data.length - 1].data, totalPeriodos: data.length },
+        analise: {
+          valorInicial, valorFinal,
+          diferencaAbsoluta: arredondarDerivado(diferencaAbsoluta),
+          variacaoPercentual: arredondarDerivado(variacao),
+          variacaoFormatada: `${variacao >= 0 ? "+" : ""}${variacao.toFixed(2)}%`
+        },
+        estatisticas: { maximo, minimo, media, amplitude },
+        derivacao: DERIVACAO_ESTATISTICA,
+        ...blocoRede(resultado)
       },
-      estatisticas: { maximo, minimo, media, amplitude },
-      derivacao: DERIVACAO_ESTATISTICA,
-      ...blocoRede(resultado)
-    });
+      provSerieSgs(args.codigo, data, args, { nota: NOTA_DERIVACAO_ESTATISTICA })
+    );
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao calcular variação: ${error instanceof Error ? error.message : String(error)}` }],
@@ -726,7 +881,16 @@ export async function handleComparar(
           }
 
           const ref = refSerie(codigo, resultado.periodicidade);
-          periodicidades.set(codigo, String(ref.periodicidade));
+          // O aviso de periodicidade decide pela periodicidade MEDIDA, não pelo
+          // rótulo do catálogo — mesma regra do `bcb_correlacao`. A série 11 está
+          // catalogada como "Mensal" e a origem a publica todo dia útil
+          // (`bcb/docs/05`): decidir pela etiqueta faz o aviso calar justamente
+          // no caso em que ele deveria soar. Com o catálogo corrigido isso quase
+          // nunca diverge, mas "quase nunca" não é uma fonte da verdade.
+          periodicidades.set(
+            codigo,
+            resultado.periodicidade ? ROTULO_PERIODICIDADE[resultado.periodicidade] : String(ref.periodicidade)
+          );
 
           let observacoes = data.map(d => ({ data: d.data, valor: parseFloat(d.valor) }));
 
@@ -784,17 +948,29 @@ export async function handleComparar(
         `Use o parâmetro \`frequencia\` (mensal, trimestral ou anual) para harmonizá-las antes da comparação.`
       : undefined;
 
-    return structuredResult({
-      periodo: { dataInicial: formatDateForApi(args.dataInicial), dataFinal: formatDateForApi(args.dataFinal) },
-      totalSeries: args.codigos.length,
-      seriesComDados: seriesComDados.length,
-      seriesComErro: seriesComErro.length,
-      ranking: seriesOrdenadas.map((s, i) => ({ posicao: i + 1, ...s })),
-      erros: seriesComErro.length > 0 ? seriesComErro : [],
-      derivacao: DERIVACAO_ESTATISTICA,
-      ...(harmonizacao ? { harmonizacao } : {}),
-      ...(aviso ? { aviso } : {})
-    });
+    return resultadoComProveniencia(
+      {
+        periodo: { dataInicial: formatDateForApi(args.dataInicial), dataFinal: formatDateForApi(args.dataFinal) },
+        totalSeries: args.codigos.length,
+        seriesComDados: seriesComDados.length,
+        seriesComErro: seriesComErro.length,
+        ranking: seriesOrdenadas.map((s, i) => ({ posicao: i + 1, ...s })),
+        erros: seriesComErro.length > 0 ? seriesComErro : [],
+        derivacao: DERIVACAO_ESTATISTICA,
+        ...(harmonizacao ? { harmonizacao } : {}),
+        ...(aviso ? { aviso } : {})
+      },
+      provMultiSerieSgs(
+        args.codigos.map(codigo => ({
+          codigo,
+          campo: `ranking[codigo=${codigo}]`,
+          inicio: formatDateForApi(args.dataInicial),
+          fim: formatDateForApi(args.dataFinal)
+        })),
+        "comparação entre séries",
+        { nota: NOTA_DERIVACAO_ESTATISTICA }
+      )
+    );
   } catch (error) {
     return {
       content: [{ type: "text" as const, text: `Erro ao comparar séries: ${error instanceof Error ? error.message : String(error)}` }],
@@ -956,22 +1132,34 @@ export async function handleCorrelacao(
       }
     }
 
-    return structuredResult({
-      periodo: { dataInicial: formatDateForApi(args.dataInicial), dataFinal: formatDateForApi(args.dataFinal) },
-      metodo,
-      base,
-      series: series.map(s => ({ ...s.ref, totalRegistros: s.observacoes.length })),
-      alinhamento: {
-        datas: alinhamento.linhas.length,
-        completas: alinhamento.completas,
-        parciais: alinhamento.parciais,
-        grade: args.frequencia ?? gradeDe(series[0]).toLowerCase()
+    return resultadoComProveniencia(
+      {
+        periodo: { dataInicial: formatDateForApi(args.dataInicial), dataFinal: formatDateForApi(args.dataFinal) },
+        metodo,
+        base,
+        series: series.map(s => ({ ...s.ref, totalRegistros: s.observacoes.length })),
+        alinhamento: {
+          datas: alinhamento.linhas.length,
+          completas: alinhamento.completas,
+          parciais: alinhamento.parciais,
+          grade: args.frequencia ?? gradeDe(series[0]).toLowerCase()
+        },
+        pares,
+        erros,
+        derivacao: DERIVACAO_CORRELACAO,
+        ...(harmonizacao ? { harmonizacao } : {})
       },
-      pares,
-      erros,
-      derivacao: DERIVACAO_CORRELACAO,
-      ...(harmonizacao ? { harmonizacao } : {})
-    });
+      provMultiSerieSgs(
+        series.map(s => ({
+          codigo: s.codigo,
+          campo: `series[codigo=${s.codigo}]`,
+          inicio: formatDateForApi(args.dataInicial),
+          fim: formatDateForApi(args.dataFinal)
+        })),
+        "correlação entre séries",
+        { nota: NOTA_DERIVACAO_ESTATISTICA }
+      )
+    );
   } catch (error) {
     return erroResult(`Erro ao calcular correlação: ${mensagemDeErro(error)}`);
   }
@@ -1080,7 +1268,7 @@ export async function handleDeflacionar(
       );
     }
 
-    return structuredResult({
+    return resultadoComProveniencia({
       serie: { ...refSerie(args.codigo, serie.periodicidade), totalRegistros: dados.length },
       deflator: {
         indice: chaveIndice.toUpperCase(),
@@ -1099,7 +1287,15 @@ export async function handleDeflacionar(
       ...(harmonizacao ? { harmonizacao } : {}),
       ...(avisos.length > 0 ? { avisos } : {}),
       ...blocoRede(serie)
-    });
+    },
+    provMultiSerieSgs(
+      [
+        { codigo: args.codigo, campo: "dados[].valorNominal", inicio, fim },
+        { codigo: deflatorInfo.codigo, campo: "dados[].fator", inicio }
+      ],
+      `deflação por ${chaveIndice.toUpperCase()}`,
+      { nota: NOTA_DERIVACAO_DEFLACAO }
+    ));
   } catch (error) {
     return erroResult(`Erro ao deflacionar a série: ${mensagemDeErro(error)}`);
   }
@@ -2174,6 +2370,23 @@ const RAW_TOOL_DEFINITIONS = [
  * acrescentou. O selo (`additionalProperties: false`) é aplicado num lugar só,
  * para todas.
  */
+/**
+ * Tools cuja resposta mistura procedências e por isso publicam um ARRAY de
+ * blocos. Medido em `bcb/docs/07`: não é por API (nenhuma tool mistura APIs, e
+ * a licença é a mesma nas três), é por procedência.
+ *
+ * - `bcb_serie_metadados`: valor e periodicidade são extração do SGS agora;
+ *   nome e categoria vêm do catálogo curado do servidor.
+ * - `bcb_buscar_serie`: índice do portal (de cache de 24 h) + catálogo curado.
+ * - `bcb_cambio_cotacao`: cotação do dólar é apurada pelo BCB; paridade de
+ *   outra moeda vem de agência de informação e é só redistribuída.
+ */
+const TOOLS_MULTI_PROVENIENCIA = new Set([
+  "bcb_serie_metadados",
+  "bcb_buscar_serie",
+  "bcb_cambio_cotacao"
+]);
+
 export const TOOL_DEFINITIONS = [
   ...RAW_TOOL_DEFINITIONS,
   ...FOCUS_TOOL_DEFINITIONS,
@@ -2181,7 +2394,12 @@ export const TOOL_DEFINITIONS = [
 ].map(tool => ({
   ...tool,
   inputSchema: sealDeep(tool.inputSchema),
-  outputSchema: sealDeep(tool.outputSchema)
+  // O canal de proveniência é acrescentado AQUI, num lugar só, e não nos 15
+  // literais de schema: assim tool nova o herda sem depender de ninguém lembrar.
+  // As três da lista abaixo carregam mais de uma procedência — ver `provenance.ts`.
+  outputSchema: sealDeep(
+    (TOOLS_MULTI_PROVENIENCIA.has(tool.name) ? comProvenienciaMulti : comProveniencia)(tool.outputSchema)
+  )
 }));
 
 // ==================== RESOURCES (canonical, both transports) ====================
@@ -2290,7 +2508,25 @@ export const PROMPT_DEFINITIONS: PromptDefinition[] = [
 
 // ==================== TOOL DISPATCHER (for worker) ====================
 
+/**
+ * Despacha uma tool, com o coletor de extração aberto.
+ *
+ * O coletor é aberto AQUI, e não no `register.ts`, para que todo caminho o
+ * tenha: os dois transportes, os testes e qualquer chamada direta. É o que faz
+ * o `retrieved_at` do bloco de proveniência ser o instante real da extração —
+ * inclusive quando a resposta vem do cache de 24 h do índice do portal, caso em
+ * que o instante correto é de até um dia atrás (`bcb/docs/07`).
+ */
 export async function dispatchTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  timeoutMs?: number,
+  maxRetries?: number
+): Promise<ToolResult> {
+  return comColetorDeExtracao(() => despachar(toolName, args, timeoutMs, maxRetries));
+}
+
+async function despachar(
   toolName: string,
   args: Record<string, unknown>,
   timeoutMs?: number,

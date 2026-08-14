@@ -1,8 +1,8 @@
 {
   "name": "bcb-br-mcp",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "mcpName": "io.github.SidneyBissoli/bcb-br-mcp",
-  "description": "MCP server for the Brazilian Central Bank (Banco Central do Brasil, BCB) — SGS/BCB time series: Selic, IPCA, exchange rates, GDP and 150+ economic and financial indicators.",
+  "description": "MCP server for the Brazilian Central Bank (Banco Central do Brasil, BCB): SGS time series (Selic, IPCA, exchange rates, GDP and 139 verified indicators), Focus market expectations and PTAX exchange rates, with a provenance block on every response.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -62,10 +62,12 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/server": "^2.0.0",
+    "@sbissoli/mcp-provenance": "^0.1.0",
     "@sbissoli/mcp-stats": "^0.2.0"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.0.0",
+    "@sbissoli/mcp-evals": "^0.1.0",
     "@types/node": "^20.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0",
