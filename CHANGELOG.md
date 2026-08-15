@@ -5,6 +5,31 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-08-15
+
+Extends the 1.9.0 rule to the four **rate-per-period** series of the catalog,
+which had been left out on purpose and are now included by decision: Selic and
+CDI accumulated in the month (4390, 4391) and savings-account yield (25, 195).
+On these, the level arithmetic reported the change *of the rate* — Selic 2024
+came out as −4% (0.93 against 0.97) — instead of what the rate accumulated. No
+schema change; the `metodo` field and the null `diferencaAbsoluta` already exist.
+
+### Fixed
+- **4390/4391 compound like the price indices**: Selic 2024 now answers +10.89%.
+- **25/195 compound one observation per month.** Measured at the source: these
+  series publish, *every day*, the yield of a deposit made that day until its
+  next anniversary (`data` → `dataFim`, 30 days) — January 2024 alone has 28
+  observations, all monthly rates. Compounding the raw observations would stack
+  ~28 months per month; the tool takes the first observation of each month (a
+  deposit at the start of the month, rolled over at each anniversary) and
+  compounds those. Savings 2024 answers +7.03% from 336 daily observations, and
+  `derivacao.nota` states the sampling and how many months were compounded.
+- `bcb_comparar` follows the same rule.
+
+### Tests
+- 275 in the package (+2) and 23 in the worker; the pinned set of compounded
+  series is now 28.
+
 ## [1.9.0] - 2026-08-15
 
 **Correctness fix, found in production by the paid tool-selection eval of

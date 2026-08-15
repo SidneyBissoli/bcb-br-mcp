@@ -33,6 +33,7 @@ import {
   alinharSeries,
   buscarSerieSgs,
   buscarUltimosSgs,
+  chaveMes,
   construirDeflator,
   deflacionar,
   harmonizar,
@@ -321,7 +322,62 @@ export function metodoVariacaoDaSerie(codigo: number): MetodoVariacao {
   if (/Variação acumulada em 12 meses/i.test(info.nome)) return "acumulado";
   if (info.unidade === "Variação percentual mensal") return "encadeamento";
   if (/Variação mensal$/i.test(info.nome)) return "encadeamento";
+  if (TAXAS_POR_PERIODO.has(codigo)) return "encadeamento";
   return "nivel";
+}
+
+/**
+ * Taxas de juros/rentabilidade publicadas como "% no período" — Selic e CDI
+ * acumulados no mês (4390, 4391) e a rentabilidade da poupança (25, 195). São
+ * variação por período tanto quanto o IPCA, e a conta de nível publicava a
+ * variação DA TAXA em vez do rendimento acumulado. Incluídas por decisão do
+ * decisor em 15/08/2026, depois da correção dos índices de preço.
+ */
+export const TAXAS_POR_PERIODO: ReadonlySet<number> = new Set([4390, 4391, 25, 195]);
+
+/**
+ * Séries em que a origem publica UMA TAXA MENSAL POR DIA: a poupança (25, 195)
+ * traz, em cada dia, o rendimento do depósito feito naquele dia até o
+ * aniversário seguinte (`data` → `dataFim`, 30 dias). Medido em 15/08/2026:
+ * janeiro de 2024 tem 28 observações, todas taxas de um mês. Encadear as
+ * observações cruas comporia ~28 meses por mês; o encadeamento amostra uma
+ * observação por mês — a primeira, o depósito do início do mês renovado a
+ * cada aniversário — e compõe só essas.
+ */
+export const TAXA_MENSAL_PUBLICADA_POR_DIA: ReadonlySet<number> = new Set([25, 195]);
+
+/**
+ * Valores a encadear para uma série de variação: todos, ou um por mês quando a
+ * origem publica a taxa mensal por dia. Devolve também quantos entraram, para a
+ * nota dizer o que foi composto.
+ */
+export function valoresParaEncadear(
+  codigo: number,
+  observacoes: Array<{ data: string; valor: number }>
+): { valores: number[]; amostradoPorMes: boolean } {
+  if (!TAXA_MENSAL_PUBLICADA_POR_DIA.has(codigo)) {
+    return { valores: observacoes.map(o => o.valor), amostradoPorMes: false };
+  }
+  const primeiroDoMes = new Map<string, number>();
+  for (const obs of observacoes) {
+    const chave = chaveMes(obs.data);
+    if (chave !== null && !primeiroDoMes.has(chave)) primeiroDoMes.set(chave, obs.valor);
+  }
+  return { valores: [...primeiroDoMes.values()], amostradoPorMes: true };
+}
+
+/** Nota de derivação do encadeamento, com a frase da amostragem quando ela aconteceu. */
+export function derivacaoEncadeamento(amostradoPorMes: boolean, meses: number): typeof DERIVACAO_ENCADEAMENTO | (Omit<typeof DERIVACAO_ENCADEAMENTO, "nota"> & { nota: string }) {
+  if (!amostradoPorMes) return DERIVACAO_ENCADEAMENTO;
+  return {
+    ...DERIVACAO_ENCADEAMENTO,
+    nota:
+      DERIVACAO_ENCADEAMENTO.nota +
+      ` ATENÇÃO: esta série publica, a cada dia, a taxa do MÊS que começa naquele dia (rentabilidade do ` +
+      `depósito até o aniversário seguinte); encadear todas as observações comporia dezenas de meses por mês. ` +
+      `O acumulado composto usa UMA observação por mês — a primeira de cada mês, o depósito do início do mês ` +
+      `renovado a cada aniversário — e compôs ${meses} ${meses === 1 ? "mês" : "meses"}.`
+  };
 }
 
 /** Códigos do catálogo que a tool trata por encadeamento — para a descrição e os testes. */
@@ -862,9 +918,11 @@ export async function handleVariacao(
     const valorInicial = valores[0];
     const valorFinal = valores[valores.length - 1];
     // Série de nível: variação entre as pontas. Série que JÁ É variação: acumulado
-    // por encadeamento de todas as observações — comparar a taxa de janeiro com a
-    // de dezembro publicava +23,81% para o IPCA de 2024 (acumulado real: 4,83%).
-    const variacao = metodo === "encadeamento" ? variacaoAcumulada(valores) : calculateVariation(valorInicial, valorFinal);
+    // por encadeamento das observações (uma por mês, quando a origem publica a
+    // taxa mensal por dia) — comparar a taxa de janeiro com a de dezembro
+    // publicava +23,81% para o IPCA de 2024 (acumulado real: 4,83%).
+    const encadeaveis = valoresParaEncadear(args.codigo, data.map(d => ({ data: d.data, valor: parseFloat(d.valor) })));
+    const variacao = metodo === "encadeamento" ? variacaoAcumulada(encadeaveis.valores) : calculateVariation(valorInicial, valorFinal);
     const diferencaAbsoluta = metodo === "encadeamento" ? null : arredondarDerivado(valorFinal - valorInicial);
     // Motor comum da Fase 0 (arbitragem 4). A convenção de arredondamento e o
     // porquê de os extremos saírem verbatim moram em `stats.ts`.
@@ -882,7 +940,9 @@ export async function handleVariacao(
           variacaoFormatada: `${variacao >= 0 ? "+" : ""}${variacao.toFixed(2)}%`
         },
         estatisticas: { maximo, minimo, media, amplitude },
-        derivacao: metodo === "encadeamento" ? DERIVACAO_ENCADEAMENTO : DERIVACAO_ESTATISTICA,
+        derivacao: metodo === "encadeamento"
+          ? derivacaoEncadeamento(encadeaveis.amostradoPorMes, encadeaveis.valores.length)
+          : DERIVACAO_ESTATISTICA,
         ...blocoRede(resultado)
       },
       provSerieSgs(args.codigo, data, args, {
@@ -959,7 +1019,9 @@ export async function handleComparar(
           // observações ORIGINAIS, antes de qualquer harmonização: reamostrar
           // variações mensais para anual com "ultimo" ou "media" e depois
           // encadear seria compor números que não são mais taxas do período.
-          const acumuladoOriginal = metodo === "encadeamento" ? variacaoAcumulada(observacoes.map(o => o.valor)) : null;
+          const acumuladoOriginal = metodo === "encadeamento"
+            ? variacaoAcumulada(valoresParaEncadear(codigo, observacoes).valores)
+            : null;
 
           if (args.frequencia) {
             const h = harmonizar(observacoes, args.frequencia, args.agregacao ?? "ultimo", resultado.periodicidade);
@@ -1027,8 +1089,9 @@ export async function handleComparar(
             DERIVACAO_ESTATISTICA.nota +
             " Cada item do ranking traz `metodo`: em `nivel`, `variacaoPercentual` compara o último valor com o " +
             "primeiro; em `encadeamento` (série que já é variação por período, como IPCA e IGP-M mensais), é o " +
-            "ACUMULADO do período por composição de todas as observações originais — (Π(1 + vᵢ/100) − 1) × 100 —, " +
-            "calculado antes de qualquer harmonização de frequência."
+            "ACUMULADO do período por composição das observações originais — (Π(1 + vᵢ/100) − 1) × 100 —, " +
+            "calculado antes de qualquer harmonização de frequência; na poupança (25, 195), que publica a taxa " +
+            "mensal por dia, compõe-se uma observação por mês (a primeira de cada mês)."
         }
       : DERIVACAO_ESTATISTICA;
 
@@ -1507,8 +1570,9 @@ const METODO_VARIACAO_SCHEMA = {
   description:
     "Como a variação foi medida: `nivel` = (último − primeiro) / primeiro, para série de nível; " +
     "`encadeamento` = acumulado composto de todas as observações, para série que já é uma variação " +
-    "percentual por período (IPCA, INPC, IGP-M mensais e os núcleos/grupos do IPCA do catálogo). A detecção " +
-    "cobre as séries de variação do catálogo curado; código fora dele é tratado como nível."
+    "percentual por período (IPCA, INPC, IGP-M mensais e os núcleos/grupos do IPCA do catálogo; Selic e CDI " +
+    "acumulados no mês, 4390/4391; rentabilidade da poupança, 25/195 — nesta, uma observação por mês). A " +
+    "detecção cobre as séries de variação do catálogo curado; código fora dele é tratado como nível."
 };
 
 const DERIVACAO_SCHEMA = {
@@ -1667,8 +1731,9 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   bcb_variacao:
     "Calcula a variação percentual de UMA série no período, mais estatísticas descritivas. Para série de " +
     "NÍVEL (dólar, Selic, dívida, produção) é a variação entre o primeiro e o último ponto; para série que JÁ " +
-    "É uma variação por período (IPCA 433, INPC 188, IGP-M 189 e demais índices de preço mensais do catálogo) " +
-    "é o ACUMULADO do período por encadeamento — \"quanto o IPCA acumulou em 2024\" é esta tool. O campo " +
+    "É uma variação por período (IPCA 433, INPC 188, IGP-M 189 e demais índices de preço mensais do catálogo; " +
+    "Selic/CDI acumulados no mês 4390/4391; rentabilidade da poupança 25/195) é o ACUMULADO do período por " +
+    "encadeamento — \"quanto o IPCA acumulou em 2024\" ou \"quanto a Selic rendeu em 2024\" é esta tool. O campo " +
     "`analise.metodo` diz qual das duas contas foi feita; código fora do catálogo curado é tratado como nível. " +
     "Série de acumulado móvel (IPCA em 12 meses, 13522) é recusada com orientação — o valor publicado já é a " +
     "resposta. O período pode ser definido por datas (dataInicial/dataFinal) OU pelos " +
@@ -1687,7 +1752,8 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "Compara de 2 a 5 séries temporais no MESMO período (dataInicial e dataFinal obrigatórias), " +
     "calculando a variação percentual de cada uma e ordenando-as num ranking (maior para menor variação). " +
     "Série de nível entra pela variação entre as pontas; série que já é variação por período (IPCA, INPC, " +
-    "IGP-M mensais do catálogo) entra pelo ACUMULADO encadeado do período — cada item diz em `metodo` qual " +
+    "IGP-M mensais do catálogo; Selic/CDI acumulados no mês; poupança) entra pelo ACUMULADO encadeado do " +
+    "período — cada item diz em `metodo` qual " +
     "conta foi feita, então \"qual índice de preço subiu mais em 2024\" é esta tool. " +
     "Quando usar: para comparar/correlacionar a evolução de vários indicadores lado a lado. Quando NÃO " +
     "usar: para uma única série use bcb_variacao. " +

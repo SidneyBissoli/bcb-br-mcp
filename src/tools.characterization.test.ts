@@ -543,6 +543,57 @@ describe("bcb_variacao (gate mcp-stats)", () => {
     expect(analise.variacaoFormatada).toBe("-3.86%");
   });
 
+  it("taxa por período mensal (Selic acumulada no mês, 4390): rendimento composto, não variação da taxa", async () => {
+    mockFetch([
+      [
+        "bcdata.sgs.4390/dados",
+        [
+          { data: "01/01/2024", valor: "0.97" }, { data: "01/02/2024", valor: "0.80" }, { data: "01/03/2024", valor: "0.83" }
+        ]
+      ]
+    ]);
+
+    const out = structured(await call("bcb_variacao", { codigo: 4390, dataInicial: "2024-01-01", dataFinal: "2024-03-31" }));
+    const analise = out.analise as Record<string, unknown>;
+
+    // A conta de nível diria −14,43% (0,83 contra 0,97); o rendimento composto do
+    // trimestre é (1,0097 × 1,0080 × 1,0083 − 1) × 100 = 2,6225%.
+    expect(analise.metodo).toBe("encadeamento");
+    expect(analise.variacaoPercentual).toBe(2.6225);
+    expect(analise.diferencaAbsoluta).toBeNull();
+    expect(String((out.derivacao as Record<string, unknown>).nota)).not.toContain("uma observação por mês");
+  });
+
+  it("poupança (195) publica a taxa mensal POR DIA: encadeia UMA observação por mês, e a nota diz isso", async () => {
+    // Medido na origem em 15/08/2026: janeiro de 2024 tem 28 observações, cada
+    // uma o rendimento do depósito daquele dia até o aniversário seguinte.
+    mockFetch([
+      [
+        "bcdata.sgs.195/dados",
+        [
+          { data: "01/01/2024", dataFim: "01/02/2024", valor: "0.5879" },
+          { data: "02/01/2024", dataFim: "02/02/2024", valor: "0.6170" },
+          { data: "03/01/2024", dataFim: "03/02/2024", valor: "0.6171" },
+          { data: "01/02/2024", dataFim: "01/03/2024", valor: "0.5000" },
+          { data: "15/02/2024", dataFim: "15/03/2024", valor: "0.5500" }
+        ]
+      ]
+    ]);
+
+    const out = structured(await call("bcb_variacao", { codigo: 195, dataInicial: "2024-01-01", dataFinal: "2024-02-28" }));
+    const analise = out.analise as Record<string, unknown>;
+
+    // Só 01/01 (0,5879) e 01/02 (0,5000) entram: (1,005879 × 1,005 − 1) × 100 = 1,0908.
+    // Encadear as cinco daria 2,9051 — dezenas de "meses" num bimestre.
+    expect(analise.metodo).toBe("encadeamento");
+    expect(analise.variacaoPercentual).toBe(1.0908);
+    const nota = String((out.derivacao as Record<string, unknown>).nota);
+    expect(nota).toContain("UMA observação por mês");
+    expect(nota).toContain("compôs 2 meses");
+    // As estatísticas seguem sendo de TODAS as observações publicadas.
+    expect((out.periodo as Record<string, unknown>).totalPeriodos).toBe(5);
+  });
+
   it("série de acumulado móvel (IPCA 12 meses, 13522) é recusada com orientação, sem ir à rede", async () => {
     mockFetch([["bcdata.sgs.13522/dados", [{ data: "01/01/2024", valor: "4.51" }, { data: "01/12/2024", valor: "4.83" }]]]);
 

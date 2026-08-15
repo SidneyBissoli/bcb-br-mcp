@@ -310,11 +310,19 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   3,18%)**, achado de raspão pela rodada paga de eval em 14/08/2026 e corrigido na
   1.9.0. `metodoVariacaoDaSerie` em `tools.ts` decide por série (`nivel` ×
   `encadeamento` × `acumulado`) e a detecção é PARCIAL por construção: 10 séries
-  pela `unidade` do portal, 14 pelo nome curado, e as cabeças de índice (433,
-  189...) NÃO têm unidade — só o nome as reconhece. Código fora do catálogo é
-  nível, declarado no contrato. A 13522 (acumulado em 12 meses) é recusada: nem
-  nível nem encadeamento têm sentido nela. `bcb_comparar` usa a mesma decisão,
+  pela `unidade` do portal, 14 pelo nome curado, 4 taxas por período (4390,
+  4391, 25, 195 — `TAXAS_POR_PERIODO`), e as cabeças de índice (433, 189...) NÃO
+  têm unidade — só o nome as reconhece. Código fora do catálogo é nível,
+  declarado no contrato. A 13522 (acumulado em 12 meses) é recusada: nem nível
+  nem encadeamento têm sentido nela. `bcb_comparar` usa a mesma decisão,
   encadeando sobre as observações ORIGINAIS, antes de qualquer harmonização.
+- **A poupança (25, 195) publica UMA TAXA MENSAL POR DIA.** Medido em
+  15/08/2026: janeiro de 2024 tem 28 observações, cada uma o rendimento do
+  depósito daquele dia até o aniversário seguinte (`data` → `dataFim`, 30 dias).
+  Encadear as observações cruas comporia ~28 meses por mês (2024 daria
+  centenas de %); `valoresParaEncadear` amostra a primeira de cada mês
+  (`TAXA_MENSAL_PUBLICADA_POR_DIA`) e a nota diz quantos meses compôs. Não
+  trate essa série como "diária" no sentido do dólar.
 - **`ultimos/N` tem teto de 20 em TODA periodicidade** (não só nas diárias — a
   mensal 433 também devolve 400), embora o schema anuncie até 1000. Acima de 20,
   `series.ts` cumpre a promessa por janela de datas.

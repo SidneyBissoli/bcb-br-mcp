@@ -36,7 +36,7 @@ export const WORKER_CONFIG = {
 // fundação, e o D4 mediu isso no workerd. O motivo de injetar a versão é o
 // rootDir, só.)
 // The fallback is only used if no entry point injects a version; keep it = package.json.
-let serverVersion = "1.9.0";
+let serverVersion = "1.9.1";
 
 export function setServerVersion(version: string): void {
   serverVersion = version;
