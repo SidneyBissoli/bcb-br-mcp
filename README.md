@@ -465,7 +465,7 @@ share-alike (on derived databases) and anti-DRM clauses. Exchange-rate answers p
 liability disclaimer verbatim; cross-currency parities are **not** compiled by the BCB — they come from an
 information agency (Refinitiv) and are redistributed by the BCB, and the tools say so.
 
-The server's own code is MIT; the data is not. See [NOTICE.md](NOTICE.md).
+The server's own code is MIT; the data is not. See [NOTICE.md](NOTICE.md). Privacy: no user data is logged, by either channel — see [PRIVACY.md](PRIVACY.md).
 
 ### Provenance block
 

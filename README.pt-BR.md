@@ -523,7 +523,7 @@ de câmbio repassam o disclaimer do BCB literalmente, e as paridades de moedas
 não-dólar são qualificadas como dado de agência de informação (Refinitiv)
 redistribuído pelo BCB — não como dado apurado pelo Banco Central.
 
-Detalhes e obrigações em [NOTICE.md](NOTICE.md).
+Detalhes e obrigações em [NOTICE.md](NOTICE.md). Privacidade: nenhum dado do usuário é registrado, em nenhum dos dois canais — veja [PRIVACY.md](PRIVACY.md).
 
 ## Autor
 

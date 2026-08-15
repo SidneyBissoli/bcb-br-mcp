@@ -1,8 +1,8 @@
 {
   "identifier": "sidneybissoli-bcb-br-mcp",
   "name": "Banco Central do Brasil - MCP",
-  "version": "1.3.5",
-  "description": "MCP server for Brazilian Central Bank (SGS/BCB) time series — Selic, IPCA, exchange rates, GDP and 150+ economic indicators, queried live from AI assistants.",
+  "version": "1.9.2",
+  "description": "MCP server for the Brazilian Central Bank (Banco Central do Brasil, BCB): SGS time series (Selic, IPCA, exchange rates, GDP and 139 verified indicators), Focus market expectations and PTAX exchange rates, with statistics (variation, correlation, deflation) and a provenance block on every response.",
   "author": "Sidney Bissoli",
   "authorUrl": "https://github.com/SidneyBissoli",
   "homepage": "https://github.com/SidneyBissoli/bcb-br-mcp",
@@ -19,179 +19,546 @@
     "exchange-rate",
     "gdp",
     "time-series",
-    "finance"
+    "finance",
+    "focus",
+    "ptax",
+    "expectations",
+    "provenance"
   ],
   "tools": [
     {
-      "name": "bcb_serie_valores",
-      "description": "Query values of a BCB time series by code. Returns historical data with date and value, optionally filtered by a date range.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "codigo": {
-            "type": "number",
-            "description": "Series code in SGS/BCB (e.g. 433 for monthly IPCA, 11 for Selic)"
-          },
-          "dataInicial": {
-            "type": "string",
-            "description": "Start date (yyyy-MM-dd or dd/MM/yyyy), optional"
-          },
-          "dataFinal": {
-            "type": "string",
-            "description": "End date (yyyy-MM-dd or dd/MM/yyyy), optional"
-          }
-        },
-        "required": [
-          "codigo"
-        ]
-      }
-    },
-    {
-      "name": "bcb_serie_ultimos",
-      "description": "Get the last N values of a BCB time series. Useful for the most recent data.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "codigo": {
-            "type": "number",
-            "description": "Series code in SGS/BCB"
-          },
-          "quantidade": {
-            "type": "number",
-            "description": "How many values to return (1-1000, default 10)"
-          }
-        },
-        "required": [
-          "codigo"
-        ]
-      }
-    },
-    {
-      "name": "bcb_serie_metadados",
-      "description": "Get metadata for a BCB time series: name, frequency, category and other details.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "codigo": {
-            "type": "number",
-            "description": "Series code in SGS/BCB"
-          }
-        },
-        "required": [
-          "codigo"
-        ]
-      }
-    },
-    {
-      "name": "bcb_series_populares",
-      "description": "List 150+ BCB time series with their codes: interest rates, inflation, exchange, GDP, employment, credit and other economic indicators.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "categoria": {
-            "type": "string",
-            "description": "Filter by category (Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, Agregados Monetários, Poupança, Índices de Mercado, Expectativas)"
-          }
-        }
-      }
-    },
-    {
       "name": "bcb_buscar_serie",
-      "description": "Search the internal catalog by name or description. Accent-insensitive (e.g. 'inflacao' finds 'Inflação').",
+      "description": "Search BCB series by keyword or code in two layers: the curated catalog first, then the Open Data Portal index (thousands of series).",
       "inputSchema": {
-        "type": "object",
+        "additionalProperties": false,
         "properties": {
+          "limite": {
+            "default": 20,
+            "description": "Máximo de séries a devolver (1-100, padrão: 20). `totalEncontradas` traz o total antes do corte.",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          },
           "termo": {
-            "type": "string",
-            "description": "Search term (minimum 2 characters)"
+            "description": "Termo de busca (mínimo 2 caracteres) ou o código da série. Vários termos são combinados com E.",
+            "minLength": 2,
+            "type": "string"
           }
         },
         "required": [
           "termo"
-        ]
+        ],
+        "type": "object"
       }
     },
     {
-      "name": "bcb_indicadores_atuais",
-      "description": "Get the latest values of the key economic indicators: Selic, IPCA, USD PTAX and IBC-Br.",
+      "name": "bcb_cambio_cotacao",
+      "description": "PTAX exchange rate of a currency against the real for a day or a date range (buy, sell, bulletin type); non-USD parities flagged as third-party data.",
       "inputSchema": {
-        "type": "object",
-        "properties": {}
-      }
-    },
-    {
-      "name": "bcb_variacao",
-      "description": "Compute the percentage variation of a series between two dates or over the last N periods. Useful for trend analysis.",
-      "inputSchema": {
-        "type": "object",
+        "additionalProperties": false,
         "properties": {
-          "codigo": {
-            "type": "number",
-            "description": "Series code in SGS/BCB"
-          },
-          "dataInicial": {
-            "type": "string",
-            "description": "Start date (yyyy-MM-dd or dd/MM/yyyy). Defaults to the first available value."
+          "data": {
+            "description": "Dia específico (yyyy-MM-dd ou dd/MM/yyyy). Não combine com dataInicial/dataFinal.",
+            "type": "string"
           },
           "dataFinal": {
-            "type": "string",
-            "description": "End date (yyyy-MM-dd or dd/MM/yyyy). Defaults to the last available value."
+            "description": "Fim do intervalo (yyyy-MM-dd ou dd/MM/yyyy). Padrão: hoje.",
+            "type": "string"
           },
-          "periodos": {
-            "type": "number",
-            "description": "Alternative: variation over the last N periods (ignores dates if provided)"
+          "dataInicial": {
+            "description": "Início do intervalo (yyyy-MM-dd ou dd/MM/yyyy). Padrão: 7 dias antes do fim.",
+            "type": "string"
+          },
+          "limite": {
+            "default": 100,
+            "description": "Máximo de boletins a devolver (1-1000, padrão 100)",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "number"
+          },
+          "moeda": {
+            "default": "USD",
+            "description": "Símbolo da moeda (ex.: USD, EUR, GBP, JPY). Padrão: USD.",
+            "type": "string"
           }
         },
-        "required": [
-          "codigo"
-        ]
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_cambio_moedas",
+      "description": "List the currencies with a PTAX quote at the BCB (symbol, name, type), with optional filter.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "termo": {
+            "description": "Filtro por símbolo ou nome (ex.: 'EUR', 'libra'). Opcional.",
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     },
     {
       "name": "bcb_comparar",
-      "description": "Compare 2 to 5 time series over the same period. Useful for correlation analysis between indicators.",
+      "description": "Compare 2-5 series over the same period, ranking them by percent change (levels by first/last, variation series by compounding).",
       "inputSchema": {
-        "type": "object",
+        "additionalProperties": false,
         "properties": {
+          "agregacao": {
+            "default": "ultimo",
+            "description": "Como agregar os valores de cada período quando `frequencia` é informada. `ultimo` (padrão) serve a nível de preço, taxa e índice; `soma` a fluxo; `acumulada` a séries que JÁ SÃO variação percentual (IPCA mensal, por exemplo), compondo geometricamente — somar 12 variações mensais NÃO dá a inflação do ano.",
+            "enum": [
+              "ultimo",
+              "primeiro",
+              "media",
+              "soma",
+              "acumulada"
+            ],
+            "type": "string"
+          },
           "codigos": {
-            "type": "array",
+            "description": "Array com 2 a 5 códigos de séries para comparar",
             "items": {
               "type": "number"
             },
-            "description": "Array of 2 to 5 series codes to compare"
-          },
-          "dataInicial": {
-            "type": "string",
-            "description": "Start date (yyyy-MM-dd or dd/MM/yyyy)"
+            "maxItems": 5,
+            "minItems": 2,
+            "type": "array"
           },
           "dataFinal": {
-            "type": "string",
-            "description": "End date (yyyy-MM-dd or dd/MM/yyyy)"
+            "description": "Data final (yyyy-MM-dd ou dd/MM/yyyy)",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Data inicial (yyyy-MM-dd ou dd/MM/yyyy)",
+            "type": "string"
+          },
+          "frequencia": {
+            "description": "Opcional: reamostra a série para esta frequência antes de responder (só agrega para períodos MAIORES; pedir frequência mais fina que a da série é recusado). Útil para comparar séries de periodicidades diferentes.",
+            "enum": [
+              "mensal",
+              "trimestral",
+              "anual"
+            ],
+            "type": "string"
           }
         },
         "required": [
           "codigos",
           "dataInicial",
           "dataFinal"
-        ]
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_correlacao",
+      "description": "Pairwise statistical correlation between 2-5 BCB series over the same period, with frequency harmonisation and a derivation note.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "agregacao": {
+            "default": "ultimo",
+            "description": "Como agregar os valores de cada período quando `frequencia` é informada. `ultimo` (padrão) serve a nível de preço, taxa e índice; `soma` a fluxo; `acumulada` a séries que JÁ SÃO variação percentual (IPCA mensal, por exemplo), compondo geometricamente — somar 12 variações mensais NÃO dá a inflação do ano.",
+            "enum": [
+              "ultimo",
+              "primeiro",
+              "media",
+              "soma",
+              "acumulada"
+            ],
+            "type": "string"
+          },
+          "base": {
+            "default": "nivel",
+            "description": "`nivel` correlaciona os valores; `variacao` correlaciona a mudança percentual de um ponto para o seguinte. Prefira `variacao` quando as duas séries têm tendência: o nível de duas séries crescentes tem correlação alta só porque ambas crescem com o tempo.",
+            "enum": [
+              "nivel",
+              "variacao"
+            ],
+            "type": "string"
+          },
+          "codigos": {
+            "description": "Array com 2 a 5 códigos de séries para correlacionar par a par",
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 5,
+            "minItems": 2,
+            "type": "array"
+          },
+          "dataFinal": {
+            "description": "Data final (yyyy-MM-dd ou dd/MM/yyyy)",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Data inicial (yyyy-MM-dd ou dd/MM/yyyy)",
+            "type": "string"
+          },
+          "frequencia": {
+            "description": "Opcional: reamostra a série para esta frequência antes de responder (só agrega para períodos MAIORES; pedir frequência mais fina que a da série é recusado). Útil para comparar séries de periodicidades diferentes.",
+            "enum": [
+              "mensal",
+              "trimestral",
+              "anual"
+            ],
+            "type": "string"
+          },
+          "metodo": {
+            "default": "pearson",
+            "description": "`pearson` mede relação linear entre os valores; `spearman` mede relação monótona entre os postos (com posto médio nos empates) e é o adequado quando a relação não é reta ou quando uma das séries fica parada em platôs, como a Selic entre reuniões do Copom.",
+            "enum": [
+              "pearson",
+              "spearman"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigos",
+          "dataInicial",
+          "dataFinal"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_deflacionar",
+      "description": "Convert a nominal BCB series to real values (constant currency) by deflating with IPCA or another price index.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "agregacao": {
+            "default": "ultimo",
+            "description": "Como agregar os valores de cada período quando `frequencia` é informada. `ultimo` (padrão) serve a nível de preço, taxa e índice; `soma` a fluxo; `acumulada` a séries que JÁ SÃO variação percentual (IPCA mensal, por exemplo), compondo geometricamente — somar 12 variações mensais NÃO dá a inflação do ano.",
+            "enum": [
+              "ultimo",
+              "primeiro",
+              "media",
+              "soma",
+              "acumulada"
+            ],
+            "type": "string"
+          },
+          "codigo": {
+            "description": "Código da série NOMINAL a deflacionar (ex.: 1619 para salário mínimo)",
+            "type": "number"
+          },
+          "dataFinal": {
+            "description": "Data final (yyyy-MM-dd ou dd/MM/yyyy)",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Data inicial (yyyy-MM-dd ou dd/MM/yyyy)",
+            "type": "string"
+          },
+          "frequencia": {
+            "description": "Opcional: reamostra a série para esta frequência antes de responder (só agrega para períodos MAIORES; pedir frequência mais fina que a da série é recusado). Útil para comparar séries de periodicidades diferentes.",
+            "enum": [
+              "mensal",
+              "trimestral",
+              "anual"
+            ],
+            "type": "string"
+          },
+          "indice": {
+            "default": "ipca",
+            "description": "Índice de preços usado como deflator: IPCA (433), INPC (188) ou IGP-M (189)",
+            "enum": [
+              "ipca",
+              "inpc",
+              "igpm"
+            ],
+            "type": "string"
+          },
+          "mesBase": {
+            "description": "Mês em cujos preços os valores serão expressos, no formato yyyy-MM. Sem ele, usa o último mês publicado do índice — isto é, 'em reais de hoje'.",
+            "pattern": "^\\d{4}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo",
+          "dataInicial",
+          "dataFinal"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_focus_expectativas",
+      "description": "Focus market expectations for one indicator, with the horizon as a parameter (monthly, quarterly, annual, next 12 or 24 months); mean, median, dispersion, respondents.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "dataFinal": {
+            "description": "Fim da janela de COLETA (yyyy-MM-dd ou dd/MM/yyyy). Padrão: hoje.",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Início da janela de COLETA (yyyy-MM-dd ou dd/MM/yyyy). Padrão: 30 dias antes do fim.",
+            "type": "string"
+          },
+          "horizonte": {
+            "description": "mensal, trimestral e anual usam `referencia`; inflacao_12m e inflacao_24m são rolantes e não usam",
+            "enum": [
+              "mensal",
+              "trimestral",
+              "anual",
+              "inflacao_12m",
+              "inflacao_24m"
+            ],
+            "type": "string"
+          },
+          "indicador": {
+            "description": "Indicador exatamente como a fonte publica (ex.: 'IPCA', 'IGP-M', 'PIB Total', 'Câmbio'). Veja bcb_focus_referencias.",
+            "minLength": 2,
+            "type": "string"
+          },
+          "limite": {
+            "default": 50,
+            "description": "Máximo de coletas a devolver (1-500, padrão 50)",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "number"
+          },
+          "referencia": {
+            "description": "Alvo da expectativa: MM/yyyy (mensal), T/yyyy (trimestral) ou yyyy (anual). Obrigatória nesses três; proibida nos rolantes.",
+            "type": "string"
+          },
+          "suavizada": {
+            "description": "Só nos horizontes rolantes: série suavizada (true) ou não suavizada (false)",
+            "type": "boolean"
+          },
+          "top5": {
+            "default": false,
+            "description": "Expectativas do Top 5 (as cinco instituições mais assertivas) em vez do consenso; existe nos cinco horizontes",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "indicador",
+          "horizonte"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_focus_referencias",
+      "description": "List the exact indicator names and references the Focus survey publishes, per scope, to use verbatim in the other Focus tools.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "escopo": {
+            "description": "Restringe a descoberta a um escopo (opcional). 'selic' descobre as reuniões do Copom para bcb_focus_selic; os demais são os horizontes de bcb_focus_expectativas.",
+            "enum": [
+              "mensal",
+              "trimestral",
+              "anual",
+              "inflacao_12m",
+              "inflacao_24m",
+              "selic"
+            ],
+            "type": "string"
+          },
+          "indicador": {
+            "description": "Filtrar por um indicador específico, para ver em quais escopos ele existe (opcional)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_focus_selic",
+      "description": "Focus market expectations for the Selic rate organised by Copom meeting (R1/2026 = first meeting of 2026).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "dataFinal": {
+            "description": "Fim da janela de COLETA (yyyy-MM-dd ou dd/MM/yyyy). Padrão: hoje.",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Início da janela de COLETA (yyyy-MM-dd ou dd/MM/yyyy). Padrão: 30 dias antes do fim.",
+            "type": "string"
+          },
+          "limite": {
+            "default": 50,
+            "description": "Máximo de coletas a devolver (1-500, padrão 50)",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "number"
+          },
+          "reuniao": {
+            "description": "Reunião do Copom no formato R1/2026 (opcional; sem ela, todas as reuniões da janela)",
+            "type": "string"
+          },
+          "top5": {
+            "default": false,
+            "description": "Expectativas do Top 5 em vez do consenso",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_indicadores_atuais",
+      "description": "One-call snapshot of Brazil's key indicators: Selic target, monthly and 12-month IPCA, USD/BRL, IBC-Br.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_serie_metadados",
+      "description": "Describe one BCB series - name, periodicity, category, source and latest value - without the full history.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codigo": {
+            "description": "Código da série no SGS/BCB",
+            "type": "number"
+          }
+        },
+        "required": [
+          "codigo"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_serie_ultimos",
+      "description": "Get the latest N observations of one BCB time series (works around the SGS cap of 20 by fetching a window).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codigo": {
+            "description": "Código da série no SGS/BCB",
+            "type": "number"
+          },
+          "quantidade": {
+            "default": 10,
+            "description": "Quantidade de valores a retornar (1-1000, padrão: 10). A API do BCB tem teto de 20 no endpoint nativo; acima disso o servidor busca por janela de datas e devolve os N últimos.",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "codigo"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_serie_valores",
+      "description": "Query the historical values of one BCB (SGS) time series by code, optionally within a date range; automatic chunking for long daily windows.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "agregacao": {
+            "default": "ultimo",
+            "description": "Como agregar os valores de cada período quando `frequencia` é informada. `ultimo` (padrão) serve a nível de preço, taxa e índice; `soma` a fluxo; `acumulada` a séries que JÁ SÃO variação percentual (IPCA mensal, por exemplo), compondo geometricamente — somar 12 variações mensais NÃO dá a inflação do ano.",
+            "enum": [
+              "ultimo",
+              "primeiro",
+              "media",
+              "soma",
+              "acumulada"
+            ],
+            "type": "string"
+          },
+          "codigo": {
+            "description": "Código da série no SGS/BCB (ex: 433 para IPCA mensal, 11 para Selic)",
+            "type": "number"
+          },
+          "dataFinal": {
+            "description": "Data final no formato yyyy-MM-dd ou dd/MM/yyyy (opcional)",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Data inicial no formato yyyy-MM-dd ou dd/MM/yyyy (opcional)",
+            "type": "string"
+          },
+          "frequencia": {
+            "description": "Opcional: reamostra a série para esta frequência antes de responder (só agrega para períodos MAIORES; pedir frequência mais fina que a da série é recusado). Útil para comparar séries de periodicidades diferentes.",
+            "enum": [
+              "mensal",
+              "trimestral",
+              "anual"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "codigo"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_series_populares",
+      "description": "List the curated catalog of 139 verified BCB series with codes, grouped by category (rates, inflation, FX, activity, credit, fiscal, ...).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "categoria": {
+            "description": "Filtrar por categoria: Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, Agregados Monetários, Poupança, Índices de Mercado, Expectativas",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "bcb_variacao",
+      "description": "Percent change of one series over a period plus descriptive statistics; series that already are variations (IPCA, IGP-M, ...) are compounded, not differenced.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codigo": {
+            "description": "Código da série no SGS/BCB",
+            "type": "number"
+          },
+          "dataFinal": {
+            "description": "Data final (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o último valor disponível.",
+            "type": "string"
+          },
+          "dataInicial": {
+            "description": "Data inicial (yyyy-MM-dd ou dd/MM/yyyy). Se não informada, usa o primeiro valor disponível.",
+            "type": "string"
+          },
+          "periodos": {
+            "description": "Alternativa: calcular variação dos últimos N períodos (ignora datas se informado). Acima de 20 o servidor busca por janela de datas, porque o endpoint nativo do BCB tem esse teto.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "codigo"
+        ],
+        "type": "object"
       }
     }
   ],
   "resources": [
-    {
-      "name": "series_populares",
-      "uri": "bcb://series/populares",
-      "description": "Catalog of 150+ popular BCB economic series, organized by category (JSON)"
-    },
     {
       "name": "categorias",
       "uri": "bcb://series/categorias",
       "description": "List of available categories in the BCB series catalog (JSON)"
     },
     {
+      "name": "series_populares",
+      "uri": "bcb://series/populares",
+      "description": "Curated catalog of 139 verified BCB economic series, organized by category, each with the provenance of its name (JSON)"
+    },
+    {
       "name": "codigos_principais",
       "uri": "bcb://series/principais",
-      "description": "Codes of the most-used economic indicators — Selic, IPCA, USD, GDP, etc. (JSON)"
+      "description": "Codes of the most-used economic indicators - Selic, IPCA, USD, GDP, etc. (JSON)"
     }
   ],
   "prompts": [
