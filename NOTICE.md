@@ -36,6 +36,18 @@ pergunta e **não mantém base derivada de observações**. O único dado persis
 periodicidade) — e o índice do portal fica em cache **efêmero em memória**, por
 24 horas, também só com metadado.
 
+### O catálogo curado é oferecido sob ODbL
+
+O catálogo curado persistido neste repositório — as 139 séries com código,
+nome, categoria e periodicidade (`src/`), 82 delas com o nome transcrito
+literalmente do Portal de Dados Abertos do BCB — é uma coleção de metadados
+extraída dos dados do Banco Central. Na medida em que ela constitua *base
+derivada* no sentido do §4.4 da ODbL, **o catálogo em si é oferecido sob a
+ODbL v1.0**, com o share-alike que a licença impõe; isso não altera a licença
+MIT do restante do código nem a superfície do servidor. Quem copiar o catálogo
+para outro projeto herda essa condição — que já existia, porque os dados são
+do BCB; este parágrafo apenas a nomeia (decisão do mantenedor, 15/08/2026).
+
 ## Fontes por API
 
 | API | Órgão responsável | Licença |
