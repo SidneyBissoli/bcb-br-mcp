@@ -5,6 +5,61 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-08-15
+
+**Correctness fix, found in production by the paid tool-selection eval of
+2026-08-14.** `bcb_variacao` computed `(last − first) / first` on the *level* of
+every series. That is right for a level series (dollar, Selic, debt) and
+meaningless for a series that *is already* a period-on-period rate: for the
+monthly IPCA it compared January's rate with December's and published
+**+23.81% for 2024, when the accumulated inflation was 4.83%** (the BCB's own
+12-month series 13522 confirms), and **+252.38% for the IGP-M in 2023, when the
+index fell 3.18%** — wrong sign, absurd magnitude, no warning. `bcb_comparar`
+ranked by the same arithmetic and inherited the defect.
+
+Minor bump because the output gains a field; nothing was removed.
+
+### Fixed
+- **`bcb_variacao` on rate series now returns the compounded accumulation**
+  `(Π(1 + vᵢ/100) − 1) × 100` over all observations — the same index
+  reconstruction `bcb_deflacionar` already used, verified against series 13522
+  with a maximum error of 0.0052 pp. IPCA 2024 now answers +4.83%; IGP-M 2023
+  answers −3.86% (from the monthly rates as published).
+- **`bcb_comparar` applies the same per-series rule**, compounding over the
+  *original* observations before any `frequencia` harmonisation, so a ranking
+  between IPCA, INPC and IGP-M is a ranking of what each accumulated.
+- **Series that are already a rolling accumulation** (IPCA 12-month, 13522) are
+  **refused** with guidance — neither the level change nor compounding means
+  anything there; the published value *is* the answer. In `bcb_comparar` the
+  refusal is isolated per series in `erros`, and the ranking of the others
+  proceeds.
+
+### Added
+- **`metodo` field** — `analise.metodo` in `bcb_variacao`, and per ranking item
+  in `bcb_comparar` — with values `nivel` | `encadeamento`, saying which
+  arithmetic was used. `derivacao.nota` and the provenance note change
+  accordingly.
+- `analise.diferencaAbsoluta` is now `number | null`: **null on compounded
+  series**, where the difference between two monthly rates does not apply.
+
+### Detection is partial by construction, and the contract says so
+Of the 139 curated series, only 10 carry a portal `unidade` that literally
+reads "Variação percentual mensal" (IPCA cores and groups). The headline indices
+that triggered the defect (433, 189, 188, 190…) have no portal dataset and are
+recognised by their curated *name* ("… - Variação mensal") — 24 series in total,
+pinned by test. Everything else, including the thousands of codes outside the
+catalog, is treated as a level and the tool description states it, rather than
+pretending the detection is complete.
+
+### Tests
+- 270 in the package (+8) and 23 in the worker. The characterisation pins for
+  the level arithmetic moved from series 433/189 to level series; the
+  compounding gets its own pins, including the real twelve months of IPCA 2024
+  → 4.8313 and IGP-M 2023 → −3.8643.
+- Eval fixtures `stat-01` and `ctrl-01` keep `bcb_variacao` as expected tool —
+  their expectation was only wrong in practice while the tool published a
+  meaningless number.
+
 ## [1.8.0] - 2026-08-13
 
 Every successful response now carries **where the data came from, when it was

@@ -63,8 +63,8 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 | `bcb_series_populares` | List popular series grouped by category |
 | `bcb_buscar_serie` | Search series by name or description (accent-insensitive) |
 | `bcb_indicadores_atuais` | Latest values: Selic, IPCA, USD/BRL, IBC-Br |
-| `bcb_variacao` | Calculate percentage variation between dates or last N periods |
-| `bcb_comparar` | Compare 2 to 5 series over the same period with ranking |
+| `bcb_variacao` | Percentage variation of one series over a period: level change for level series, **compounded accumulation** for series that are already period-on-period rates (IPCA, IGP-M, INPC…); `analise.metodo` says which |
+| `bcb_comparar` | Compare 2 to 5 series over the same period with ranking (same level/compounding rule per series, declared in `metodo`) |
 | `bcb_focus_expectativas` | Focus survey expectations for one indicator, horizon as a parameter (monthly, quarterly, annual, rolling 12m/24m inflation); `top5` flag |
 | `bcb_focus_selic` | Focus expectations for the Selic rate, by Copom meeting (R1/2026 form) |
 | `bcb_focus_referencias` | Which indicators and reference dates the Focus survey actually publishes, **broken down per scope** (the five horizons plus `selic`, whose axis is the Copom meeting) — the indicator set differs by scope (9 monthly vs 26 annual) |

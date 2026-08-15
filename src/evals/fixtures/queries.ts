@@ -106,7 +106,11 @@ export const FIXTURES: EvalFixture[] = [
     id: "stat-01",
     query: "Quanto o IPCA acumulou de variação entre janeiro e dezembro de 2024?",
     expectedTools: ["bcb_variacao"],
-    note: "UMA série, variação no período: bcb_variacao."
+    note:
+      "UMA série, acumulado no período: bcb_variacao. Até a v1.8.0 esta expectativa estava ERRADA na prática — " +
+      "a tool comparava a taxa de janeiro com a de dezembro (+23,81% onde o acumulado é 4,83%) e o modelo, " +
+      "certo, recusava e ia aos valores brutos. Desde a 1.9.0 a série 433 é acumulada por encadeamento " +
+      "(`analise.metodo: \"encadeamento\"`), e a expectativa vale legitimamente."
   },
   {
     id: "stat-02",
@@ -262,7 +266,9 @@ export const FIXTURES: EvalFixture[] = [
     id: "ctrl-01",
     query: "Quanto o IGP-M acumulou em 2023?",
     expectedTools: ["bcb_variacao"],
-    note: "Controle: uma série, um período, variação."
+    note:
+      "Controle: uma série, um período, acumulado. Mesma história de stat-01: publicava +252,38% para 2023, " +
+      "quando o IGP-M caiu 3,18%; desde a 1.9.0 a 189 é encadeada e a expectativa vale."
   },
   {
     id: "ctrl-02",

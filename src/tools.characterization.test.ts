@@ -406,11 +406,17 @@ describe("bcb_indicadores_atuais", () => {
 // Todo o resto segue pinado valor a valor: variação, diferença, média, amplitude,
 // formatação, período e o erro de dados insuficientes.
 
+// Sessão 10: os pins de NÍVEL saíram das séries 433/189 (IPCA/IGP-M), porque
+// elas JÁ SÃO variação e agora são medidas por encadeamento — comparar a taxa de
+// janeiro com a de dezembro publicava +23,81% para o IPCA de 2024 (acumulado
+// real: 4,83%). A conta de nível segue pinada valor a valor, em séries de nível
+// (dólar 1, dívida 4513, PIB 4382); o encadeamento ganha pins próprios abaixo.
+
 describe("bcb_variacao (gate mcp-stats)", () => {
   it("números redondos: variação, extremos, média e amplitude", async () => {
     mockFetch([
       [
-        "bcdata.sgs.433/dados",
+        "bcdata.sgs.1/dados",
         [
           { data: "01/01/2020", valor: "100.00" },
           { data: "01/02/2020", valor: "110.00" },
@@ -419,12 +425,13 @@ describe("bcb_variacao (gate mcp-stats)", () => {
       ]
     ]);
 
-    const out = structured(await call("bcb_variacao", { codigo: 433, dataInicial: "2020-01-01", dataFinal: "2020-03-31" }));
+    const out = structured(await call("bcb_variacao", { codigo: 1, dataInicial: "2020-01-01", dataFinal: "2020-03-31" }));
 
     expect(out).toEqual({
-      serie: { codigo: 433, nome: "IPCA - Variação mensal", categoria: "Inflação" },
+      serie: { codigo: 1, nome: "Taxa de câmbio - Livre - Dólar americano (venda) - diário", categoria: "Câmbio" },
       periodo: { dataInicial: "01/01/2020", dataFinal: "01/03/2020", totalPeriodos: 3 },
       analise: {
+        metodo: "nivel",
         valorInicial: 100,
         valorFinal: 90,
         diferencaAbsoluta: -10,
@@ -466,12 +473,85 @@ describe("bcb_variacao (gate mcp-stats)", () => {
       amplitude: 2.3283 // (3.333333 - 1.005) = 2.328333 -> 2.3283
     });
     expect(out.analise).toEqual({
+      metodo: "nivel", // fora do catálogo: nível, declarado
       valorInicial: 1.005, // valores de ponta NÃO são arredondados
       valorFinal: 3.333333,
       diferencaAbsoluta: 2.3283,
       variacaoPercentual: 231.6749, // ((3.333333-1.005)/1.005)*100 = 231.67492537...
       variacaoFormatada: "+231.67%"
     });
+  });
+
+  it("série que já é variação (IPCA 433): acumulado por encadeamento, diferença nula, metodo declarado", async () => {
+    // Os 12 meses reais do IPCA de 2024. Este é o caso que a rodada paga achou:
+    // a conta de nível dava +23,81%; o acumulado publicado pelo BCB (13522) é 4,83.
+    mockFetch([
+      [
+        "bcdata.sgs.433/dados",
+        [
+          { data: "01/01/2024", valor: "0.42" }, { data: "01/02/2024", valor: "0.83" },
+          { data: "01/03/2024", valor: "0.16" }, { data: "01/04/2024", valor: "0.38" },
+          { data: "01/05/2024", valor: "0.46" }, { data: "01/06/2024", valor: "0.21" },
+          { data: "01/07/2024", valor: "0.38" }, { data: "01/08/2024", valor: "-0.02" },
+          { data: "01/09/2024", valor: "0.44" }, { data: "01/10/2024", valor: "0.56" },
+          { data: "01/11/2024", valor: "0.39" }, { data: "01/12/2024", valor: "0.52" }
+        ]
+      ]
+    ]);
+
+    const out = structured(await call("bcb_variacao", { codigo: 433, dataInicial: "2024-01-01", dataFinal: "2024-12-31" }));
+
+    expect(out.analise).toEqual({
+      metodo: "encadeamento",
+      valorInicial: 0.42,
+      valorFinal: 0.52,
+      diferencaAbsoluta: null,
+      variacaoPercentual: 4.8313,
+      variacaoFormatada: "+4.83%"
+    });
+    // Estatísticas seguem sendo das observações (as taxas mensais), não do acumulado.
+    expect(out.estatisticas).toEqual({ maximo: 0.83, minimo: -0.02, media: 0.3942, amplitude: 0.85 });
+    expect(out.derivacao).toEqual({
+      derived: true,
+      motor: "@sbissoli/mcp-stats",
+      nota: expect.stringContaining("ACUMULADO no período por encadeamento") as unknown as string
+    });
+  });
+
+  it("série que já é variação com queda no período (IGP-M 189, 2023): sinal certo", async () => {
+    // A conta de nível dava +248% (última taxa 0,74 contra primeira −0,50); o
+    // índice CAIU no ano.
+    mockFetch([
+      [
+        "bcdata.sgs.189/dados",
+        [
+          { data: "01/01/2023", valor: "-0.50" }, { data: "01/02/2023", valor: "-0.06" },
+          { data: "01/03/2023", valor: "0.05" }, { data: "01/04/2023", valor: "-0.95" },
+          { data: "01/05/2023", valor: "-1.84" }, { data: "01/06/2023", valor: "-1.93" },
+          { data: "01/07/2023", valor: "-0.72" }, { data: "01/08/2023", valor: "-0.14" },
+          { data: "01/09/2023", valor: "0.37" }, { data: "01/10/2023", valor: "0.50" },
+          { data: "01/11/2023", valor: "0.59" }, { data: "01/12/2023", valor: "0.74" }
+        ]
+      ]
+    ]);
+
+    const out = structured(await call("bcb_variacao", { codigo: 189, dataInicial: "2023-01-01", dataFinal: "2023-12-31" }));
+
+    expect(out.analise.metodo).toBe("encadeamento");
+    expect(out.analise.variacaoPercentual).toBe(-3.8643);
+    expect(out.analise.variacaoFormatada).toBe("-3.86%");
+  });
+
+  it("série de acumulado móvel (IPCA 12 meses, 13522) é recusada com orientação, sem ir à rede", async () => {
+    mockFetch([["bcdata.sgs.13522/dados", [{ data: "01/01/2024", valor: "4.51" }, { data: "01/12/2024", valor: "4.83" }]]]);
+
+    const result = await call("bcb_variacao", { codigo: 13522, dataInicial: "2024-01-01", dataFinal: "2024-12-31" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("já é um acumulado em janela móvel de 12 meses");
+    expect(result.content[0].text).toContain("bcb_serie_valores");
+    expect(result.structuredContent).toBeUndefined();
+    expect(fetchCalls).toEqual([]);
   });
 
   it("periodos > 1 troca o endpoint para /ultimos/N", async () => {
@@ -508,7 +588,7 @@ describe("bcb_comparar (gate mcp-stats)", () => {
   it("ranking desc por variação, com assimetria de arredondamento preservada", async () => {
     mockFetch([
       [
-        "bcdata.sgs.433/dados",
+        "bcdata.sgs.4513/dados",
         [
           { data: "01/01/2020", valor: "100" },
           { data: "01/02/2020", valor: "90" },
@@ -516,7 +596,7 @@ describe("bcb_comparar (gate mcp-stats)", () => {
         ]
       ],
       [
-        "bcdata.sgs.189/dados",
+        "bcdata.sgs.4382/dados",
         [
           { data: "01/01/2020", valor: "100" },
           { data: "01/02/2020", valor: "120" }
@@ -525,7 +605,7 @@ describe("bcb_comparar (gate mcp-stats)", () => {
     ]);
 
     const out = structured(
-      await call("bcb_comparar", { codigos: [433, 189], dataInicial: "2020-01-01", dataFinal: "2020-03-31" })
+      await call("bcb_comparar", { codigos: [4513, 4382], dataInicial: "2020-01-01", dataFinal: "2020-03-31" })
     );
 
     expect(out.periodo).toEqual({ dataInicial: "01/01/2020", dataFinal: "31/03/2020" });
@@ -534,14 +614,15 @@ describe("bcb_comparar (gate mcp-stats)", () => {
     expect(out.seriesComErro).toBe(0);
     expect(out.erros).toEqual([]);
 
-    // 189 varia +20%, 433 varia -4.4445% => 189 vem primeiro.
+    // 4382 varia +20%, 4513 varia -4.4445% => 4382 vem primeiro.
     expect(out.ranking).toEqual([
       {
         posicao: 1,
-        codigo: 189,
-        nome: "IGP-M - Variação mensal",
-        categoria: "Inflação",
+        codigo: 4382,
+        nome: "PIB acumulado dos últimos 12 meses - Valores correntes (R$ milhões)",
+        categoria: "Atividade Econômica",
         periodicidade: "Mensal",
+        metodo: "nivel",
         totalRegistros: 2,
         valorInicial: 100,
         valorFinal: 120,
@@ -553,10 +634,11 @@ describe("bcb_comparar (gate mcp-stats)", () => {
       },
       {
         posicao: 2,
-        codigo: 433,
-        nome: "IPCA - Variação mensal",
-        categoria: "Inflação",
+        codigo: 4513,
+        nome: "Dívida Líquida do Setor Público (% PIB) - Total - Setor público consolidado",
+        categoria: "Fiscal",
         periodicidade: "Mensal",
+        metodo: "nivel",
         totalRegistros: 3,
         valorInicial: 100,
         valorFinal: 95.5555,

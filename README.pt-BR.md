@@ -58,8 +58,8 @@ As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com pro
 | `bcb_series_populares` | Lista séries populares agrupadas por categoria |
 | `bcb_buscar_serie` | Busca séries por nome ou descrição (aceita termos sem acento) |
 | `bcb_indicadores_atuais` | Valores mais recentes: Selic, IPCA, Dólar, IBC-Br |
-| `bcb_variacao` | Calcula variação percentual entre duas datas ou últimos N períodos |
-| `bcb_comparar` | Compara 2 a 5 séries no mesmo período com ranking |
+| `bcb_variacao` | Variação percentual de UMA série no período: entre as pontas para série de nível, **acumulado por encadeamento** para série que já é variação por período (IPCA, IGP-M, INPC…); `analise.metodo` diz qual |
+| `bcb_comparar` | Compara 2 a 5 séries no mesmo período com ranking (mesma regra nível/encadeamento por série, declarada em `metodo`) |
 
 ## Recursos
 

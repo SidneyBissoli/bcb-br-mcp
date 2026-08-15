@@ -67,6 +67,42 @@ export function estatisticasDaSerie(valores: number[]): EstatisticasSerie {
   };
 }
 
+// ==================== VARIAÇÃO POR ENCADEAMENTO ====================
+
+/**
+ * Como `bcb_variacao` e `bcb_comparar` devem medir a variação de uma série.
+ *
+ * - `nivel`: `(último − primeiro) / primeiro`. É a conta certa para série de
+ *   NÍVEL (dólar, Selic meta, dívida, produção) — o que a tool sempre fez.
+ * - `encadeamento`: a série JÁ É uma variação percentual por período (IPCA, IGP-M,
+ *   INPC mensais). Comparar a taxa de janeiro com a de dezembro não significa
+ *   nada; o que se acumulou no período é `Π(1 + vᵢ/100) − 1`.
+ * - `acumulado`: a série já é um acumulado em janela móvel (IPCA em 12 meses,
+ *   série 13522). Nem nível nem encadeamento se aplicam — o valor do último mês
+ *   É a resposta, e a tool recusa em vez de inventar.
+ *
+ * Existe porque a rodada paga de eval de 14/08/2026 achou, de raspão, um defeito
+ * de correção vivo em produção: `bcb_variacao` publicava +23,81% para o IPCA de
+ * 2024, quando o acumulado é 4,83%, e +252,38% para o IGP-M de 2023, quando o
+ * índice CAIU 3,18%. A decisão de FORMA (encadear onde se pode afirmar que a série
+ * é variação; recusar o acumulado móvel; declarar nível no resto) é do decisor,
+ * sessão 10.
+ */
+export type MetodoVariacao = "nivel" | "encadeamento" | "acumulado";
+
+/**
+ * Acumula variações percentuais por período: `(Π(1 + vᵢ/100) − 1) × 100`.
+ *
+ * É a MESMA reconstrução do índice que `construirDeflator` faz em `series.ts`,
+ * conferida contra a série 13522 em 11/08/2026 (erro máximo 0,0052 pp em 85
+ * janelas). Devolve o valor cru; quem publica arredonda com `arredondarDerivado`.
+ */
+export function variacaoAcumulada(variacoesPct: number[]): number {
+  let fator = 1;
+  for (const v of variacoesPct) fator *= 1 + v / 100;
+  return (fator - 1) * 100;
+}
+
 // ==================== CORRELAÇÃO ====================
 
 export type MetodoCorrelacao = CorrelationMethod;
@@ -169,6 +205,23 @@ export const DERIVACAO_ESTATISTICA = {
     "Banco Central, não são divulgadas por ele. Convenções: média aritmética simples das observações do " +
     "período; `maximo` e `minimo` são observações da fonte, devolvidas sem arredondamento; números " +
     "derivados (média, amplitude, variação, diferença) são arredondados em 4 casas decimais."
+} as const;
+
+/**
+ * Derivação da variação por ENCADEAMENTO. Substitui a nota estatística quando a
+ * série é ela própria uma variação: o leitor precisa saber que `variacaoPercentual`
+ * é o acumulado composto do período, e não a comparação entre dois pontos.
+ */
+export const DERIVACAO_ENCADEAMENTO = {
+  derived: true,
+  motor: "@sbissoli/mcp-stats",
+  nota:
+    "Esta série já é uma variação percentual por período, então `variacaoPercentual` é o ACUMULADO no " +
+    "período por encadeamento — (Π(1 + vᵢ/100) − 1) × 100 sobre todas as observações — e não a comparação " +
+    "entre o primeiro e o último valor, que aqui não teria significado. `valorInicial` e `valorFinal` " +
+    "seguem sendo as variações do primeiro e do último período; `diferencaAbsoluta` não se aplica e vem " +
+    "nula. Estatísticas calculadas pelo servidor a partir das observações publicadas pelo Banco Central: " +
+    "média aritmética simples; `maximo` e `minimo` verbatim da fonte; derivados em 4 casas decimais."
 } as const;
 
 /**

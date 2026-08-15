@@ -303,6 +303,18 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   `bcb_variacao` (a 4513 saía −7,40% num período em que subiu 8,00%). Toda
   observação vinda do SGS passa por `ordenarPorData` em `series.ts` — não leia
   `dados[0]` como "o mais antigo" fora dali.
+- **Série que JÁ É variação não se mede por `(último − primeiro) / primeiro`.**
+  IPCA 433, IGP-M 189, INPC 188 e os demais índices de preço mensais publicam a
+  taxa do mês; comparar janeiro com dezembro publicava **+23,81% para o IPCA de
+  2024 (acumulado real: 4,83%)** e **+252,38% para o IGP-M de 2023 (o índice CAIU
+  3,18%)**, achado de raspão pela rodada paga de eval em 14/08/2026 e corrigido na
+  1.9.0. `metodoVariacaoDaSerie` em `tools.ts` decide por série (`nivel` ×
+  `encadeamento` × `acumulado`) e a detecção é PARCIAL por construção: 10 séries
+  pela `unidade` do portal, 14 pelo nome curado, e as cabeças de índice (433,
+  189...) NÃO têm unidade — só o nome as reconhece. Código fora do catálogo é
+  nível, declarado no contrato. A 13522 (acumulado em 12 meses) é recusada: nem
+  nível nem encadeamento têm sentido nela. `bcb_comparar` usa a mesma decisão,
+  encadeando sobre as observações ORIGINAIS, antes de qualquer harmonização.
 - **`ultimos/N` tem teto de 20 em TODA periodicidade** (não só nas diárias — a
   mensal 433 também devolve 400), embora o schema anuncie até 1000. Acima de 20,
   `series.ts` cumpre a promessa por janela de datas.

@@ -164,8 +164,11 @@ const CASOS: Array<[string, string, Record<string, unknown>]> = [
   ["bcb_buscar_serie", "busca com achados", { termo: "ipca" }],
   ["bcb_buscar_serie", "busca sem achado", { termo: "zzzznaoexiste" }],
   ["bcb_indicadores_atuais", "painel agregado", {}],
-  ["bcb_variacao", "estatística artesanal", { codigo: 433, dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
-  ["bcb_comparar", "duas séries", { codigos: [433, 189], dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
+  ["bcb_variacao", "série de nível (metodo nivel)", { codigo: 1, dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
+  ["bcb_variacao", "série que já é variação (encadeamento, diferencaAbsoluta nula)", { codigo: 433, dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
+  ["bcb_variacao", "fora do catálogo (nível declarado)", { codigo: 99999, dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
+  ["bcb_comparar", "duas séries encadeadas", { codigos: [433, 189], dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
+  ["bcb_comparar", "nível e encadeada no mesmo ranking", { codigos: [1, 433], dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
   ["bcb_correlacao", "duas séries alinhadas", { codigos: [433, 189], dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
   ["bcb_deflacionar", "série nominal com deflator", { codigo: 1619, dataInicial: "01/01/2026", dataFinal: "01/06/2026" }],
   ["bcb_focus_expectativas", "calendário com referência", { indicador: "IPCA", horizonte: "anual", referencia: "2027" }],
@@ -326,6 +329,35 @@ describe("campos acrescentados pelo D1/D2 obedecem ao schema", () => {
 
     expect(out.derivacao).toBeDefined();
     expect(out.chunking).toBeDefined();
+  });
+
+  it("bcb_variacao encadeada: `metodo`, `diferencaAbsoluta` nula e nota de encadeamento", async () => {
+    mockRotas([["bcdata.sgs.433/dados", MENSAIS_12]]);
+
+    const out = await validar("bcb_variacao", { codigo: 433, dataInicial: "01/01/2024", dataFinal: "31/12/2024" });
+
+    const analise = out.analise as Record<string, unknown>;
+    expect(analise.metodo).toBe("encadeamento");
+    expect(analise.diferencaAbsoluta).toBeNull();
+    expect((out.derivacao as Record<string, unknown>).nota).toContain("encadeamento");
+  });
+
+  it("bcb_comparar com série de acumulado móvel (13522): recusa isolada em `erros`, ranking segue", async () => {
+    mockRotas([
+      ["bcdata.sgs.433/dados", MENSAIS_12],
+      ["bcdata.sgs.189/dados", MENSAIS_12]
+    ]);
+
+    const out = await validar("bcb_comparar", { codigos: [433, 189, 13522], dataInicial: "01/01/2024", dataFinal: "31/12/2024" });
+
+    expect(out.seriesComDados).toBe(2);
+    expect(out.seriesComErro).toBe(1);
+    const erros = out.erros as Array<Record<string, unknown>>;
+    expect(erros[0].codigo).toBe(13522);
+    expect(String(erros[0].erro)).toContain("acumulado em janela móvel");
+    const ranking = out.ranking as Array<Record<string, unknown>>;
+    expect(ranking.every(r => r.metodo === "encadeamento")).toBe(true);
+    expect((out.derivacao as Record<string, unknown>).nota).toContain("`metodo`");
   });
 
   it("bcb_comparar com periodicidades diferentes: campo `aviso`", async () => {

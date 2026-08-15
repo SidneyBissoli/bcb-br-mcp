@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { SERIES_POPULARES } from "./tools.js";
+import { SERIES_POPULARES, metodoVariacaoDaSerie, seriesEncadeadas } from "./tools.js";
 
 describe("catálogo curado — integridade", () => {
   it("não tem código repetido", () => {
@@ -118,5 +118,38 @@ describe("catálogo curado — o que a verificação contra a origem estabeleceu
     for (const codigo of [433, 13522, 188, 189, 1, 10813, 11, 432, 12, 226, 256, 4380, 24369]) {
       expect(SERIES_POPULARES.find(s => s.codigo === codigo)).toBeDefined();
     }
+  });
+});
+
+/**
+ * Sessão 10. A detecção de "série que já é variação" é PARCIAL por construção e
+ * o conjunto está pinado para que uma mudança de catálogo não a mova em silêncio:
+ * 10 pela `unidade` do portal ("Variação percentual mensal") + 14 pelo nome
+ * curado ("... - Variação mensal"). A 13522 (acumulado em 12 meses) é recusada;
+ * tudo o mais — inclusive "Percentual ao mês" (4390) e código fora do catálogo —
+ * é nível.
+ */
+describe("catálogo curado — método de variação por série (sessão 10)", () => {
+  it("as 24 séries encadeadas são exatamente estas", () => {
+    expect(seriesEncadeadas().sort((a, b) => a - b)).toEqual(
+      [188, 189, 190, 191, 193, 225, 433, 4449, 7447, 7450, 7478, 10764, 10841, 10842, 10843, 10844,
+        11426, 11427, 11428, 16121, 16122, 17679, 17680, 21859].sort((a, b) => a - b)
+    );
+  });
+
+  it("as cabeças de índice que dispararam o defeito são reconhecidas pelo NOME (não têm unidade do portal)", () => {
+    for (const codigo of [433, 189, 188, 190]) {
+      const info = SERIES_POPULARES.find(s => s.codigo === codigo)!;
+      expect(info.unidade).toBeUndefined();
+      expect(metodoVariacaoDaSerie(codigo)).toBe("encadeamento");
+    }
+  });
+
+  it("acumulado móvel é recusado; taxa ao mês, nível e fora do catálogo ficam como nível", () => {
+    expect(metodoVariacaoDaSerie(13522)).toBe("acumulado");
+    expect(metodoVariacaoDaSerie(4390)).toBe("nivel");
+    expect(metodoVariacaoDaSerie(1)).toBe("nivel");
+    expect(metodoVariacaoDaSerie(4513)).toBe("nivel");
+    expect(metodoVariacaoDaSerie(99999)).toBe("nivel");
   });
 });

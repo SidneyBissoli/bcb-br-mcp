@@ -363,6 +363,33 @@ try {
     );
   }
 
+  // Sessão 10 (1.9.0): série que JÁ É variação é acumulada por encadeamento. O
+  // guarda de produção é o próprio BCB: o acumulado dos 12 meses de 2024 da 433
+  // tem de bater com o que a 13522 publica em dezembro de 2024 (4,83), com a
+  // tolerância medida do encadeamento (0,0052 pp) mais o arredondamento da fonte.
+  const ipca2024 = await call("bcb_variacao", { codigo: 433, dataInicial: "2024-01-01", dataFinal: "2024-12-31" });
+  const ipcaOut = ipca2024.result?.structuredContent;
+  checkUpstream(
+    "bcb_variacao no IPCA de 2024 (série que já é variação)",
+    ipca2024.result,
+    `${ipcaOut?.analise?.metodo} = ${ipcaOut?.analise?.variacaoFormatada}`
+  );
+  if (!ipca2024.result?.isError) {
+    check("  → metodo é encadeamento e diferencaAbsoluta é nula",
+      ipcaOut?.analise?.metodo === "encadeamento" && ipcaOut?.analise?.diferencaAbsoluta === null);
+    check("  → o acumulado é ~4,83, não os +23,81% da conta de nível",
+      Math.abs(ipcaOut?.analise?.variacaoPercentual - 4.83) < 0.02, String(ipcaOut?.analise?.variacaoPercentual));
+    const acum12 = await call("bcb_serie_valores", { codigo: 13522, dataInicial: "2024-12-01", dataFinal: "2024-12-31" });
+    const publicado = Number(acum12.result?.structuredContent?.dados?.[0]?.valor);
+    if (Number.isFinite(publicado)) {
+      check("  → e bate com o que o BCB publica na 13522 para 12/2024",
+        Math.abs(ipcaOut?.analise?.variacaoPercentual - publicado) < 0.02, `13522 = ${publicado}`);
+    }
+  }
+  const acumMovel = await call("bcb_variacao", { codigo: 13522, dataInicial: "2024-01-01", dataFinal: "2024-12-31" });
+  check("bcb_variacao recusa a 13522 (acumulado móvel) com orientação",
+    acumMovel.result?.isError === true && /janela móvel/.test(acumMovel.result?.content?.[0]?.text ?? ""));
+
   const invUlt = await call("bcb_serie_ultimos", { codigo: 4513, quantidade: 12 });
   const invUltOut = invUlt.result?.structuredContent;
   checkUpstream(

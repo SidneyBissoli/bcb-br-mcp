@@ -310,6 +310,11 @@ export const NOTA_DERIVACAO_ESTATISTICA =
   "Estatísticas calculadas pelo servidor a partir das observações brutas da fonte " +
   "(motor: @sbissoli/mcp-stats); os valores observados permanecem os originais do BCB.";
 
+/** Nota das tools que ACUMULAM uma série que já é variação (IPCA, IGP-M mensais). */
+export const NOTA_DERIVACAO_ENCADEAMENTO =
+  "Variação acumulada por encadeamento das variações por período publicadas pela fonte " +
+  "(motor: @sbissoli/mcp-stats); os valores observados permanecem os originais do BCB.";
+
 /** Nota fixa da harmonização de frequência. */
 export const NOTA_DERIVACAO_HARMONIZACAO =
   "Observações agregadas pelo servidor para a periodicidade pedida; os valores de origem " +

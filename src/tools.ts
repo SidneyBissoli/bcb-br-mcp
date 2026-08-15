@@ -16,8 +16,11 @@ import { CAMBIO_TOOL_DEFINITIONS, dispatchCambioTool } from "./cambio.js";
 import {
   DERIVACAO_CORRELACAO,
   DERIVACAO_DEFLACAO,
+  DERIVACAO_ENCADEAMENTO,
   DERIVACAO_ESTATISTICA,
   arredondarDerivado,
+  variacaoAcumulada,
+  type MetodoVariacao,
   correlacaoEntreSeries,
   emVariacoes,
   estatisticasDaSerie,
@@ -59,6 +62,7 @@ import {
 } from "./shared.js";
 import {
   NOTA_DERIVACAO_DEFLACAO,
+  NOTA_DERIVACAO_ENCADEAMENTO,
   NOTA_DERIVACAO_ESTATISTICA,
   NOTA_DERIVACAO_HARMONIZACAO,
   comProveniencia,
@@ -297,6 +301,44 @@ export const SERIES_POPULARES: SeriePopular[] = [
   { codigo: 25, nome: "Depósitos de poupança até 03.05.2012 - Rentabilidade no período", categoria: "Poupança", periodicidade: "Diária", fonteNome: "portal", unidade: "Percentual ao mês" },
   { codigo: 195, nome: "Depósitos de poupança a partir de 04.05.2012 - Rentabilidade no período", categoria: "Poupança", periodicidade: "Diária", fonteNome: "portal", unidade: "Percentual ao mês" }
 ];
+/**
+ * Como medir a variação de uma série do catálogo — nível, encadeamento ou recusa.
+ *
+ * O limite desta detecção foi medido em 14/08/2026 e é PARCIAL por construção:
+ * das 139 séries curadas, 82 têm `unidade` transcrita do portal e só 10 dizem
+ * literalmente "Variação percentual mensal" (núcleos e grupos do IPCA); as cabeças
+ * de índice que dispararam o defeito (IPCA 433, IGP-M 189, INPC 188...) não têm
+ * dataset no portal e são reconhecidas pelo NOME curado, que termina em
+ * "Variação mensal". Os milhares de códigos fora do catálogo não têm unidade em
+ * lugar nenhum e ficam como nível — a descrição da tool declara isso, em vez de
+ * fingir que a detecção é completa. Séries de acumulado móvel ("Variação
+ * acumulada em 12 meses", 13522) são recusadas: encadear um acumulado móvel
+ * também seria inventar número.
+ */
+export function metodoVariacaoDaSerie(codigo: number): MetodoVariacao {
+  const info = SERIES_POPULARES.find(s => s.codigo === codigo);
+  if (!info) return "nivel";
+  if (/Variação acumulada em 12 meses/i.test(info.nome)) return "acumulado";
+  if (info.unidade === "Variação percentual mensal") return "encadeamento";
+  if (/Variação mensal$/i.test(info.nome)) return "encadeamento";
+  return "nivel";
+}
+
+/** Códigos do catálogo que a tool trata por encadeamento — para a descrição e os testes. */
+export function seriesEncadeadas(): number[] {
+  return SERIES_POPULARES.filter(s => metodoVariacaoDaSerie(s.codigo) === "encadeamento").map(s => s.codigo);
+}
+
+/** Mensagem da recusa: a série já é o acumulado, e o valor do último mês é a resposta. */
+export function mensagemRecusaAcumulado(codigo: number, nome: string): string {
+  return (
+    `A série ${codigo} (${nome}) já é um acumulado em janela móvel de 12 meses: a variação entre o primeiro e ` +
+    `o último valor não tem significado, e encadear os valores também não. O acumulado em 12 meses numa data ` +
+    `é o próprio valor publicado nessa data — use bcb_serie_valores para lê-lo. Para acumular a inflação ` +
+    `num período arbitrário use bcb_variacao sobre a série de variação mensal (IPCA 433).`
+  );
+}
+
 
 // ==================== TOOL HANDLERS ====================
 
@@ -784,6 +826,14 @@ export async function handleVariacao(
   maxRetries?: number
 ): Promise<ToolResult> {
   try {
+    const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
+    const nome = serieInfo?.nome || `Série ${args.codigo}`;
+    const metodo = metodoVariacaoDaSerie(args.codigo);
+    // Recusa ANTES da rede: a série já é o acumulado, não há conta a fazer.
+    if (metodo === "acumulado") {
+      return erroResult(mensagemRecusaAcumulado(args.codigo, nome));
+    }
+
     // `periodos` mantém a precedência sobre as datas (comportamento de sempre).
     // O que mudou: acima de 20 períodos a consulta não falha mais, e janela
     // diária larga é fatiada em vez de estourar o tempo. Ver `series.ts`.
@@ -808,30 +858,36 @@ export async function handleVariacao(
       };
     }
 
-    const serieInfo = SERIES_POPULARES.find(s => s.codigo === args.codigo);
-    const valorInicial = parseFloat(data[0].valor);
-    const valorFinal = parseFloat(data[data.length - 1].valor);
-    const variacao = calculateVariation(valorInicial, valorFinal);
-    const diferencaAbsoluta = valorFinal - valorInicial;
+    const valores = data.map(d => parseFloat(d.valor));
+    const valorInicial = valores[0];
+    const valorFinal = valores[valores.length - 1];
+    // Série de nível: variação entre as pontas. Série que JÁ É variação: acumulado
+    // por encadeamento de todas as observações — comparar a taxa de janeiro com a
+    // de dezembro publicava +23,81% para o IPCA de 2024 (acumulado real: 4,83%).
+    const variacao = metodo === "encadeamento" ? variacaoAcumulada(valores) : calculateVariation(valorInicial, valorFinal);
+    const diferencaAbsoluta = metodo === "encadeamento" ? null : arredondarDerivado(valorFinal - valorInicial);
     // Motor comum da Fase 0 (arbitragem 4). A convenção de arredondamento e o
     // porquê de os extremos saírem verbatim moram em `stats.ts`.
-    const { maximo, minimo, media, amplitude } = estatisticasDaSerie(data.map(d => parseFloat(d.valor)));
+    const { maximo, minimo, media, amplitude } = estatisticasDaSerie(valores);
 
     return resultadoComProveniencia(
       {
-        serie: { codigo: args.codigo, nome: serieInfo?.nome || `Série ${args.codigo}`, categoria: serieInfo?.categoria || "Desconhecida" },
+        serie: { codigo: args.codigo, nome, categoria: serieInfo?.categoria || "Desconhecida" },
         periodo: { dataInicial: data[0].data, dataFinal: data[data.length - 1].data, totalPeriodos: data.length },
         analise: {
+          metodo,
           valorInicial, valorFinal,
-          diferencaAbsoluta: arredondarDerivado(diferencaAbsoluta),
+          diferencaAbsoluta,
           variacaoPercentual: arredondarDerivado(variacao),
           variacaoFormatada: `${variacao >= 0 ? "+" : ""}${variacao.toFixed(2)}%`
         },
         estatisticas: { maximo, minimo, media, amplitude },
-        derivacao: DERIVACAO_ESTATISTICA,
+        derivacao: metodo === "encadeamento" ? DERIVACAO_ENCADEAMENTO : DERIVACAO_ESTATISTICA,
         ...blocoRede(resultado)
       },
-      provSerieSgs(args.codigo, data, args, { nota: NOTA_DERIVACAO_ESTATISTICA })
+      provSerieSgs(args.codigo, data, args, {
+        nota: metodo === "encadeamento" ? NOTA_DERIVACAO_ENCADEAMENTO : NOTA_DERIVACAO_ESTATISTICA
+      })
     );
   } catch (error) {
     return {
@@ -859,6 +915,12 @@ export async function handleComparar(
     const resultados = await Promise.all(
       args.codigos.map(async (codigo) => {
         const serieInfo = SERIES_POPULARES.find(s => s.codigo === codigo);
+        const metodo = metodoVariacaoDaSerie(codigo);
+        if (metodo === "acumulado") {
+          // Recusa POR SÉRIE, sem derrubar o ranking das outras — mesma regra da
+          // série que falha na rede.
+          return { codigo, nome: serieInfo?.nome || `Série ${codigo}`, erro: mensagemRecusaAcumulado(codigo, serieInfo?.nome || `Série ${codigo}`) };
+        }
         try {
           // Concorrência 1 por série: as séries já são buscadas em paralelo entre
           // si, e o portal pede parcimônia. Sem isto, 5 séries fatiadas em 4
@@ -893,6 +955,11 @@ export async function handleComparar(
           );
 
           let observacoes = data.map(d => ({ data: d.data, valor: parseFloat(d.valor) }));
+          // O acumulado de uma série que já é variação é encadeado sobre as
+          // observações ORIGINAIS, antes de qualquer harmonização: reamostrar
+          // variações mensais para anual com "ultimo" ou "media" e depois
+          // encadear seria compor números que não são mais taxas do período.
+          const acumuladoOriginal = metodo === "encadeamento" ? variacaoAcumulada(observacoes.map(o => o.valor)) : null;
 
           if (args.frequencia) {
             const h = harmonizar(observacoes, args.frequencia, args.agregacao ?? "ultimo", resultado.periodicidade);
@@ -908,7 +975,7 @@ export async function handleComparar(
           const valores = observacoes.map(o => o.valor);
           const valorInicial = valores[0];
           const valorFinal = valores[valores.length - 1];
-          const variacao = calculateVariation(valorInicial, valorFinal);
+          const variacao = acumuladoOriginal ?? calculateVariation(valorInicial, valorFinal);
           const { maximo, minimo, media } = estatisticasDaSerie(valores);
 
           return {
@@ -916,6 +983,7 @@ export async function handleComparar(
             nome: serieInfo?.nome || `Série ${codigo}`,
             categoria: serieInfo?.categoria || "Desconhecida",
             periodicidade: String(ref.periodicidade),
+            metodo,
             totalRegistros: observacoes.length,
             valorInicial, valorFinal,
             variacaoPercentual: arredondarDerivado(variacao),
@@ -948,6 +1016,22 @@ export async function handleComparar(
         `Use o parâmetro \`frequencia\` (mensal, trimestral ou anual) para harmonizá-las antes da comparação.`
       : undefined;
 
+    // Se alguma série do ranking é ela própria uma variação (IPCA, IGP-M...), a
+    // nota de derivação tem de dizer que ali `variacaoPercentual` é acumulado
+    // encadeado — cada item carrega o próprio `metodo`, e a nota explica os dois.
+    const haEncadeada = seriesComDados.some(s => "metodo" in s && s.metodo === "encadeamento");
+    const derivacao = haEncadeada
+      ? {
+          ...DERIVACAO_ESTATISTICA,
+          nota:
+            DERIVACAO_ESTATISTICA.nota +
+            " Cada item do ranking traz `metodo`: em `nivel`, `variacaoPercentual` compara o último valor com o " +
+            "primeiro; em `encadeamento` (série que já é variação por período, como IPCA e IGP-M mensais), é o " +
+            "ACUMULADO do período por composição de todas as observações originais — (Π(1 + vᵢ/100) − 1) × 100 —, " +
+            "calculado antes de qualquer harmonização de frequência."
+        }
+      : DERIVACAO_ESTATISTICA;
+
     return resultadoComProveniencia(
       {
         periodo: { dataInicial: formatDateForApi(args.dataInicial), dataFinal: formatDateForApi(args.dataFinal) },
@@ -956,7 +1040,7 @@ export async function handleComparar(
         seriesComErro: seriesComErro.length,
         ranking: seriesOrdenadas.map((s, i) => ({ posicao: i + 1, ...s })),
         erros: seriesComErro.length > 0 ? seriesComErro : [],
-        derivacao: DERIVACAO_ESTATISTICA,
+        derivacao,
         ...(harmonizacao ? { harmonizacao } : {}),
         ...(aviso ? { aviso } : {})
       },
@@ -968,7 +1052,7 @@ export async function handleComparar(
           fim: formatDateForApi(args.dataFinal)
         })),
         "comparação entre séries",
-        { nota: NOTA_DERIVACAO_ESTATISTICA }
+        { nota: haEncadeada ? NOTA_DERIVACAO_ENCADEAMENTO : NOTA_DERIVACAO_ESTATISTICA }
       )
     );
   } catch (error) {
@@ -1417,6 +1501,16 @@ const JANELA_APLICADA_SCHEMA = {
 
 // Marca de derivação das tools quantitativas: separa o que o BCB publica do que
 // este servidor calcula. Ver `stats.ts` para as convenções.
+const METODO_VARIACAO_SCHEMA = {
+  type: "string" as const,
+  enum: ["nivel", "encadeamento"],
+  description:
+    "Como a variação foi medida: `nivel` = (último − primeiro) / primeiro, para série de nível; " +
+    "`encadeamento` = acumulado composto de todas as observações, para série que já é uma variação " +
+    "percentual por período (IPCA, INPC, IGP-M mensais e os núcleos/grupos do IPCA do catálogo). A detecção " +
+    "cobre as séries de variação do catálogo curado; código fora dele é tratado como nível."
+};
+
 const DERIVACAO_SCHEMA = {
   type: "object" as const,
   description: "Origem dos números calculados: o que é derivado, por qual motor e com quais convenções",
@@ -1571,15 +1665,20 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "falha de um não derruba os demais. " + BEHAVIOR_NOTE,
 
   bcb_variacao:
-    "Calcula a variação percentual de UMA série entre o primeiro e o último ponto do período, mais " +
-    "estatísticas descritivas. O período pode ser definido por datas (dataInicial/dataFinal) OU pelos " +
+    "Calcula a variação percentual de UMA série no período, mais estatísticas descritivas. Para série de " +
+    "NÍVEL (dólar, Selic, dívida, produção) é a variação entre o primeiro e o último ponto; para série que JÁ " +
+    "É uma variação por período (IPCA 433, INPC 188, IGP-M 189 e demais índices de preço mensais do catálogo) " +
+    "é o ACUMULADO do período por encadeamento — \"quanto o IPCA acumulou em 2024\" é esta tool. O campo " +
+    "`analise.metodo` diz qual das duas contas foi feita; código fora do catálogo curado é tratado como nível. " +
+    "Série de acumulado móvel (IPCA em 12 meses, 13522) é recusada com orientação — o valor publicado já é a " +
+    "resposta. O período pode ser definido por datas (dataInicial/dataFinal) OU pelos " +
     "últimos N períodos (parâmetro `periodos`, que tem precedência e ignora as datas). " +
-    "Quando usar: para medir tendência/variação de uma única série. Quando NÃO usar: para comparar " +
+    "Quando usar: para medir tendência/variação/acumulado de uma única série. Quando NÃO usar: para comparar " +
     "várias séries use bcb_comparar; para os valores brutos use bcb_serie_valores. Requer ao menos 2 " +
     "observações no período (senão retorna `isError`). " +
-    "Retorna: `serie`, `periodo` (dataInicial, dataFinal, totalPeriodos), `analise` (valorInicial, " +
-    "valorFinal, diferencaAbsoluta, variacaoPercentual, variacaoFormatada) e `estatisticas` (maximo, " +
-    "minimo, media, amplitude). " +
+    "Retorna: `serie`, `periodo` (dataInicial, dataFinal, totalPeriodos), `analise` (metodo, valorInicial, " +
+    "valorFinal, diferencaAbsoluta — nula quando encadeado —, variacaoPercentual, variacaoFormatada) e " +
+    "`estatisticas` (maximo, minimo, media, amplitude). " +
     "Períodos longos são tratados automaticamente: janela diária acima de 10 anos é fatiada (a API do BCB " +
     "responde 406) e `periodos` acima de 20 é atendido por janela de datas; `chunking` e `janelaAplicada` " +
     "aparecem na resposta quando isso acontece. " + BEHAVIOR_NOTE,
@@ -1587,11 +1686,15 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
   bcb_comparar:
     "Compara de 2 a 5 séries temporais no MESMO período (dataInicial e dataFinal obrigatórias), " +
     "calculando a variação percentual de cada uma e ordenando-as num ranking (maior para menor variação). " +
+    "Série de nível entra pela variação entre as pontas; série que já é variação por período (IPCA, INPC, " +
+    "IGP-M mensais do catálogo) entra pelo ACUMULADO encadeado do período — cada item diz em `metodo` qual " +
+    "conta foi feita, então \"qual índice de preço subiu mais em 2024\" é esta tool. " +
     "Quando usar: para comparar/correlacionar a evolução de vários indicadores lado a lado. Quando NÃO " +
     "usar: para uma única série use bcb_variacao. " +
     "Retorna: `periodo`, `totalSeries`, `seriesComDados`, `seriesComErro`, `ranking` (cada item com " +
-    "posicao, codigo, nome, valorInicial, valorFinal, variacaoPercentual, maximo, minimo, media) e " +
-    "`erros`. Resiliente: séries sem dados no período são isoladas em `erros` sem invalidar a comparação. " +
+    "posicao, codigo, nome, metodo, valorInicial, valorFinal, variacaoPercentual, maximo, minimo, media) e " +
+    "`erros`. Resiliente: séries sem dados no período, e séries de acumulado móvel (IPCA em 12 meses), são " +
+    "isoladas em `erros` sem invalidar a comparação. " +
     "Periodicidades diferentes: comparar uma série diária com uma mensal alinha pontos que não são " +
     "comparáveis, e a resposta avisa isso em `aviso`; informe `frequencia` (mensal|trimestral|anual) para " +
     "harmonizar todas na mesma grade antes de comparar, escolhendo a convenção em `agregacao`. " +
@@ -1978,16 +2081,23 @@ const RAW_TOOL_DEFINITIONS = [
         },
         analise: {
           type: "object" as const,
-          description: "Resultado da variação entre o primeiro e o último valor",
+          description:
+            "Resultado da variação no período. Em `metodo: \"nivel\"` é a variação entre o primeiro e o último " +
+            "valor; em `metodo: \"encadeamento\"` (série que já é variação por período, como IPCA e IGP-M mensais) " +
+            "é o acumulado composto de todas as observações",
           properties: {
-            valorInicial: { type: "number" as const },
-            valorFinal: { type: "number" as const },
-            diferencaAbsoluta: { type: "number" as const },
-            variacaoPercentual: { type: "number" as const },
+            metodo: METODO_VARIACAO_SCHEMA,
+            valorInicial: { type: "number" as const, description: "Primeira observação do período, verbatim da fonte" },
+            valorFinal: { type: "number" as const, description: "Última observação do período, verbatim da fonte" },
+            diferencaAbsoluta: {
+              type: ["number", "null"] as const,
+              description: "valorFinal − valorInicial em série de nível; NULO em série encadeada, onde não se aplica"
+            },
+            variacaoPercentual: { type: "number" as const, description: "Variação (nível) ou acumulado (encadeamento), em %" },
             variacaoFormatada: { type: "string" as const }
           },
-          // O handler sempre devolve os cinco campos — o contrato reflete isso.
-          required: ["valorInicial", "valorFinal", "diferencaAbsoluta", "variacaoPercentual", "variacaoFormatada"]
+          // O handler sempre devolve os seis campos — o contrato reflete isso.
+          required: ["metodo", "valorInicial", "valorFinal", "diferencaAbsoluta", "variacaoPercentual", "variacaoFormatada"]
         },
         estatisticas: {
           type: "object" as const,
@@ -2060,10 +2170,14 @@ const RAW_TOOL_DEFINITIONS = [
               nome: { type: "string" as const },
               categoria: { type: "string" as const },
               periodicidade: { type: "string" as const },
+              metodo: METODO_VARIACAO_SCHEMA,
               totalRegistros: { type: "number" as const },
               valorInicial: { type: "number" as const },
               valorFinal: { type: "number" as const },
-              variacaoPercentual: { type: "number" as const },
+              variacaoPercentual: {
+                type: "number" as const,
+                description: "Variação entre as pontas (metodo nivel) ou acumulado encadeado do período (metodo encadeamento), em %"
+              },
               variacaoFormatada: { type: "string" as const },
               maximo: { type: "number" as const },
               minimo: { type: "number" as const },
