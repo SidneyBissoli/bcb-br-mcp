@@ -537,9 +537,10 @@ describe("bcb_variacao (gate mcp-stats)", () => {
 
     const out = structured(await call("bcb_variacao", { codigo: 189, dataInicial: "2023-01-01", dataFinal: "2023-12-31" }));
 
-    expect(out.analise.metodo).toBe("encadeamento");
-    expect(out.analise.variacaoPercentual).toBe(-3.8643);
-    expect(out.analise.variacaoFormatada).toBe("-3.86%");
+    const analise = out.analise as Record<string, unknown>;
+    expect(analise.metodo).toBe("encadeamento");
+    expect(analise.variacaoPercentual).toBe(-3.8643);
+    expect(analise.variacaoFormatada).toBe("-3.86%");
   });
 
   it("série de acumulado móvel (IPCA 12 meses, 13522) é recusada com orientação, sem ir à rede", async () => {
