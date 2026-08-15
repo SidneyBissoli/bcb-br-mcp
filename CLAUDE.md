@@ -322,7 +322,11 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   Encadear as observações cruas comporia ~28 meses por mês (2024 daria
   centenas de %); `valoresParaEncadear` amostra a primeira de cada mês
   (`TAXA_MENSAL_PUBLICADA_POR_DIA`) e a nota diz quantos meses compôs. Não
-  trate essa série como "diária" no sentido do dólar.
+  trate essa série como "diária" no sentido do dólar. **O dia 1 é a convenção
+  do próprio BCB**: a série mensal 7828 tem exatamente os valores do dia 1 da
+  195 e dá 7,03% em 2024 (medido em 15/08/2026); "0,5% + TR mensal (7811)" dá
+  o mesmo. Outros dias-aniversário dão de 6,95% a 7,14% no mesmo ano — um
+  "7,09%" de outra fonte é outro dia, não erro. Não trocar a convenção.
 - **`ultimos/N` tem teto de 20 em TODA periodicidade** (não só nas diárias — a
   mensal 433 também devolve 400), embora o schema anuncie até 1000. Acima de 20,
   `series.ts` cumpre a promessa por janela de datas.

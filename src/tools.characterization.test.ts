@@ -590,6 +590,7 @@ describe("bcb_variacao (gate mcp-stats)", () => {
     const nota = String((out.derivacao as Record<string, unknown>).nota);
     expect(nota).toContain("UMA observação por mês");
     expect(nota).toContain("compôs 2 meses");
+    expect(nota).toContain("série MENSAL 7828");
     // As estatísticas seguem sendo de TODAS as observações publicadas.
     expect((out.periodo as Record<string, unknown>).totalPeriodos).toBe(5);
   });

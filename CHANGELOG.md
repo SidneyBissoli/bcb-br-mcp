@@ -5,6 +5,18 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2] - 2026-08-15
+
+Text only — no schema or number changes.
+
+### Changed
+- The `derivacao.nota` of compounded savings-account series (25, 195) now
+  anchors the day-1 convention to the BCB's own **monthly** savings series 7828,
+  which reproduces the same figure (7.03% for 2024), and warns that the
+  effective yield depends on the deposit's anniversary day (6.95%–7.14% across
+  days in 2024), so differences of that order against other sources are a
+  convention, not an error.
+
 ## [1.9.1] - 2026-08-15
 
 Extends the 1.9.0 rule to the four **rate-per-period** series of the catalog,

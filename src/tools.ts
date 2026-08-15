@@ -376,7 +376,10 @@ export function derivacaoEncadeamento(amostradoPorMes: boolean, meses: number): 
       ` ATENÇÃO: esta série publica, a cada dia, a taxa do MÊS que começa naquele dia (rentabilidade do ` +
       `depósito até o aniversário seguinte); encadear todas as observações comporia dezenas de meses por mês. ` +
       `O acumulado composto usa UMA observação por mês — a primeira de cada mês, o depósito do início do mês ` +
-      `renovado a cada aniversário — e compôs ${meses} ${meses === 1 ? "mês" : "meses"}.`
+      `renovado a cada aniversário — e compôs ${meses} ${meses === 1 ? "mês" : "meses"}. É a mesma convenção da ` +
+      `série MENSAL 7828 do BCB (poupança, dia 1), que reproduz este número. O rendimento efetivo depende do ` +
+      `dia-aniversário do depósito e varia cerca de ±0,1 pp num ano (em 2024, de 6,95% a 7,14% conforme o dia; ` +
+      `dia 1 = 7,03%) — divergências dessa ordem contra outras fontes são convenção, não erro.`
   };
 }
 
