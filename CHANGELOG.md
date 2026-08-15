@@ -52,7 +52,7 @@ catalog, is treated as a level and the tool description states it, rather than
 pretending the detection is complete.
 
 ### Tests
-- 270 in the package (+8) and 23 in the worker. The characterisation pins for
+- 273 in the package (+11) and 23 in the worker. The characterisation pins for
   the level arithmetic moved from series 433/189 to level series; the
   compounding gets its own pins, including the real twelve months of IPCA 2024
   → 4.8313 and IGP-M 2023 → −3.8643.
