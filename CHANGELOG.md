@@ -5,6 +5,25 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+
+- Séries 7448 (IGP-M 1ª prévia), 7449 (IGP-M 2ª prévia), 17679 (IPC-3i) e
+  17680 (IPC-C1) saíram do catálogo curado: a FGV parou de alimentar o SGS
+  (últimos pontos entre 2025-03 e 2025-07). Detectadas pelo novo contrato de
+  vitalidade. O catálogo passa de 139 para 135 séries (superfície: apenas os
+  textos de descrição/resource que citavam a contagem).
+
+### Added
+
+- `src/sgs-contract.integration.test.ts` — contrato de vitalidade/cadência do
+  catálogo curado contra a API real (idade do último ponto vs. periodicidade
+  declarada; gate `INTEGRATION_TESTS`), com workflow semanal
+  `.github/workflows/integration.yml`. O SGS não tem endpoint de metadados
+  com nome, então a metade "nome certo" segue sendo a verificação manual
+  documentada em `bcb/docs/06`.
+
 ## [1.9.2] - 2026-08-15
 
 Text only — no schema or number changes.

@@ -124,17 +124,20 @@ describe("catálogo curado — o que a verificação contra a origem estabeleceu
 /**
  * Sessão 10. A detecção de "série que já é variação" é PARCIAL por construção e
  * o conjunto está pinado para que uma mudança de catálogo não a mova em silêncio:
- * 10 pela `unidade` do portal ("Variação percentual mensal") + 14 pelo nome
+ * 10 pela `unidade` do portal ("Variação percentual mensal") + 12 pelo nome
  * curado ("... - Variação mensal") + 4 taxas por período (Selic/CDI acumulados
  * no mês, poupança — incluídas por decisão do decisor em 15/08/2026). A 13522
  * (acumulado em 12 meses) é recusada; tudo o mais — inclusive código fora do
  * catálogo — é nível.
  */
 describe("catálogo curado — método de variação por série (sessão 10)", () => {
-  it("as 28 séries encadeadas são exatamente estas", () => {
+  it("as 26 séries encadeadas são exatamente estas", () => {
+    // 17679/17680 saíram do catálogo em 2026-08-23: FGV parou de alimentar o
+    // SGS (IPC-3i parado em 2025-03, IPC-C1 em 2025-04) — pego pelo contrato
+    // de vitalidade (sgs-contract.integration.test.ts).
     expect(seriesEncadeadas().sort((a, b) => a - b)).toEqual(
       [188, 189, 190, 191, 193, 225, 433, 4449, 7447, 7450, 7478, 10764, 10841, 10842, 10843, 10844,
-        11426, 11427, 11428, 16121, 16122, 17679, 17680, 21859, 4390, 4391, 25, 195].sort((a, b) => a - b)
+        11426, 11427, 11428, 16121, 16122, 21859, 4390, 4391, 25, 195].sort((a, b) => a - b)
     );
   });
 

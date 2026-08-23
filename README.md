@@ -39,7 +39,7 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 - **Historical data** - Query time series values by code with date filters
 - **Latest values** - Get the most recent N values of any series
 - **Metadata** - Detailed information about series (frequency, source, etc.)
-- **Popular series catalog** - 139 economic indicators verified against the source, organized by category
+- **Popular series catalog** - 135 economic indicators verified against the source, organized by category
 - **Smart search** - Find series by keyword (accent-insensitive)
 - **Current indicators** - Latest values for key economic indicators
 - **Long periods, handled** - The BCB API caps daily series at a 10-year window
@@ -78,7 +78,7 @@ Reference catalogs the server exposes as MCP **resources** (read-only contextual
 
 | URI | Description |
 |-----|-------------|
-| `bcb://series/populares` | Catalog of 139 verified BCB economic series, organized by category (JSON) |
+| `bcb://series/populares` | Catalog of 135 verified BCB economic series, organized by category (JSON) |
 | `bcb://series/categorias` | List of available categories in the series catalog (JSON) |
 | `bcb://series/principais` | Codes of the most-used indicators — Selic, IPCA, USD/BRL, GDP, etc. (JSON) |
 

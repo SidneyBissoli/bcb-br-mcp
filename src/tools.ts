@@ -176,18 +176,14 @@ export const SERIES_POPULARES: SeriePopular[] = [
   { codigo: 11428, nome: "Índice nacional de preços ao consumidor - Amplo (IPCA) - Itens livres", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
   { codigo: 188, nome: "INPC - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 189, nome: "IGP-M - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
-  { codigo: 7447, nome: "IGP-10 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
-  { codigo: 7448, nome: "IGP-M - 1ª prévia", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
-  { codigo: 7449, nome: "IGP-M - 2ª prévia", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7447, nome: "IGP-10 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 190, nome: "IGP-DI - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 7450, nome: "IPA-M - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 225, nome: "IPA-DI - Geral - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 7459, nome: "IPA-DI - Produtos industriais", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 7460, nome: "IPA-DI - Produtos agrícolas", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 191, nome: "IPC-DI - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
-  { codigo: 193, nome: "IPC-Fipe - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
-  { codigo: 17679, nome: "IPC-3i - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
-  { codigo: 17680, nome: "IPC-C1 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 193, nome: "IPC-Fipe - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
 
   // ==================== CÂMBIO ====================
   { codigo: 1, nome: "Taxa de câmbio - Livre - Dólar americano (venda) - diário", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "portal", unidade: "Taxa unidade monetária corrente/dólar americano" },
@@ -306,7 +302,7 @@ export const SERIES_POPULARES: SeriePopular[] = [
  * Como medir a variação de uma série do catálogo — nível, encadeamento ou recusa.
  *
  * O limite desta detecção foi medido em 14/08/2026 e é PARCIAL por construção:
- * das 139 séries curadas, 82 têm `unidade` transcrita do portal e só 10 dizem
+ * das 135 séries curadas, 82 têm `unidade` transcrita do portal e só 10 dizem
  * literalmente "Variação percentual mensal" (núcleos e grupos do IPCA); as cabeças
  * de índice que dispararam o defeito (IPCA 433, IGP-M 189, INPC 188...) não têm
  * dataset no portal e são reconhecidas pelo NOME curado, que termina em
@@ -443,7 +439,7 @@ function vintageDeObservacoes(observacoes: Array<{ data: string }>): string | nu
  * Bloco de proveniência do catálogo curado do servidor.
  *
  * Existe separado porque o catálogo NÃO é extração do BCB no momento da
- * chamada: são 139 séries mantidas no repositório, com 82 nomes transcritos do
+ * chamada: são 135 séries mantidas no repositório, com 82 nomes transcritos do
  * portal e 57 herdados. Medido: `bcb_series_populares` responde com ZERO
  * requisição à origem (`bcb/docs/07`).
  */
@@ -1683,13 +1679,13 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "Retorna: codigo, nome, periodicidade, categoria, fonte, `ultimoValor` e URLs diretas da API " +
     "(urlConsulta, urlUltimos10). " +
     "Limite da fonte: a API do SGS NÃO publica endpoint de metadados por série — não há unidade de medida " +
-    "disponível. Nome e categoria vêm do catálogo curado do servidor (139 séries verificadas contra a " +
+    "disponível. Nome e categoria vêm do catálogo curado do servidor (135 séries verificadas contra a " +
     "origem) e, fora dele, a periodicidade é inferida do espaçamento das observações, sinalizada por " +
     "`periodicidadeInferida`. " +
     BEHAVIOR_NOTE,
 
   bcb_series_populares:
-    "Lista o catálogo interno curado de 139 séries econômicas do BCB com seus códigos, agrupadas por " +
+    "Lista o catálogo interno curado de 135 séries econômicas do BCB com seus códigos, agrupadas por " +
     "categoria (Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, " +
     "Agregados Monetários, Poupança); aceita filtro por categoria. " +
     "Quando usar: para navegar/descobrir as séries disponíveis por tema. Quando NÃO usar: para busca " +
@@ -1704,7 +1700,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
 
   bcb_buscar_serie:
     "Busca séries do BCB por palavra-chave (ou pelo código) em DUAS camadas: o catálogo curado local de " +
-    "139 séries verificadas contra a origem, que vem primeiro e com `fonteNome` dizendo se o nome é " +
+    "135 séries verificadas contra a origem, que vem primeiro e com `fonteNome` dizendo se o nome é " +
     "transcrito do portal do BCB ou herdado, e o índice do Portal de Dados Abertos do BCB, " +
     "com milhares de séries identificadas por código. Ignora acentos e maiúsculas ('inflacao' encontra " +
     "'Inflação'); vários termos são combinados com E ('ipca servicos'). " +
@@ -2642,7 +2638,7 @@ export const RESOURCE_DEFINITIONS: ResourceDefinition[] = [
     name: "series_populares",
     uri: "bcb://series/populares",
     description:
-      "Catálogo de 139 séries econômicas do BCB, verificadas contra a origem, organizadas por categoria; " +
+      "Catálogo de 135 séries econômicas do BCB, verificadas contra a origem, organizadas por categoria; " +
       "cada entrada traz `fonteNome` (nome transcrito do portal do BCB ou herdado com periodicidade medida)",
     mimeType: "application/json",
     read: () => JSON.stringify(SERIES_POPULARES, null, 2)
