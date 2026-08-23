@@ -9,6 +9,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/SidneyBissoli/bcb-br-mcp?style=flat&logo=github)](https://github.com/SidneyBissoli/bcb-br-mcp)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/SidneyBissoli?logo=githubsponsors&label=Sponsor&color=db61a2)](https://github.com/sponsors/SidneyBissoli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![AllMCPs Verified](https://allmcps.com/api/badge/sidneybissoli-bcb-br-mcp)](https://allmcps.com/mcp/sidneybissoli-bcb-br-mcp?verify=3bce22b6-220d-46c0-b8f6-4e0035ceb589)
 
 [Leia em Português](README.pt-BR.md)
 
