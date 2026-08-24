@@ -261,7 +261,19 @@ try {
 
   const catalogo = await call("bcb_series_populares", {});
   const catOut = catalogo.result?.structuredContent;
-  check("bcb_series_populares lista o catálogo verificado", catOut?.totalSeries === 139, `${catOut?.totalSeries} séries`);
+  // A contagem esperada vem do catálogo COMPILADO (fonte da verdade), nunca de
+  // um número fixo: um 139 fossilizado aqui derrubou o deploy quando o catálogo
+  // passou a 135 (23/08/2026) — e comparar produção × fonte é exatamente a
+  // deriva que este smoke existe para pegar.
+  let esperado = null;
+  try {
+    esperado = (await import("../dist/tools.js")).SERIES_POPULARES.length;
+  } catch {
+    // sem dist/ o smoke não sabe o esperado — falha pedindo o build
+  }
+  check("bcb_series_populares lista o catálogo verificado (contagem do fonte)",
+    esperado !== null && catOut?.totalSeries === esperado,
+    `produção ${catOut?.totalSeries} × fonte ${esperado ?? "dist/ ausente — rode npm run build"}`);
   if (catOut) {
     const todas = Object.values(catOut.series ?? {}).flat();
     check("  → toda entrada declara fonteNome",

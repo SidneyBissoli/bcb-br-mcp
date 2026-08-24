@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 An MCP server, published to npm as `bcb-br-mcp`, exposing three public APIs of
 the Brazilian Central Bank as 15 tools over STDIO and Streamable HTTP: the SGS
-time series (Selic, IPCA, FX, GDP and 139 verified indicators), the **Focus**
+time series (Selic, IPCA, FX, GDP and 135 verified indicators), the **Focus**
 market-expectations survey (Olinda OData) and **PTAX** exchange rates. Pure
 TypeScript, ESM, three runtime dependencies: `@modelcontextprotocol/server` (MCP SDK
 v2), `@sbissoli/mcp-stats` (motor de estatística do portfólio) e
@@ -340,9 +340,10 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   sobre um punhado de pontos. Por isso `bcb_correlacao` **recusa** periodicidades
   diferentes em vez de avisar como o `bcb_comparar`, e por isso `alinharSeries`
   devolve `completas` e `parciais` contados.
-- **O catálogo curado foi VERIFICADO contra a origem em 13/08/2026** e agora tem
-  139 séries, cada uma com `fonteNome`: `portal` (82) = nome transcrito do
-  dataset do BCB; `medido` (57) = sem dataset em lugar nenhum, nome herdado e só
+- **O catálogo curado foi VERIFICADO contra a origem em 13/08/2026** e tem
+  135 séries (4 FGV descontinuadas saíram em 23/08/2026), cada uma com
+  `fonteNome`: `portal` (82) = nome transcrito do
+  dataset do BCB; `medido` (53) = sem dataset em lugar nenhum, nome herdado e só
   periodicidade/magnitude medidas. **Não "melhore" um nome `portal` à mão** — ele
   vale por ser o que a fonte diz, e nomes editados à mão foram o que produziu
   ~metade dos erros anteriores (432 e 1178 trocadas, 20540/20541 com PF e PJ

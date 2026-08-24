@@ -190,7 +190,9 @@ export const FONTES_BCB = {
     prefixoUrl: "https://dadosabertos.bcb.gov.br"
   },
   CATALOGO_CURADO: {
-    name: "bcb-br-mcp — catálogo curado do servidor (139 séries verificadas contra a origem)",
+    // Sem contagem no nome de propósito: número fixo aqui fossiliza (o "139"
+    // sobreviveu à remoção das séries FGV em 23/08/2026 e mentiu na resposta).
+    name: "bcb-br-mcp — catálogo curado do servidor, verificado contra a origem",
     agency: null,
     database: null,
     // Sem extração upstream: é dado mantido no próprio servidor.
@@ -198,8 +200,9 @@ export const FONTES_BCB = {
     license: LICENCA_CATALOGO_CURADO,
     notices: [
       "Cada série do catálogo foi verificada contra a origem em 13/08/2026: 82 nomes são " +
-        "transcritos do dataset do BCB no Portal de Dados Abertos e 57 são herdados, com " +
-        "apenas periodicidade e magnitude medidas. O campo `fonteNome` diz qual é qual."
+        "transcritos do dataset do BCB no Portal de Dados Abertos e 53 são herdados, com " +
+        "apenas periodicidade e magnitude medidas (4 séries FGV descontinuadas saíram do " +
+        "catálogo em 23/08/2026). O campo `fonteNome` diz qual é qual."
     ],
     citation: data =>
       "Fonte: bcb-br-mcp — catálogo curado do servidor, verificado série a série contra a " +

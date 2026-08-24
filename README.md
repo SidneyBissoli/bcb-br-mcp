@@ -190,9 +190,9 @@ Compare IPCA, IGP-M, and INPC in 2024
 → Uses bcb_comparar with codes [433, 189, 188], dataInicial 2024-01-01, dataFinal 2024-12-31
 ```
 
-## Series Catalog (139)
+## Series Catalog (135)
 
-The curated catalog holds **139 series, each verified against the source** on 2026-08-13.
+The curated catalog holds **135 series, each verified against the source** on 2026-08-13 (4 discontinued FGV series were removed on 2026-08-23).
 
 The `fonteNome` field on every entry says where its name comes from:
 
@@ -443,7 +443,7 @@ rounded (to 4 decimals).
 
 ### Smart Search
 
-`bcb_buscar_serie` searches two layers: the curated curated catalog of 139 verified series (which ranks first, with the name source declared
+`bcb_buscar_serie` searches two layers: the curated curated catalog of 135 verified series (which ranks first, with the name source declared
 names) and the index of the BCB Open Data Portal, with thousands of series identified by code. Terms are
 accent- and case-insensitive, and several terms are combined with AND:
 
@@ -578,7 +578,7 @@ This server uses the Brazilian Central Bank's public API:
 
 - Initial release
 - 6 basic tools
-- Catalog with 139 verified series
+- Catalog with 135 verified series
 
 ## Contributing
 

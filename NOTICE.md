@@ -32,13 +32,13 @@ Data Commons, em HTTPS.
 
 Este servidor opera como *Produced Work* (§4.3): ele consulta a origem a cada
 pergunta e **não mantém base derivada de observações**. O único dado persistido
-é metadado — o catálogo curado de 139 séries (código, nome, categoria,
+é metadado — o catálogo curado de 135 séries (código, nome, categoria,
 periodicidade) — e o índice do portal fica em cache **efêmero em memória**, por
 24 horas, também só com metadado.
 
 ### O catálogo curado é oferecido sob ODbL
 
-O catálogo curado persistido neste repositório — as 139 séries com código,
+O catálogo curado persistido neste repositório — as 135 séries com código,
 nome, categoria e periodicidade (`src/`), 82 delas com o nome transcrito
 literalmente do Portal de Dados Abertos do BCB — é uma coleção de metadados
 extraída dos dados do Banco Central. Na medida em que ela constitua *base

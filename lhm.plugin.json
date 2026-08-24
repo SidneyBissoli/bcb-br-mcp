@@ -2,7 +2,7 @@
   "identifier": "sidneybissoli-bcb-br-mcp",
   "name": "Banco Central do Brasil - MCP",
   "version": "1.9.2",
-  "description": "MCP server for the Brazilian Central Bank (Banco Central do Brasil, BCB): SGS time series (Selic, IPCA, exchange rates, GDP and 139 verified indicators), Focus market expectations and PTAX exchange rates, with statistics (variation, correlation, deflation) and a provenance block on every response.",
+  "description": "MCP server for the Brazilian Central Bank (Banco Central do Brasil, BCB): SGS time series (Selic, IPCA, exchange rates, GDP and 135 verified indicators), Focus market expectations and PTAX exchange rates, with statistics (variation, correlation, deflation) and a provenance block on every response.",
   "author": "Sidney Bissoli",
   "authorUrl": "https://github.com/SidneyBissoli",
   "homepage": "https://github.com/SidneyBissoli/bcb-br-mcp",
@@ -502,7 +502,7 @@
     },
     {
       "name": "bcb_series_populares",
-      "description": "List the curated catalog of 139 verified BCB series with codes, grouped by category (rates, inflation, FX, activity, credit, fiscal, ...).",
+      "description": "List the curated catalog of 135 verified BCB series with codes, grouped by category (rates, inflation, FX, activity, credit, fiscal, ...).",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -553,7 +553,7 @@
     {
       "name": "series_populares",
       "uri": "bcb://series/populares",
-      "description": "Curated catalog of 139 verified BCB economic series, organized by category, each with the provenance of its name (JSON)"
+      "description": "Curated catalog of 135 verified BCB economic series, organized by category, each with the provenance of its name (JSON)"
     },
     {
       "name": "codigos_principais",

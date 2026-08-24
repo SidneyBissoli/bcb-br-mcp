@@ -35,7 +35,7 @@ As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com pro
 - **Consulta de séries históricas** - Busca valores de séries por código com filtro de datas
 - **Últimos valores** - Obtém os N valores mais recentes de uma série
 - **Metadados** - Informações detalhadas sobre séries (periodicidade, fonte, etc.)
-- **Catálogo de séries populares** - 139 indicadores econômicos verificados contra a origem, organizados por categoria
+- **Catálogo de séries populares** - 135 indicadores econômicos verificados contra a origem, organizados por categoria
 - **Busca inteligente** - Encontra séries por termo de busca (com ou sem acentos)
 - **Indicadores atuais** - Valores mais recentes dos principais indicadores econômicos
 - **Períodos longos resolvidos** - A API do BCB limita séries diárias a uma janela
@@ -67,7 +67,7 @@ Catálogos de referência que o servidor expõe como **recursos** MCP (dados con
 
 | URI | Descrição |
 |-----|-----------|
-| `bcb://series/populares` | Catálogo de 139 séries econômicas do BCB verificadas contra a origem, organizadas por categoria (JSON) |
+| `bcb://series/populares` | Catálogo de 135 séries econômicas do BCB verificadas contra a origem, organizadas por categoria (JSON) |
 | `bcb://series/categorias` | Lista de categorias disponíveis no catálogo de séries (JSON) |
 | `bcb://series/principais` | Códigos dos indicadores mais usados — Selic, IPCA, Dólar, PIB, etc. (JSON) |
 
@@ -174,9 +174,9 @@ Compare IPCA, IGP-M e INPC em 2024
 → Usa bcb_comparar com códigos [433, 189, 188], dataInicial 2024-01-01, dataFinal 2024-12-31
 ```
 
-## Catálogo de Séries (139)
+## Catálogo de Séries (135)
 
-O catálogo curado tem **139 séries, cada uma verificada contra a origem** em 13/08/2026.
+O catálogo curado tem **135 séries, cada uma verificada contra a origem** em 13/08/2026 (4 séries FGV descontinuadas saíram em 23/08/2026).
 
 O campo `fonteNome` de cada entrada diz de onde vem o nome dela:
 
@@ -495,7 +495,7 @@ Este servidor utiliza a API pública do Banco Central do Brasil:
 
 - 🎉 Lançamento inicial
 - 6 ferramentas básicas
-- Catálogo com 139 séries verificadas
+- Catálogo com 135 séries verificadas
 
 ## Contribuição
 

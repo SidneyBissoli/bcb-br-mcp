@@ -44,7 +44,7 @@ you. Upstreams contacted at runtime:
   index used by the search tool; the index is cached in memory for 24 hours
   (metadata only, no observations, no user data)
 
-The curated catalog of 139 series is bundled — listing and describing it never
+The curated catalog of 135 series is bundled — listing and describing it never
 leaves the server.
 
 ## Data license

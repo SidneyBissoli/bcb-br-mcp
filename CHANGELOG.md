@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- O smoke pós-deploy quebrou na remoção acima porque pinava a contagem do
+  catálogo num literal (`=== 139`); agora ele deriva a contagem esperada do
+  catálogo compilado (`dist/tools.js`) — comparar produção × fonte é a deriva
+  que o smoke existe para pegar, e número fixo não mede isso. Na mesma
+  varredura: o nome da fonte `CATALOGO_CURADO` na proveniência perdeu a
+  contagem fossilizada (dizia "139 séries" em produção), o notice passou a
+  registrar 82 `portal` + 53 `medido` e a remoção das FGV, e as menções a
+  "139" em README/README.pt-BR/CLAUDE/NOTICE/PRIVACY/package.json/
+  lhm.plugin.json foram atualizadas para 135.
+
 ### Removed
 
 - Séries 7448 (IGP-M 1ª prévia), 7449 (IGP-M 2ª prévia), 17679 (IPC-3i) e
