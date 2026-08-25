@@ -16,3 +16,7 @@ dist/
 # wrangler
 .wrangler/
 worker/.wrangler/
+
+# roadmap de divulgacao: planejamento privado, nao vai para repo publico
+# (o passado ja publicado nao e apagado por esta regra — ver commit)
+docs/promotion-roadmap.md
