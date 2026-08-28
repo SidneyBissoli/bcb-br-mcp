@@ -2,6 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.SidneyBissoli/bcb-br-mcp",
   "description": "Banco Central do Brasil (BCB): SGS series, Focus expectations, PTAX, stats + provenance. 15 tools.",
+  "title": "Banco Central do Brasil (BCB) — SGS Time Series MCP Server",
+  "websiteUrl": "https://bcb.sidneybissoli.com",
   "repository": {
     "url": "https://github.com/SidneyBissoli/bcb-br-mcp",
     "source": "github"
