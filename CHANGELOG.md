@@ -5,6 +5,24 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.5] - 2026-08-29
+
+### Changed
+
+- O ícone passa a ser servido pelo PRÓPRIO domínio: nova rota pública
+  `GET /icon.png` no Worker e `icons[0].src` do `server.json` apontando para
+  `https://bcb.sidneybissoli.com/icon.png`. Antes apontava para
+  `raw.githubusercontent.com`, que funciona mas põe host de terceiro no caminho
+  de todo diretório que renderiza a ficha — e o schema do MCP recomenda
+  explicitamente o mesmo domínio do servidor. É o arranjo que o
+  senado-br-mcp-cloudflare já usava.
+
+### Added
+
+- `src/icon-sync.test.ts` — gate contra deriva do ícone: bytes do ativo × base64
+  embutido no Worker, URL do manifesto × rota que o código serve, e `mimeType`/
+  `sizes` conferidos contra o cabeçalho IHDR real do PNG.
+
 ## [1.9.4] - 2026-08-29
 
 ### Added
