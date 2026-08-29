@@ -4,6 +4,13 @@
   "description": "Banco Central do Brasil (BCB): SGS series, Focus expectations, PTAX, stats + provenance. 15 tools.",
   "title": "Banco Central do Brasil (BCB) — SGS Time Series MCP Server",
   "websiteUrl": "https://bcb.sidneybissoli.com",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/SidneyBissoli/bcb-br-mcp/main/assets/icon.png",
+      "mimeType": "image/png",
+      "sizes": ["256x256"]
+    }
+  ],
   "repository": {
     "url": "https://github.com/SidneyBissoli/bcb-br-mcp",
     "source": "github"
