@@ -54,8 +54,26 @@ describe("buildServer (worker)", () => {
 
   it("registra tool_call em chamada bem-sucedida", async () => {
     const { events, record } = recorder();
+    // O comentário anterior aqui dizia que a tool era "servida do catálogo
+    // local" e não tocava a rede. Não era verdade: `bcb_buscar_serie` mistura o
+    // catálogo curado com o índice do portal de dados abertos, e sem dublê ela
+    // busca https://dadosabertos.bcb.gov.br/api/3/action/package_list DE FATO.
+    // Passa em segundos numa máquina com rede boa e estoura o timeout de 5s do
+    // vitest quando o portal demora — `fetchBcbApi` tem 30s de timeout e 3
+    // tentativas, então o pior caso é ~90s. Foi o que derrubou o CI no run
+    // 33137210221 (28/08/2026), a única falha em doze execuções: teste que
+    // depende de API de terceiro é teste que falha sozinho, e no dia do
+    // release.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          success: true,
+          result: ["11-selic", "433-ipca", "432-meta-selic"],
+        }),
+      ),
+    );
     const client = await connect(buildServer(record));
-    // Tool servida do catálogo local — não toca a rede.
     await client.callTool({ name: "bcb_buscar_serie", arguments: { termo: "selic" } });
     expect(events).toContainEqual({ kind: "tool_call", name: "bcb_buscar_serie" });
     expect(events.filter((e) => e.kind === "tool_error")).toHaveLength(0);
