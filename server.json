@@ -6,7 +6,7 @@
   "websiteUrl": "https://bcb.sidneybissoli.com",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/SidneyBissoli/bcb-br-mcp/main/assets/icon.png",
+      "src": "https://bcb.sidneybissoli.com/icon.png",
       "mimeType": "image/png",
       "sizes": ["256x256"]
     }
