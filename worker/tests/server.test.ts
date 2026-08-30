@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport, McpServer } from "@modelcontextprotocol/server";
+import { SERVER_IDENTITY, SERVER_INSTRUCTIONS } from "../../dist/identity.js";
 import { buildServer } from "../src/server.js";
 import type { UsageKind } from "../src/usage-core.js";
 
@@ -36,6 +37,26 @@ describe("buildServer (worker)", () => {
     expect(tools).toHaveLength(15);
     expect(resources).toHaveLength(3);
     expect(prompts).toHaveLength(3);
+    await client.close();
+  });
+
+  it("o handshake do Worker é o MESMO do stdio — identidade vem do pacote", async () => {
+    // O Worker montava seu próprio McpServer e por isso anunciava um
+    // `websiteUrl` (o repositório) diferente do que o server.json publicava
+    // (a landing), e nem título nem ícones. Delegar ao `createServer` do pacote
+    // é o que faz os dois transportes serem medidos como a mesma coisa.
+    const client = await connect(buildServer());
+    const info = client.getServerVersion() as {
+      name: string;
+      title?: string;
+      websiteUrl?: string;
+      icons?: unknown[];
+    };
+    expect(info.name).toBe(SERVER_IDENTITY.name);
+    expect(info.title).toBe(SERVER_IDENTITY.title);
+    expect(info.websiteUrl).toBe(SERVER_IDENTITY.websiteUrl);
+    expect(info.icons).toEqual(SERVER_IDENTITY.icons);
+    expect(client.getInstructions()).toBe(SERVER_INSTRUCTIONS);
     await client.close();
   });
 

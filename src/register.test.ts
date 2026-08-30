@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 describe("tools/list", () => {
-  it("publica as 8 tools com nome, descrição e annotations do registro", async () => {
+  it("publica todas as tools do registro com nome, descrição, título e annotations", async () => {
     const { client } = await connectedClient();
     const { tools } = await client.listTools();
 
@@ -47,6 +47,9 @@ describe("tools/list", () => {
       expect(advertised).toBeDefined();
       expect(advertised!.description).toBe(definition.description);
       expect(advertised!.annotations).toEqual(definition.annotations);
+      // O título de exibição é promovido da annotation — se alguém escrever um
+      // segundo literal aqui, os dois passam a poder divergir.
+      expect(advertised!.title).toBe(definition.annotations.title);
     }
   });
 
@@ -77,14 +80,21 @@ describe("tools/list", () => {
 });
 
 describe("resources/list e prompts/list", () => {
-  it("publica os 3 resources sob os identificadores canônicos", async () => {
+  it("publica os 3 resources sob os identificadores canônicos, com rótulo próprio", async () => {
     const { client } = await connectedClient();
     const { resources } = await client.listResources();
 
     expect(resources.map(r => r.uri).sort()).toEqual(RESOURCE_DEFINITIONS.map(r => r.uri).sort());
     // O nome é identificador, não rótulo — o worker antigo publicava
-    // "Séries Populares BCB" aqui, divergindo do canal stdio.
+    // "Séries Populares BCB" aqui, divergindo do canal stdio. O rótulo humano
+    // tem campo próprio (`title`), que é o que o mcpscore exige e o cliente
+    // mostra: os dois convivem sem um ocupar o lugar do outro.
     expect(resources.map(r => r.name).sort()).toEqual(["categorias", "codigos_principais", "series_populares"]);
+    for (const definition of RESOURCE_DEFINITIONS) {
+      const advertised = resources.find(r => r.uri === definition.uri)!;
+      expect(advertised.title).toBe(definition.title);
+      expect(advertised.title).toBeTruthy();
+    }
   });
 
   it("resources/read devolve o conteúdo do catálogo", async () => {
@@ -102,6 +112,11 @@ describe("resources/list e prompts/list", () => {
     const { prompts } = await client.listPrompts();
 
     expect(prompts.map(p => p.name).sort()).toEqual(PROMPT_DEFINITIONS.map(p => p.name).sort());
+    for (const definition of PROMPT_DEFINITIONS) {
+      const advertised = prompts.find(p => p.name === definition.name)!;
+      expect(advertised.title).toBe(definition.title);
+      expect(advertised.title).toBeTruthy();
+    }
 
     const got = await client.getPrompt({ name: "comparar_inflacao" });
     expect(got.messages[0].role).toBe("user");
@@ -186,7 +201,7 @@ describe("tools/call", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("as 8 tools do registro são realmente chamáveis pelo nome anunciado", async () => {
+  it("todas as tools do registro são realmente chamáveis pelo nome anunciado", async () => {
     const { client } = await connectedClient();
     const { tools } = await client.listTools();
 

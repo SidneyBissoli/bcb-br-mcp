@@ -5,6 +5,64 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-08-30
+
+Fecha os seis achados de conformidade de protocolo do roadmap técnico, medidos
+pelo `mcpscore` (auditor determinístico que conecta como cliente MCP real).
+Stdio de **133/148 (89,9%) para 146/148 (98,6%)**; os 2 pontos restantes são
+limite do SDK, não deste repositório — ver o cabeçalho de
+`.github/workflows/mcpscore.yml`.
+
+### Added
+
+- **`serverInfo` completo, e igual nos dois transportes**: `title`, `icons`,
+  `websiteUrl` e `instructions` passam a ser anunciados no handshake. Novo
+  `src/identity.ts` é a fonte única; `src/serverinfo-sync.test.ts` o prende ao
+  `server.json` e ao `package.json`, e o `icon-sync.test.ts` já prendia o
+  `server.json` aos bytes do PNG servido — a cadeia inteira deriva de algo
+  verificável.
+- **Títulos de exibição** em todas as 15 tools, 3 resources e 3 prompts. O das
+  tools é promovido do `annotations.title` que cada uma já declarava, para os
+  dois nunca poderem divergir.
+- **Cursor de paginação inválido vira `-32602`** (`src/pagination.ts`), nos
+  quatro métodos de lista e nos dois transportes. Os handlers do SDK ignoram
+  `params.cursor` e devolvem a lista inteira, inclusive para um cursor que este
+  servidor nunca emitiu; a spec pede a recusa. `src/pagination.test.ts` prende
+  também a PREMISSA (nenhuma lista pagina) — no dia em que alguma paginar, o
+  teste quebra junto.
+- **`server/discover` anuncia todas as revisões atendidas** (`src/discover.ts`),
+  e não só as modernas: o servidor negocia `2025-11-25` pelo handshake legado e
+  o anúncio omitia justamente essa. O patch falha ALTO se o SDK mudar de forma,
+  em vez de deixar de aplicar em silêncio.
+
+### Changed
+
+- **Um único ponto de construção do servidor.** O Worker chamava seu próprio
+  `new McpServer(...)`; agora delega ao `createServer` do pacote. Era essa
+  duplicação que fazia o `websiteUrl` ser anunciado só no HTTP — e apontando
+  para o repositório, enquanto o `server.json` publicava a landing.
+- `websiteUrl` e `homepage` do `package.json` convergem para
+  `https://bcb.sidneybissoli.com`, a mesma URL do `server.json`.
+- **O tamanho do catálogo curado deixa de ser escrito à mão.** As quatro
+  descrições publicadas e o resource passam a derivá-lo do próprio array; o que
+  não dá para derivar (os READMEs) ganhou gate em
+  `src/catalogo-curado.test.ts`.
+- `@types/node` 20 → 26 e TypeScript 5.9 → 6.0.3, convergindo com o
+  medical-terminologies-mcp. O TS 6 deixou de incluir sozinho o que está em
+  `node_modules/@types`, então o `tsconfig.json` passa a declarar
+  `"types": ["node"]`.
+- O job remoto do `mcpscore.yml` passa a ser disparado pelo TÉRMINO do deploy,
+  não pelo push: os dois corriam em paralelo e a auditoria media o código
+  anterior. Piso do stdio sobe de 89 para 98.
+
+### Fixed
+
+- Os READMEs diziam **57** séries de procedência `medido`; são **53** desde que
+  as 4 séries FGV descontinuadas saíram, em 23/08/2026. O número tinha ficado
+  para trás sem produzir erro em lugar nenhum — foi o gate novo que o pegou.
+- A descrição da landing dizia "8 ferramentas" desde antes das tools de Focus e
+  câmbio; são 15.
+
 ## [1.9.5] - 2026-08-29
 
 ### Changed

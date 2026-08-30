@@ -15,13 +15,13 @@
     "url": "https://github.com/SidneyBissoli/bcb-br-mcp",
     "source": "github"
   },
-  "version": "1.9.5",
+  "version": "1.10.0",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "bcb-br-mcp",
-      "version": "1.9.5",
+      "version": "1.10.0",
       "transport": {
         "type": "stdio"
       }

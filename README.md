@@ -198,7 +198,7 @@ The `fonteNome` field on every entry says where its name comes from:
 
 - **`portal`** (82 series) — the name is transcribed from the series' dataset on the
   BCB Open Data Portal, and `unidade` carries the published unit of measure.
-- **`medido`** (57 series) — the series has no dataset on the portal, so the name is
+- **`medido`** (53 series) — the series has no dataset on the portal, so the name is
   inherited; what was verified against the source is its periodicity and order of magnitude.
 
 Periodicity is always the **measured** one (from the spacing between observations), never an

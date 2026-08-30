@@ -14,8 +14,14 @@
  * `bcb/docs/06`; o que estes testes impedem é a regressão silenciosa.
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
 import { describe, it, expect } from "vitest";
-import { SERIES_POPULARES, metodoVariacaoDaSerie, seriesEncadeadas } from "./tools.js";
+import { SERIES_POPULARES, TOOL_DESCRIPTIONS, RESOURCE_DEFINITIONS, metodoVariacaoDaSerie, seriesEncadeadas } from "./tools.js";
+
+const raiz = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("catálogo curado — integridade", () => {
   it("não tem código repetido", () => {
@@ -155,5 +161,55 @@ describe("catálogo curado — método de variação por série (sessão 10)", (
     expect(metodoVariacaoDaSerie(1)).toBe("nivel");
     expect(metodoVariacaoDaSerie(4513)).toBe("nivel");
     expect(metodoVariacaoDaSerie(99999)).toBe("nivel");
+  });
+});
+
+/**
+ * O TAMANHO do catálogo aparecia escrito à mão em cinco textos publicados —
+ * quatro descrições de tool, um resource e os READMEs —, e uma série a mais ou
+ * a menos no array não produzia erro em lugar nenhum: só um número que passava a
+ * mentir para quem lê. (Foi assim que o server.json acabou anunciando "135" que
+ * ninguém conseguia verificar, corrigido em 27/08/2026.)
+ *
+ * O código agora DERIVA o número. O que sobra sem poder derivar é a documentação
+ * em Markdown, e é ela que este bloco prende — contra o array, nunca contra uma
+ * literal repetida aqui.
+ */
+describe("o tamanho do catálogo é derivado, não escrito", () => {
+  const total = SERIES_POPULARES.length;
+  const doPortal = SERIES_POPULARES.filter(s => s.fonteNome === "portal").length;
+
+  it("as descrições publicadas trazem o número que o array realmente tem", () => {
+    for (const nome of ["bcb_serie_metadados", "bcb_series_populares", "bcb_buscar_serie"]) {
+      expect(TOOL_DESCRIPTIONS[nome], nome).toContain(`${total} séries`);
+    }
+    expect(TOOL_DESCRIPTIONS.bcb_series_populares).toContain(`${doPortal} séries`);
+    expect(RESOURCE_DEFINITIONS.find(r => r.name === "series_populares")!.description).toContain(
+      `${total} séries`
+    );
+  });
+
+  it("os READMEs não ficaram para trás do catálogo", () => {
+    // Markdown não interpola: o único jeito de o número não envelhecer sozinho
+    // é alguém conferir — e "alguém" aqui é este teste. Os três números que os
+    // READMEs apresentam são o total, o recorte `portal` e o recorte `medido`;
+    // todos saem do array, nenhum é repetido aqui como literal.
+    const esperados = new Set([total, doPortal, total - doPortal]);
+    for (const arquivo of ["README.md", "README.pt-BR.md"]) {
+      const texto = readFileSync(join(raiz, arquivo), "utf8");
+      // O lookbehind evita casar o "000" de "18.000 séries" (o tamanho do SGS
+      // inteiro, que não é o catálogo).
+      const citados = [...texto.matchAll(/(?<![\d.,])(\d{2,4})\s+(?:series|séries)\b/gi)].map(m =>
+        Number(m[1])
+      );
+      expect(citados.length, `${arquivo} não menciona o tamanho do catálogo`).toBeGreaterThan(0);
+      for (const n of new Set(citados)) {
+        expect(
+          esperados.has(n),
+          `${arquivo} fala em ${n} séries; o catálogo tem ${total} (${doPortal} do portal, ${total - doPortal} medidas)`
+        ).toBe(true);
+      }
+      expect(citados, `${arquivo} deixou de citar o total`).toContain(total);
+    }
   });
 });

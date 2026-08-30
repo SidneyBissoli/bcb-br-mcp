@@ -176,14 +176,16 @@ export const SERIES_POPULARES: SeriePopular[] = [
   { codigo: 11428, nome: "Índice nacional de preços ao consumidor - Amplo (IPCA) - Itens livres", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "portal", unidade: "Variação percentual mensal" },
   { codigo: 188, nome: "INPC - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 189, nome: "IGP-M - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
-  { codigo: 7447, nome: "IGP-10 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 7447, nome: "IGP-10 - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+
   { codigo: 190, nome: "IGP-DI - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 7450, nome: "IPA-M - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 225, nome: "IPA-DI - Geral - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 7459, nome: "IPA-DI - Produtos industriais", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 7460, nome: "IPA-DI - Produtos agrícolas", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
   { codigo: 191, nome: "IPC-DI - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
-  { codigo: 193, nome: "IPC-Fipe - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+  { codigo: 193, nome: "IPC-Fipe - Variação mensal", categoria: "Inflação", periodicidade: "Mensal", fonteNome: "medido" },
+
 
   // ==================== CÂMBIO ====================
   { codigo: 1, nome: "Taxa de câmbio - Livre - Dólar americano (venda) - diário", categoria: "Câmbio", periodicidade: "Diária", fonteNome: "portal", unidade: "Taxa unidade monetária corrente/dólar americano" },
@@ -1640,6 +1642,16 @@ const BEHAVIOR_NOTE =
   "tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato " +
   "dd/MM/yyyy e valores numéricos (ponto decimal).";
 
+/**
+ * Tamanho do catálogo curado e quantas séries têm nome transcrito do portal.
+ * DERIVADOS do próprio catálogo, e não escritos: os números "135" e "82"
+ * estavam em quatro descrições publicadas ao cliente e num resource, e uma
+ * série a mais no array não produziria erro em lugar nenhum — só uma descrição
+ * que mente. Mesma classe do "135" que já ficou para trás no server.json.
+ */
+const TOTAL_CURADAS = SERIES_POPULARES.length;
+const CURADAS_DO_PORTAL = SERIES_POPULARES.filter(s => s.fonteNome === "portal").length;
+
 export const TOOL_DESCRIPTIONS: Record<string, string> = {
   bcb_serie_valores:
     "Consulta o histórico de valores de UMA série temporal do BCB pelo código SGS, opcionalmente " +
@@ -1679,13 +1691,13 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "Retorna: codigo, nome, periodicidade, categoria, fonte, `ultimoValor` e URLs diretas da API " +
     "(urlConsulta, urlUltimos10). " +
     "Limite da fonte: a API do SGS NÃO publica endpoint de metadados por série — não há unidade de medida " +
-    "disponível. Nome e categoria vêm do catálogo curado do servidor (135 séries verificadas contra a " +
+    `disponível. Nome e categoria vêm do catálogo curado do servidor (${TOTAL_CURADAS} séries verificadas contra a ` +
     "origem) e, fora dele, a periodicidade é inferida do espaçamento das observações, sinalizada por " +
     "`periodicidadeInferida`. " +
     BEHAVIOR_NOTE,
 
   bcb_series_populares:
-    "Lista o catálogo interno curado de 135 séries econômicas do BCB com seus códigos, agrupadas por " +
+    `Lista o catálogo interno curado de ${TOTAL_CURADAS} séries econômicas do BCB com seus códigos, agrupadas por ` +
     "categoria (Juros, Inflação, Câmbio, Atividade Econômica, Emprego, Fiscal, Setor Externo, Crédito, " +
     "Agregados Monetários, Poupança); aceita filtro por categoria. " +
     "Quando usar: para navegar/descobrir as séries disponíveis por tema. Quando NÃO usar: para busca " +
@@ -1694,13 +1706,13 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "quando sem filtro, ou array plano quando filtrado por categoria; cada item tem codigo, nome, " +
     "categoria, periodicidade e `fonteNome`. Catálogo local: não faz chamada de rede. " +
     "Procedência: `fonteNome` = 'portal' quando o nome é transcrito do dataset da série no Portal de " +
-    "Dados Abertos do BCB (82 séries, com `unidade`), e 'medido' quando a série não tem dataset lá — " +
+    `Dados Abertos do BCB (${CURADAS_DO_PORTAL} séries, com \`unidade\`), e 'medido' quando a série não tem dataset lá — ` +
     "nesse caso o nome é herdado e o que foi verificado contra a origem é a periodicidade e a ordem de " +
     "grandeza. Expectativas do Focus NÃO estão aqui: use bcb_focus_expectativas.",
 
   bcb_buscar_serie:
     "Busca séries do BCB por palavra-chave (ou pelo código) em DUAS camadas: o catálogo curado local de " +
-    "135 séries verificadas contra a origem, que vem primeiro e com `fonteNome` dizendo se o nome é " +
+    `${TOTAL_CURADAS} séries verificadas contra a origem, que vem primeiro e com \`fonteNome\` dizendo se o nome é ` +
     "transcrito do portal do BCB ou herdado, e o índice do Portal de Dados Abertos do BCB, " +
     "com milhares de séries identificadas por código. Ignora acentos e maiúsculas ('inflacao' encontra " +
     "'Inflação'); vários termos são combinados com E ('ipca servicos'). " +
@@ -2590,7 +2602,16 @@ export const TOOL_DEFINITIONS = [
 // form is canonical and the Worker now follows it.
 
 export interface ResourceDefinition {
+  /** Identificador MCP do recurso (snake_case, estável). */
   name: string;
+  /**
+   * Rótulo de exibição. `name` é IDENTIFICADOR e continua sendo — foi a
+   * confusão entre os dois que fez o worker antigo publicar "Séries Populares
+   * BCB" onde o stdio publicava "series_populares". O título é o campo que a
+   * spec reserva para o rótulo humano, e a regra `resources_titles_present` do
+   * mcpscore o exige.
+   */
+  title: string;
   uri: string;
   description: string;
   mimeType: string;
@@ -2636,15 +2657,20 @@ export const CODIGOS_PRINCIPAIS = {
 export const RESOURCE_DEFINITIONS: ResourceDefinition[] = [
   {
     name: "series_populares",
+    title: "Catálogo curado de séries do BCB",
     uri: "bcb://series/populares",
     description:
-      "Catálogo de 135 séries econômicas do BCB, verificadas contra a origem, organizadas por categoria; " +
+      // O tamanho do catálogo é DERIVADO, nunca escrito: a contagem literal já
+      // ficou para trás uma vez no server.json e não há erro quando erra.
+      `Catálogo de ${SERIES_POPULARES.length} séries econômicas do BCB, verificadas contra a origem, ` +
+      "organizadas por categoria; " +
       "cada entrada traz `fonteNome` (nome transcrito do portal do BCB ou herdado com periodicidade medida)",
     mimeType: "application/json",
     read: () => JSON.stringify(SERIES_POPULARES, null, 2)
   },
   {
     name: "categorias",
+    title: "Categorias do catálogo",
     uri: "bcb://series/categorias",
     description: "Lista de categorias disponíveis no catálogo de séries do BCB",
     mimeType: "application/json",
@@ -2652,6 +2678,7 @@ export const RESOURCE_DEFINITIONS: ResourceDefinition[] = [
   },
   {
     name: "codigos_principais",
+    title: "Códigos dos indicadores mais usados",
     uri: "bcb://series/principais",
     description: "Códigos dos indicadores econômicos mais utilizados (Selic, IPCA, Dólar, PIB, etc.)",
     mimeType: "application/json",
@@ -2662,7 +2689,10 @@ export const RESOURCE_DEFINITIONS: ResourceDefinition[] = [
 // ==================== PROMPTS (canonical, both transports) ====================
 
 export interface PromptDefinition {
+  /** Identificador MCP do prompt (snake_case, estável). */
   name: string;
+  /** Rótulo de exibição — exigido por `prompts_titles_present` (mcpscore). */
+  title: string;
   description: string;
   text: string;
 }
@@ -2670,16 +2700,19 @@ export interface PromptDefinition {
 export const PROMPT_DEFINITIONS: PromptDefinition[] = [
   {
     name: "indicadores_atuais",
+    title: "Indicadores econômicos atuais",
     description: "Consulta os principais indicadores econômicos do Brasil (Selic, IPCA, Dólar, IBC-Br)",
     text: "Consulte os indicadores econômicos atuais do Brasil usando a ferramenta bcb_indicadores_atuais e apresente os resultados de forma clara e organizada."
   },
   {
     name: "panorama_economico",
+    title: "Panorama da economia brasileira",
     description: "Gera um panorama completo da economia brasileira com os principais indicadores",
     text: "Faça um panorama completo da economia brasileira. Use bcb_indicadores_atuais para obter Selic, IPCA, Dólar e IBC-Br. Depois use bcb_serie_ultimos para consultar os últimos 3 valores da taxa de desemprego (código 24369) e da dívida bruta (código 4513). Apresente tudo de forma organizada com análise breve."
   },
   {
     name: "comparar_inflacao",
+    title: "Comparar índices de inflação",
     description: "Compara os principais índices de inflação do Brasil (IPCA, IGP-M, INPC) nos últimos 12 meses",
     text: "Compare os principais índices de inflação do Brasil nos últimos 12 meses. Use bcb_serie_ultimos com quantidade 12 para IPCA (código 433), IGP-M (código 189) e INPC (código 188). Apresente uma tabela comparativa e análise das tendências."
   }

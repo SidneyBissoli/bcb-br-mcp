@@ -5,6 +5,13 @@
     "moduleResolution": "NodeNext",
     "resolveJsonModule": true,
     "lib": ["ES2022"],
+    // TypeScript 6.0 deixou de incluir sozinho tudo o que está em
+    // node_modules/@types — o que antes era automático agora é declarado. Sem
+    // esta linha, `node:fs`, `fetch`, `Response`, `setTimeout` e `console`
+    // somem todos de uma vez na atualização, com erros que apontam para o
+    // código e não para a causa. `lib` fica em ES2022 de propósito (sem DOM):
+    // as APIs de rede vêm dos tipos do Node, que é onde este pacote roda.
+    "types": ["node"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,

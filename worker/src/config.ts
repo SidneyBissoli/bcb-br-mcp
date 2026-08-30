@@ -6,26 +6,25 @@
  * do repo (o bundler do wrangler inlina o JSON no build).
  */
 
+import { SERVER_IDENTITY } from "../../dist/identity.js";
 import pkg from "../../package.json";
 
 export const SERVER_CONFIG = {
-  /** Nome curto do servidor (handshake MCP, /status, landing). */
-  name: "bcb-br-mcp",
+  /**
+   * Nome, título, descrição, site e ícone vêm do PACOTE (src/identity.ts), que é
+   * o que o handshake MCP anuncia nos dois transportes. Antes estavam escritos
+   * aqui: a landing dizia "8 ferramentas" (eram 15) e o `websiteUrl` apontava
+   * para o repositório enquanto o server.json publicava a landing. Nada disso
+   * dava erro — só divergia.
+   */
+  ...SERVER_IDENTITY,
   /** Versão do servidor — única fonte: package.json do pacote pai. */
   version: pkg.version,
-  /** Título de exibição (landing page). */
-  title: "bcb-br-mcp — séries temporais do Banco Central via MCP",
-  /** Uma frase: o que o servidor serve e de qual fonte. */
-  description:
-    "Servidor MCP com 8 ferramentas sobre o SGS/BCB — Selic, IPCA, câmbio, PIB e " +
-    "150+ indicadores econômicos e financeiros, com valores exatos e fonte citada.",
   /**
    * Contato exibido na landing page. A URL raiz do Worker é o que sysadmins upstream
    * veem — precisa resolver para identificação humana + contato.
    */
   contactEmail: "sbissoli76@gmail.com",
-  /** Repositório público (serverInfo.websiteUrl + landing). */
-  websiteUrl: "https://github.com/SidneyBissoli/bcb-br-mcp",
   /** Rota do endpoint MCP (Streamable HTTP). */
   mcpRoute: "/mcp",
   /**

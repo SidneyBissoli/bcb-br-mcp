@@ -49,6 +49,8 @@ import {
 // os dois transportes validam exatamente da mesma forma.
 import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/server/validators/cf-worker";
 
+import { announceServedVersions } from "./discover.js";
+import { SERVER_IDENTITY, SERVER_INSTRUCTIONS } from "./identity.js";
 import {
   TOOL_DEFINITIONS,
   RESOURCE_DEFINITIONS,
@@ -107,6 +109,12 @@ export function registerAll(server: McpServer, options: RegisterOptions = {}): v
     server.registerTool(
       tool.name,
       {
+        // O título de exibição É o `annotations.title` que toda tool já
+        // declara — promovido ao campo que a spec reserva para ele. Ler da
+        // annotation, em vez de escrever 15 literais novos, é o que garante
+        // que os dois nunca discordem (`resources_titles_present` e irmãs no
+        // mcpscore olham o campo de cima; o cliente mostra o de cima).
+        title: tool.annotations.title,
         description: tool.description,
         inputSchema: validatedSchema(tool.inputSchema),
         outputSchema: passthroughSchema(tool.outputSchema),
@@ -142,7 +150,7 @@ export function registerAll(server: McpServer, options: RegisterOptions = {}): v
     server.registerResource(
       resource.name,
       resource.uri,
-      { description: resource.description, mimeType: resource.mimeType },
+      { title: resource.title, description: resource.description, mimeType: resource.mimeType },
       async () => ({
         contents: [{ uri: resource.uri, mimeType: resource.mimeType, text: resource.read() }]
       })
@@ -150,7 +158,7 @@ export function registerAll(server: McpServer, options: RegisterOptions = {}): v
   }
 
   for (const prompt of PROMPT_DEFINITIONS) {
-    server.registerPrompt(prompt.name, { description: prompt.description }, async () => ({
+    server.registerPrompt(prompt.name, { title: prompt.title, description: prompt.description }, async () => ({
       messages: [{ role: "user" as const, content: { type: "text" as const, text: prompt.text } }]
     }));
   }
@@ -159,9 +167,29 @@ export function registerAll(server: McpServer, options: RegisterOptions = {}): v
 /**
  * Builds a fresh, fully registered server. No transport is connected, so it is
  * safe to call from tests and once per request on stateless HTTP transports.
+ *
+ * PONTO ÚNICO DE CONSTRUÇÃO. Os DOIS transportes passam por aqui — o stdio
+ * (`src/index.ts`) e o Worker (`worker/src/server.ts`, via `dist/register.js`).
+ * Antes o Worker montava o seu próprio `McpServer`, e por isso anunciava
+ * `websiteUrl` onde o stdio não anunciava nada: a mesma implementação media
+ * diferente em cada transporte. Identidade e instruções vêm de
+ * `src/identity.ts`; quem quiser mudar o handshake muda lá, uma vez.
  */
 export function createServer(version: string, options: RegisterOptions = {}): McpServer {
-  const server = new McpServer({ name: "bcb-br-mcp", version });
+  const server = new McpServer(
+    {
+      name: SERVER_IDENTITY.name,
+      version,
+      title: SERVER_IDENTITY.title,
+      websiteUrl: SERVER_IDENTITY.websiteUrl,
+      icons: [...SERVER_IDENTITY.icons]
+    },
+    { instructions: SERVER_INSTRUCTIONS }
+  );
+  // `server/discover` anuncia todas as revisões atendidas, não só as modernas —
+  // ver src/discover.ts. ANTES das registrations: se o SDK mudar por baixo, o
+  // servidor falha ao construir, e não meio-construído.
+  announceServedVersions(server);
   registerAll(server, options);
   return server;
 }

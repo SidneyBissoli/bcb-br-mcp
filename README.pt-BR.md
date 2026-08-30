@@ -182,7 +182,7 @@ O campo `fonteNome` de cada entrada diz de onde vem o nome dela:
 
 - **`portal`** (82 séries) — o nome é transcrito do dataset da série no Portal de Dados
   Abertos do BCB, e `unidade` traz a unidade de medida publicada.
-- **`medido`** (57 séries) — a série não tem dataset no portal, então o nome é herdado;
+- **`medido`** (53 séries) — a série não tem dataset no portal, então o nome é herdado;
   o que foi verificado contra a origem é a periodicidade e a ordem de grandeza.
 
 A periodicidade é sempre a **medida** (pelo espaçamento entre observações), nunca um rótulo

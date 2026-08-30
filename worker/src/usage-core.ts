@@ -13,7 +13,8 @@ export type UsageKind =
   | "rate_limited"
   | "tool_call" // toda chamada de tool (nome = tool)
   | "tool_error" // subconjunto de tool_call que falhou
-  | "legacy_root_post"; // cliente ainda usando `POST /` (rota do worker pré-template)
+  | "legacy_root_post" // cliente ainda usando `POST /` (rota do worker pré-template)
+  | "invalid_cursor"; // lista pedida com cursor de paginação que este servidor nunca emitiu
 
 export interface UsageEvent {
   kind: UsageKind;

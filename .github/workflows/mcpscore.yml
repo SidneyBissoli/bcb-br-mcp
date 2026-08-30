@@ -8,28 +8,63 @@ name: mcpscore (contrato de qualidade)
 # o SERVIDOR RODANDO — mcpindex, Glama e LobeHub leem ficha e repositório.
 # Por isso aqui ele deixa de ser número no painel e vira gate.
 #
-# CATRACA, não meta. O piso é o valor MEDIDO em 29/08/2026, arredondado para
-# baixo: impede regressão sem prometer melhora. Ao subir a nota de verdade,
-# suba o piso na mesma passada — senão a catraca protege um patamar que o
-# servidor já não tem.
+# CATRACA, não meta. O piso é o valor MEDIDO, arredondado para baixo: impede
+# regressão sem prometer melhora. Ao subir a nota de verdade, suba o piso na
+# mesma passada — senão a catraca protege um patamar que o servidor já não tem.
 #
 # DOIS PISOS, e a diferença não é arbitrária: no stdio várias regras de HTTP
 # não se aplicam e o denominador muda, então a mesma implementação pontua
-# diferente nos dois transportes. Medido aqui: stdio 133/148 = 89,9%; remoto 93,1%.
-# Um piso único reprovaria o stdio no primeiro PR.
+# diferente nos dois transportes. Um piso único reprovaria o stdio no primeiro PR.
+#
+# HISTÓRICO DOS PISOS
+#  - 29/08/2026: stdio 133/148 = 89,9%; remoto 93,1% -> pisos 89 e 93.
+#  - 30/08/2026: fechados os seis achados de conformidade do roadmap técnico —
+#    title/icons/instructions no serverInfo, títulos em tools/resources/prompts,
+#    os quatro cursores de paginação e o `server/discover`. De quebra, o
+#    `websiteUrl`, que só o Worker anunciava. Stdio medido em 146/148 = 98,6%
+#    -> piso 98. O piso remoto FICA em 93 até o deploy sair, porque o job
+#    remoto mede o que ESTÁ NO AR: subi-lo antes reprovaria o push contra o
+#    código antigo. Feito o deploy, medir de novo e subir na mesma passada.
+#
+# O QUE SOBRA NO STDIO, e por que não é dívida deste servidor: os 2 pontos que
+# faltam são `readiness_2026_unsupported_version_error` — versão de protocolo
+# desconhecida não vira -32022. No stdio o `serveStdio` do SDK classifica um
+# `initialize` sem envelope moderno como ciclo LEGADO e responde com a revisão
+# que suporta, que é o que a spec de 2025 pede; não há opção que mude isso sem
+# desligar o ciclo legado e quebrar a maioria dos clientes. Medido em 30/08/2026:
+# o ilo-mcp-server, a implementação de referência do portfólio, reprova a mesma
+# regra no mesmo transporte. É limite do SDK, não deste repositório.
 #
 # O gate do PR mede o CÓDIGO DO PR (stdio, servidor local). O pós-deploy mede
 # o que FOI AO AR. São perguntas diferentes e por isso são dois jobs.
 
+# QUANDO CADA JOB RODA, e por que não é o mesmo gatilho.
+#
+# O job remoto ESPERA O DEPLOY. Ele mede o endpoint, e o deploy contínuo
+# (deploy-worker.yml) roda no MESMO push — em paralelo, sem ordem garantida.
+# Enquanto a folga entre piso e nota era grande a corrida não aparecia; à medida
+# que o piso sobe, ela passa a reprovar o push que mede produção antes de o
+# deploy terminar, e o vermelho seria do relógio, não do servidor. Por isso o
+# gatilho do job remoto é o TÉRMINO do workflow de deploy, e não o push.
+#
+# Consequência aceita: push que não mexe no Worker não dispara deploy e, logo,
+# não dispara auditoria remota. É o correto — produção não mudou, e reauditar
+# mediria a mesma coisa de novo.
 on:
   pull_request:
   push:
     branches: [main, master]
+  workflow_run:
+    workflows: ["Deploy to Cloudflare Workers"]
+    types: [completed]
   workflow_dispatch:
 
 jobs:
   stdio:
     name: contrato no código do PR (stdio)
+    # O eco do deploy não traz código novo para medir aqui — o PR e o push já
+    # mediram este mesmo commit.
+    if: github.event_name != 'workflow_run'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,13 +77,15 @@ jobs:
         run: npm run build
       - uses: astral-sh/setup-uv@v5
       - name: Auditar o servidor local
-        run: uvx mcpscore --fail-under 89 --stdio node dist/index.js
+        run: uvx mcpscore --fail-under 98 --stdio node dist/index.js
 
   remoto:
     name: contrato no que está no ar (streamable http)
-    # Só no push: num PR o endpoint ainda serve o código anterior, e reprovar
-    # o PR por isso mediria a coisa errada.
-    if: github.event_name != 'pull_request'
+    # Depois do deploy, nunca no PR: num PR o endpoint ainda serve o código
+    # anterior, e reprovar o PR por isso mediria a coisa errada.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
