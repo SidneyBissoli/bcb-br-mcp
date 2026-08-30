@@ -24,7 +24,13 @@ name: mcpscore (contrato de qualidade)
 #    `websiteUrl`, que só o Worker anunciava. Stdio medido em 146/148 = 98,6%
 #    -> piso 98. O piso remoto FICA em 93 até o deploy sair, porque o job
 #    remoto mede o que ESTÁ NO AR: subi-lo antes reprovaria o push contra o
-#    código antigo. Feito o deploy, medir de novo e subir na mesma passada.
+#    código antigo. Feito o deploy, produção mediu **173/173**, prontidão 48/48
+#    -> piso 100.
+#
+# UM PISO DE 100 É DESCONFORTÁVEL DE PROPÓSITO. Ele fica vermelho tanto numa
+# regressão nossa quanto numa REGRA NOVA do auditor que ainda não atendemos — e
+# a segunda também é notícia, não ruído: é uma exigência de conformidade que
+# passou a existir. Quem baixar este piso está decidindo não saber.
 #
 # O QUE SOBRA NO STDIO, e por que não é dívida deste servidor: os 2 pontos que
 # faltam são `readiness_2026_unsupported_version_error` — versão de protocolo
@@ -91,4 +97,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - name: Auditar o endpoint em produção
-        run: uvx mcpscore --fail-under 93 https://bcb.sidneybissoli.com/mcp
+        run: uvx mcpscore --fail-under 100 https://bcb.sidneybissoli.com/mcp
