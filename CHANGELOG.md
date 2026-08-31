@@ -5,6 +5,32 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.1] - 2026-08-30
+
+Manutenção de dependências e de CI. Nada muda para quem usa o servidor: nenhuma
+tool, nenhum schema e nenhuma resposta foram tocados.
+
+### Changed
+
+- **TypeScript 7.0.2** na raiz e no `worker/`, que tinha pino próprio e
+  compilava com 5.9.3 enquanto a raiz já estava na 6.0.3 — gate auditando com
+  compilador velho sem avisar.
+- `agents` 0.20.1 -> 0.22.0 no `worker/`, com a invariante de cópia única do SDK
+  conferida depois de `npm ci`: `worker/node_modules/@modelcontextprotocol` não
+  existe, tudo resolve do pacote pai.
+- `vitest`, `tsx`, `wrangler` e `@cloudflare/workers-types` na última estável.
+
+### CI
+
+- O `dependabot.yml` passa a vigiar o `worker/`, que tem `package.json` e
+  lockfile próprios e era invisível para ele — foi por isso que as dependências
+  de lá acumularam atraso.
+- Actions agrupadas incluindo major, num PR por semana: action de CI é
+  infraestrutura de teste e o próprio CI é o teste dela. Sem grupo, cada uma
+  virava PR individual e envelhecia — o PR #8 chegou a cobrir só um workflow e
+  deixou seis ocorrências em v4.
+- `checkout` e `setup-node` em v7 em todos os workflows.
+
 ## [1.10.0] - 2026-08-30
 
 Fecha os seis achados de conformidade de protocolo do roadmap técnico, medidos
