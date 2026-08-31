@@ -25,6 +25,11 @@ export const SERVER_CONFIG = {
    * veem — precisa resolver para identificação humana + contato.
    */
   contactEmail: "sbissoli76@gmail.com",
+  /**
+   * Chave do IndexNow. É PÚBLICA por desenho: ela prova posse do domínio por
+   * estar servida em `/<chave>.txt`, então versionar aqui não é vazamento.
+   */
+  indexNowKey: "b13771057a6b0e29bc3351359a2bc43f",
   /** Rota do endpoint MCP (Streamable HTTP). */
   mcpRoute: "/mcp",
   /**
