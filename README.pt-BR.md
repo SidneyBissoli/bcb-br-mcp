@@ -18,7 +18,7 @@ Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**
 
 > Se você achou este projeto útil, considere dar uma [estrela no GitHub](https://github.com/SidneyBissoli/bcb-br-mcp). Isso ajuda outras pessoas a descobrirem o projeto!
 
-**Capacidades:** 8 ferramentas (skills) · 3 recursos · 3 prompts — tudo o que um cliente MCP precisa para consultar a API de séries temporais do BCB (SGS).
+**Capacidades:** 15 ferramentas (skills) · 3 recursos · 3 prompts — tudo o que um cliente MCP precisa para consultar o Banco Central do Brasil: séries temporais do SGS/BCB, a pesquisa de expectativas de mercado **Focus** e as cotações de câmbio **PTAX**.
 
 ## Veja na prática
 
@@ -27,6 +27,9 @@ Pergunte ao seu assistente, em português:
 - *"Qual a taxa Selic atual?"* → `bcb_indicadores_atuais`
 - *"Mostre o IPCA mês a mês em 2024."* → `bcb_serie_valores`
 - *"Qual foi a variação do dólar nos últimos 12 meses?"* → `bcb_variacao`
+- *"O que o mercado espera do IPCA em 2027?"* → `bcb_focus_expectativas`
+- *"Qual a Selic esperada na próxima reunião do Copom?"* → `bcb_focus_selic`
+- *"Qual foi a PTAX de fechamento do euro na sexta?"* → `bcb_cambio_cotacao`
 
 As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com procedência, não números chutados do treino.
 
@@ -47,6 +50,10 @@ As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com pro
 - **Cálculo de variação** - Variação percentual entre períodos com estatísticas
 - **Comparação de séries** - Compara múltiplas séries no mesmo período, com aviso
   quando as periodicidades diferem
+- **Pesquisa Focus** - Expectativas de mercado (média, mediana, desvio-padrão, mínimo, máximo, número de respondentes) para IPCA, PIB, câmbio e outros, por horizonte mensal/trimestral/anual ou inflação acumulada em 12/24 meses, mais a Selic por reunião do Copom
+- **Câmbio PTAX** - Cotações oficiais de fechamento para qualquer moeda que o BCB publique, em um dia ou num intervalo de datas
+
+📖 **Artigo:** [Séries do Banco Central: como consultar o SGS, a Focus e a PTAX sem cair nas armadilhas](docs/artigo-sgs-series-do-banco-central.pt-BR.md) — os três limites da API medidos ao vivo, a diferença entre série de nível e série de taxa, os escopos da Focus e o que a ODbL exige.
 
 ## Ferramentas Disponíveis
 
@@ -60,6 +67,11 @@ As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com pro
 | `bcb_indicadores_atuais` | Valores mais recentes: Selic, IPCA, Dólar, IBC-Br |
 | `bcb_variacao` | Variação percentual de UMA série no período: entre as pontas para série de nível, **acumulado por encadeamento** para série que já é variação por período (IPCA, IGP-M, INPC…); `analise.metodo` diz qual |
 | `bcb_comparar` | Compara 2 a 5 séries no mesmo período com ranking (mesma regra nível/encadeamento por série, declarada em `metodo`) |
+| `bcb_focus_expectativas` | Expectativas da pesquisa Focus para um indicador, com o horizonte como parâmetro (mensal, trimestral, anual, inflação acumulada em 12m/24m); marcador `top5` |
+| `bcb_focus_selic` | Expectativas Focus para a taxa Selic, por reunião do Copom (formato R1/2026) |
+| `bcb_focus_referencias` | Quais indicadores e datas de referência a Focus de fato publica, **discriminados por escopo** (os cinco horizontes mais `selic`, cujo eixo é a reunião do Copom) — o conjunto de indicadores muda com o escopo (9 no mensal contra 26 no anual) |
+| `bcb_cambio_cotacao` | Cotação PTAX de uma moeda (dólar por padrão), num dia ou num intervalo de datas |
+| `bcb_cambio_moedas` | Moedas com cotação publicada pelo BCB |
 
 ## Recursos
 
@@ -92,8 +104,13 @@ Acesse [bcb-br-mcp no Smithery](https://smithery.ai/servers/sidneybissoli/bcb-br
 Use o endpoint HTTP diretamente, sem instalar nada:
 
 ```
-https://bcb.sidneybissoli.workers.dev
+https://bcb.sidneybissoli.com/mcp
 ```
+
+O hostname antigo `https://bcb.sidneybissoli.workers.dev` continua funcionando, e a
+rota antiga `POST /` também — cliente configurado antes de o endpoint mudar para
+`/mcp` é reescrito de forma transparente, então nada que funcionava parou. Config
+nova deve usar a URL acima.
 
 ### Via npx (Claude Desktop)
 
@@ -427,11 +444,48 @@ Valor publicado pelo BCB sai sempre verbatim; só o que é calculado é arredond
 
 ### Busca Inteligente
 
-A ferramenta `bcb_buscar_serie` normaliza os termos de busca, permitindo encontrar séries mesmo sem acentos:
+`bcb_buscar_serie` procura em duas camadas: o catálogo curado de 135 séries verificadas (que aparece primeiro,
+com a origem do nome declarada) e o índice do Portal de Dados Abertos do BCB, com milhares de séries
+identificadas por código. Os termos ignoram acento e caixa, e vários termos são combinados com E:
 
 - `"inflacao"` → encontra "Inflação"
 - `"cambio"` → encontra "Câmbio"
-- `"credito"` → encontra "Crédito"
+- `"ipca servicos"` → os dois termos precisam bater
+
+O índice do portal é servido de um cache de 24 horas, renovado pela primeira busca depois que ele vence (uma
+requisição ao portal, só metadados — códigos e nomes de série, nunca observações). Toda resposta carrega
+`catalogo.cobertura`: o índice **não** é o SGS inteiro, então não achar uma série aqui não prova que ela não
+existe.
+
+### Fonte dos dados e licença
+
+Dados obtidos do Banco Central do Brasil (SGS / Olinda-Expectativas / PTAX), publicados sob a
+**Open Data Commons Open Database License (ODbL) v1.0** — https://opendatacommons.org/licenses/odbl/1-0/.
+Reconferido contra a fonte em 2026-08-13: 4.259 dos 4.260 conjuntos do portal declaram
+`license_id: "odc-odbl"`. Isso **não** é CC0, CC BY nem domínio público — a ODbL traz cláusulas de
+atribuição, de compartilhamento nos mesmos termos (para bases derivadas) e contra DRM. As respostas de
+câmbio repassam verbatim o próprio aviso de responsabilidade do BCB; as paridades entre moedas **não** são
+apuradas pelo BCB — vêm de agência de informação (Refinitiv) e são redistribuídas por ele, e as ferramentas
+dizem isso.
+
+O código do servidor é MIT; os dados não são. Ver [NOTICE.md](NOTICE.md). Privacidade: nenhum dado de
+usuário é registrado, por nenhum dos canais — ver [PRIVACY.md](PRIVACY.md).
+
+### Bloco de proveniência
+
+Toda resposta bem-sucedida carrega um bloco de proveniência (contrato do portfólio v1.0) em dois canais:
+`structuredContent.provenance` + `attribution` (visível ao modelo) e um espelho em `_meta` sob
+`br.com.sidneybissoli.bcb/*` (fora de banda, custo zero em tokens). Cada bloco nomeia a fonte, a URL canônica
+que reproduz a consulta, a vintage do dado, o instante **real** da extração na origem e a licença.
+
+Dois detalhes fáceis de errar, e que aqui estão tratados:
+
+- **`retrieved_at` é o instante real da extração, não "agora".** O índice do portal é servido de um cache de
+  24 horas, então busca respondida do cache informa o instante em que o índice foi de fato buscado — que pode
+  ser de um dia atrás, e é a data juridicamente relevante.
+- **Um bloco por proveniência, nunca fundidos.** `bcb_buscar_serie` separa o índice do portal do BCB do
+  catálogo curado do próprio servidor; `bcb_serie_metadados` separa a leitura ao vivo do SGS do catálogo;
+  `bcb_cambio_cotacao` separa as cotações de dólar apuradas pelo BCB das paridades vindas de agência.
 
 ## Desenvolvimento
 
@@ -453,10 +507,16 @@ npm install
 npm run build
 ```
 
-### Teste local
+### Teste local (stdio)
 
 ```bash
 npm run dev
+```
+
+### Teste local (worker HTTP)
+
+```bash
+npm run dev:worker
 ```
 
 Ou use o MCP Inspector:
@@ -475,6 +535,33 @@ Este servidor utiliza a API pública do Banco Central do Brasil:
 - **Documentação:** [Dados Abertos BCB](https://dadosabertos.bcb.gov.br/)
 
 ## Changelog
+
+### v1.4.1
+
+- `bcb_focus_referencias`: o parâmetro passou a ser `escopo`, não `horizonte`, e o
+  vetor da resposta é `escopos`. Os escopos são os cinco horizontes de
+  `bcb_focus_expectativas` **mais `selic`** — e `selic` não é horizonte: o eixo dele
+  é a reunião do Copom. Cada bloco nomeia a `tool` que o consome. O nome anterior
+  dava a entender que `selic` era um horizonte consultável de
+  `bcb_focus_expectativas`, e não é. Nunca foi publicado no npm com o nome antigo.
+
+### v1.4.0
+
+- **Três APIs sob um contrato só, de 8 para 13 ferramentas.** A pesquisa de
+  expectativas de mercado Focus (`bcb_focus_expectativas`, `bcb_focus_selic`,
+  `bcb_focus_referencias`) e o câmbio PTAX (`bcb_cambio_cotacao`,
+  `bcb_cambio_moedas`), consolidados por parâmetro em vez de espelhar os ~18
+  recursos OData da origem.
+- **Busca de verdade.** `bcb_buscar_serie` passou a consultar o índice do Portal de
+  Dados Abertos (3.500+ séries, cache de 24 horas, só metadados) por cima do
+  catálogo curado, e a declarar a cobertura do índice em vez de afirmar que uma
+  série não existe.
+- Cada nome de campo da Focus e da PTAX foi conferido contra a API ao vivo,
+  inclusive o recurso Top 5 da Selic, que publica os campos numa caixa diferente
+  dos outros doze.
+- Obrigações da ODbL entregues junto com as ferramentas de câmbio: o aviso do BCB
+  é repassado verbatim, e as paridades que não envolvem o dólar são qualificadas
+  como dado de terceiro (Refinitiv) redistribuído pelo BCB.
 
 ### v1.2.0
 

@@ -54,6 +54,8 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 - **Focus survey** - Market expectations (mean, median, std. deviation, min, max, respondents) for IPCA, GDP, FX and more, by monthly/quarterly/annual horizon or rolling 12/24-month inflation, plus Selic by Copom meeting
 - **PTAX exchange rates** - Official closing quotes for any currency the BCB publishes, single day or date range
 
+📖 **Article (in Portuguese):** [Séries do Banco Central: como consultar o SGS, a Focus e a PTAX sem cair nas armadilhas](docs/artigo-sgs-series-do-banco-central.pt-BR.md) — the three API limits measured live, level vs. rate series, the Focus scopes, and what the ODbL requires.
+
 ## Available Tools
 
 | Tool | Description |
@@ -443,9 +445,9 @@ rounded (to 4 decimals).
 
 ### Smart Search
 
-`bcb_buscar_serie` searches two layers: the curated curated catalog of 135 verified series (which ranks first, with the name source declared
-names) and the index of the BCB Open Data Portal, with thousands of series identified by code. Terms are
-accent- and case-insensitive, and several terms are combined with AND:
+`bcb_buscar_serie` searches two layers: the curated catalog of 135 verified series (which ranks first, with
+the source of the name declared) and the index of the BCB Open Data Portal, with thousands of series
+identified by code. Terms are accent- and case-insensitive, and several terms are combined with AND:
 
 - `"inflacao"` → finds "Inflação"
 - `"cambio"` → finds "Câmbio"
@@ -592,7 +594,20 @@ Contributions are welcome! Please:
 
 ## License
 
-MIT - see [LICENSE](LICENSE) for details.
+**Two licences, and they are not the same thing.**
+
+- **Code:** MIT — see [LICENSE](LICENSE).
+- **Data:** from the Banco Central do Brasil, under the **Open Data Commons Open
+  Database License (ODbL) v1.0** — https://opendatacommons.org/licenses/odbl/1-0/.
+  Not CC0, not CC BY, not public domain: the ODbL requires **attribution**, has a
+  **share-alike** clause on derived databases, and an **anti-DRM** clause.
+
+Every successful response carries a provenance block with the source, the query URL, the data vintage, the
+real extraction instant and the licence. Exchange-rate answers pass the BCB disclaimer through verbatim, and
+non-USD parities are qualified as information-agency data (Refinitiv) redistributed by the BCB — not as data
+compiled by the Central Bank.
+
+Details and obligations in [NOTICE.md](NOTICE.md). Privacy: no user data is logged, by either channel — see [PRIVACY.md](PRIVACY.md).
 
 ## Author
 
