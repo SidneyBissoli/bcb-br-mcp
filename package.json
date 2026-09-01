@@ -56,7 +56,7 @@
   },
   "homepage": "https://bcb.sidneybissoli.com",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20"
   },
   "files": [
     "dist"
