@@ -1,4 +1,4 @@
-# Banco Central do Brasil (BCB) - MCP
+# Banco Central do Brasil (BCB) — SGS Time Series MCP Server
 
 [![npm version](https://img.shields.io/npm/v/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/bcb-br-mcp.svg)](https://www.npmjs.com/package/bcb-br-mcp)
@@ -12,7 +12,7 @@
 
 [Read in English](README.md)
 
-Servidor MCP (Model Context Protocol) para acesso às séries temporais do Banco Central do Brasil (SGS/BCB).
+Servidor MCP (Model Context Protocol) do **Banco Central do Brasil** (**BCB**): séries temporais do **SGS** (SGS/BCB), a pesquisa de expectativas de mercado **Focus** (servida pela API OData **Olinda**) e as cotações de câmbio **PTAX**.
 
 Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**, **câmbio**, **PIB**, entre outros, diretamente em assistentes de IA como Claude.
 
