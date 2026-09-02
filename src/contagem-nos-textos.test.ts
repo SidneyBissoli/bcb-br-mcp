@@ -33,7 +33,18 @@ const raiz = join(dirname(fileURLToPath(import.meta.url)), "..");
 const leia = (f: string) => readFileSync(join(raiz, f), "utf8");
 
 /** Textos vivos, voltados ao público, que podem afirmar um total. */
-const TEXTOS = ["README.md", "README.pt-BR.md", "server.json", "package.json", "src/identity.ts"];
+const TEXTOS = [
+  "README.md",
+  "README.pt-BR.md",
+  "server.json",
+  "package.json",
+  "src/identity.ts",
+  // A ficha do LobeHub: a descrição é texto público e já carregou contagem
+  // ("135 verified indicators", removida em 02/09/2026). Os blocos tools/
+  // resources/prompts são gerados da superfície (gen-lhm-manifest.mjs) e não
+  // afirmam total nenhum — o que este guarda vigia é o texto editado à mão.
+  "lhm.plugin.json",
+];
 
 /** "15 tools", "15 ferramentas". */
 const AFIRMACAO = /(\d+)\s+(?:tools|ferramentas)\b/gi;
