@@ -53,7 +53,7 @@ As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com pro
 - **Pesquisa Focus** - Expectativas de mercado (média, mediana, desvio-padrão, mínimo, máximo, número de respondentes) para IPCA, PIB, câmbio e outros, por horizonte mensal/trimestral/anual ou inflação acumulada em 12/24 meses, mais a Selic por reunião do Copom
 - **Câmbio PTAX** - Cotações oficiais de fechamento para qualquer moeda que o BCB publique, em um dia ou num intervalo de datas
 
-📖 **Artigo:** [Séries do Banco Central: como consultar o SGS, a Focus e a PTAX sem cair nas armadilhas](docs/artigo-sgs-series-do-banco-central.pt-BR.md) — os três limites da API medidos ao vivo, a diferença entre série de nível e série de taxa, os escopos da Focus e o que a ODbL exige.
+📖 **Artigo:** [Séries do Banco Central: como consultar o SGS, a Focus e a PTAX sem cair nas armadilhas](docs/artigo-sgs-series-do-banco-central.pt-BR.md) — os três limites da API medidos ao vivo, a diferença entre série de nível e série de taxa, os escopos da Focus e o que a ODbL exige. Também publicado no site: [sidneybissoli.com](https://sidneybissoli.com/blog/posts/series-banco-central/).
 
 ## Ferramentas Disponíveis
 

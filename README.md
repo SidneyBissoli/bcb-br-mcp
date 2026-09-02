@@ -54,7 +54,7 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 - **Focus survey** - Market expectations (mean, median, std. deviation, min, max, respondents) for IPCA, GDP, FX and more, by monthly/quarterly/annual horizon or rolling 12/24-month inflation, plus Selic by Copom meeting
 - **PTAX exchange rates** - Official closing quotes for any currency the BCB publishes, single day or date range
 
-📖 **Article (in Portuguese):** [Séries do Banco Central: como consultar o SGS, a Focus e a PTAX sem cair nas armadilhas](docs/artigo-sgs-series-do-banco-central.pt-BR.md) — the three API limits measured live, level vs. rate series, the Focus scopes, and what the ODbL requires.
+📖 **Article (in Portuguese):** [Séries do Banco Central: como consultar o SGS, a Focus e a PTAX sem cair nas armadilhas](docs/artigo-sgs-series-do-banco-central.pt-BR.md) — the three API limits measured live, level vs. rate series, the Focus scopes, and what the ODbL requires. Also published on the site, in Portuguese and English: [sidneybissoli.com](https://sidneybissoli.com/en/blog/posts/series-banco-central/).
 
 ## Available Tools
 
