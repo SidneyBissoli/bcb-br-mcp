@@ -185,7 +185,7 @@ interface Metadados {
 
 function renderizarDocumento(entrada: EntradaAcervo, m: Metadados, serie: SeriePopular | undefined): string {
   const linhas = [
-    `# ${m.nome}`,
+    `# ${entrada.title}`,
     "",
     `- Código no SGS (Sistema Gerenciador de Séries Temporais do Banco Central do Brasil): ${m.codigo}`,
     `- Categoria: ${m.categoria}`,
@@ -252,10 +252,13 @@ export function criarDeepResearchTools(deps: DeepResearchDeps): DeepResearchTool
       const m = dados as unknown as Metadados;
       const serie = seriesPopulares.find(s => s.codigo === codigo);
 
+      // O título é o do acervo, não o de `bcb_serie_metadados`: fora da curadoria
+      // ela só sabe dizer "Série N", e o acervo tem o nome derivado do slug do
+      // portal — o mesmo que `search` acabou de mostrar (achado na ponta, 1.11.0).
       return {
         document: {
           id,
-          title: m.nome,
+          title: entrada.title,
           text: renderizarDocumento(entrada, m, serie),
           url: entrada.url,
           metadata: {

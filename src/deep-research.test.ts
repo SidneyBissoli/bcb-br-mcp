@@ -156,6 +156,17 @@ describe("fetch", () => {
     expect(JSON.parse(r.content[0].text)).toEqual({ id: o.id, title: o.title, text: o.text, url: o.url, metadata: o.metadata });
   });
 
+  it("série só do índice usa o título do acervo (do slug), não o 'Série N' genérico dos metadados", async () => {
+    seed(["99999-saldo-da-carteira---credito-rural"]);
+    mockFetch([["bcdata.sgs.99999", OBS]]);
+    const o = objeto(await call("fetch", { id: "sgs:99999" }));
+    expect(o.title).toBe("Saldo da carteira - credito rural");
+    expect(o.text).toContain("# Saldo da carteira - credito rural");
+    expect(o.text).toContain("índice do Portal de Dados Abertos");
+    expect(o.metadata).toMatchObject({ codigo: 99999, origem: "indice" });
+    expect(o.metadata).not.toHaveProperty("fonteNome");
+  });
+
   it("falha da origem em série do acervo vira erro de tool, não documento vazio", async () => {
     seed(["99999-serie-do-portal"]);
     global.fetch = vi.fn(async () => {
