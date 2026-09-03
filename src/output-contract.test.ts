@@ -34,7 +34,7 @@ function mockFontes(): void {
 
     // Portal de Dados Abertos (CKAN) — índice da busca.
     if (url.includes("dadosabertos.bcb.gov.br")) {
-      return json({ success: true, result: ["433-ipca-variacao-mensal", "432-taxa-selic"] });
+      return json({ success: true, result: ["433-ipca-variacao-mensal", "432-taxa-selic", "99999-serie-fora-da-curadoria"] });
     }
 
     // PTAX.
@@ -180,7 +180,12 @@ const CASOS: Array<[string, string, Record<string, unknown>]> = [
   ["bcb_focus_referencias", "escopo único", { escopo: "selic" }],
   ["bcb_cambio_cotacao", "USD (fonte não publica tipoBoletim)", { data: "2026-08-07" }],
   ["bcb_cambio_cotacao", "moeda com paridade", { moeda: "EUR", dataInicial: "2026-08-03", dataFinal: "2026-08-10" }],
-  ["bcb_cambio_moedas", "sem termo (termo nulo)", {}]
+  ["bcb_cambio_moedas", "sem termo (termo nulo)", {}],
+  // Contrato Deep Research: par cheio/magro de cada uma.
+  ["search", "busca com achados", { query: "ipca" }],
+  ["search", "busca sem achado (results vazio)", { query: "zzzznaoexiste" }],
+  ["fetch", "série curada (metadata com unidade e fonteNome)", { id: "sgs:433" }],
+  ["fetch", "série só do índice do portal (metadata magro, periodicidade inferida)", { id: "sgs:99999" }]
 ];
 
 describe("structuredContent obedece ao outputSchema anunciado", () => {
@@ -200,11 +205,11 @@ describe("structuredContent obedece ao outputSchema anunciado", () => {
     expect(veredicto.valid, `${nome}: ${veredicto.errorMessage}`).toBe(true);
   });
 
-  it("toda tool declara outputSchema — a regra dura do SDK v2 vale para as 15", () => {
+  it("toda tool declara outputSchema — a regra dura do SDK v2 vale para as 17", () => {
     for (const definicao of TOOL_DEFINITIONS) {
       expect(definicao.outputSchema, `${definicao.name} sem outputSchema`).toBeDefined();
     }
-    expect(TOOL_DEFINITIONS).toHaveLength(15);
+    expect(TOOL_DEFINITIONS).toHaveLength(17);
   });
 });
 

@@ -18,6 +18,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { dispatchTool, TOOL_DEFINITIONS, type ToolResult } from "./tools.js";
 import { _resetCatalogo, _seedCatalogo, CATALOGO_TTL_MS } from "./catalog.js";
+import { _resetDeepResearch } from "./deep-research.js";
 import { FONTES_BCB, LICENCA_ODBL } from "./provenance.js";
 import { DISCLAIMER_PTAX, QUALIFICACAO_PARIDADE } from "./shared.js";
 
@@ -73,17 +74,19 @@ function blocos(r: ToolResult): Array<Record<string, unknown>> {
 
 beforeEach(() => {
   _resetCatalogo();
+  _resetDeepResearch();
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
   _resetCatalogo();
+  _resetDeepResearch();
 });
 
 // ==================== fiação ====================
 
 describe("fiação: toda tool de sucesso carrega o canal", () => {
-  // O elenco cobre as 15 tools. Se uma tool nova entrar sem caso aqui, a
+  // O elenco cobre as 17 tools. Se uma tool nova entrar sem caso aqui, a
   // asserção de cobertura no fim deste bloco falha — é o que impede que a
   // proveniência dependa de alguém lembrar.
   const CASOS: Array<{ tool: string; args: Record<string, unknown>; rotas: Array<[string, unknown]> }> = [
@@ -137,6 +140,21 @@ describe("fiação: toda tool de sucesso carrega o canal", () => {
       tool: "bcb_cambio_moedas",
       args: {},
       rotas: [["Moedas", { value: [{ simbolo: "EUR", nomeFormatado: "Euro", tipoMoeda: "B" }] }]]
+    },
+    // Contrato Deep Research: `search` herda as duas procedências de
+    // `bcb_buscar_serie`; `fetch` as de `bcb_serie_metadados`.
+    {
+      tool: "search",
+      args: { query: "ipca" },
+      rotas: [["package_list", { success: true, result: ["433-ipca-variacao-mensal"] }]]
+    },
+    {
+      tool: "fetch",
+      args: { id: "sgs:433" },
+      rotas: [
+        ["package_list", { success: true, result: ["433-ipca-variacao-mensal"] }],
+        ["bcdata.sgs.433", OBS_MENSAL]
+      ]
     }
   ];
 
@@ -207,6 +225,27 @@ describe("retrieved_at é o instante REAL da extração", () => {
     expect(doPortal).toBeDefined();
     // Segundo, não milissegundo: a serialização do contrato é determinística e
     // trunca no segundo. O que importa é o DIA, e ele é o de ontem.
+    expect(Math.floor(new Date(doPortal!.retrieved_at as string).getTime() / 1000)).toBe(
+      Math.floor(ontem.getTime() / 1000)
+    );
+  });
+
+  it("`search` servido do cache do índice também mantém o instante do fetch ORIGINAL", async () => {
+    // A busca do contrato Deep Research passa pelo mesmo índice de 24 h; o
+    // bloco do portal tem de contar a mesma verdade que o de `bcb_buscar_serie`.
+    const ontem = new Date(Date.now() - 20 * 60 * 60 * 1000);
+    _seedCatalogo({
+      entradas: [{ codigo: 433, slug: "433-ipca-variacao-mensal" }],
+      obtidoEm: ontem.toISOString(),
+      totalDatasets: 1,
+      expiraEm: Date.now() + CATALOGO_TTL_MS
+    });
+    mockFetch([]);
+
+    const r = await call("search", { query: "ipca" });
+    const doPortal = blocos(r).find(b => String(b.source).includes("Portal"));
+
+    expect(doPortal).toBeDefined();
     expect(Math.floor(new Date(doPortal!.retrieved_at as string).getTime() / 1000)).toBe(
       Math.floor(ontem.getTime() / 1000)
     );

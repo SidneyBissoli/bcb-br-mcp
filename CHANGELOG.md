@@ -5,6 +5,51 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-09-03
+
+`search` e `fetch`: o contrato Deep Research da OpenAI, sobre o acervo de séries
+do servidor. Sem as duas o Deep Research do ChatGPT (e o Company Knowledge, e os
+workflows de pesquisa da API Responses) não usa o servidor — conectar no chat e
+listar no diretório nunca dependeram delas. 15 → 17 tools; nenhuma das 15
+mudou um byte (conferido tool a tool contra a superfície anterior).
+
+### Added
+
+- **`search`** — busca no acervo de séries (o catálogo curado + o índice do
+  Portal de Dados Abertos, o mesmo de `bcb_buscar_serie`, com o ranking do
+  `@sbissoli/mcp-search`) e devolve `{ id, title, url }`, id `sgs:<código>`,
+  até 10 resultados. A `url` é a página do dataset no portal quando a série
+  tem uma; as 53 curadas sem dataset citam a consulta pública do SGS às últimas
+  10 observações (`ultimos/10`) — o SGS não tem página por série, e a consulta
+  sem janela responde 406 nas diárias longas (1, 11, 12 medidas em 03/09).
+- **`fetch`** — `bcb_serie_metadados` renderizado como documento Markdown
+  (nome, categoria, periodicidade, unidade, último valor, página), com a
+  proveniência dele (SGS + catálogo curado). Id fora do acervo é erro de tool
+  sem tocar a rede.
+- Os nomes são fixados pela OpenAI: são a única exceção ao prefixo `bcb_`, por
+  allowlist explícita (`DEEP_RESEARCH_TOOLS`) nos testes de prefixo e no
+  smoke. As duas carregam o canal de proveniência multi-bloco como as três
+  irmãs (`TOOLS_MULTI_PROVENIENCIA`) e o `retrieved_at` do coletor de extração
+  — servidas do cache do índice, reportam o instante do fetch original.
+- Desenho: a fábrica do pacote é apontada para um coletor; as definições entram
+  em `TOOL_DEFINITIONS` com os schemas do contrato em JSON Schema
+  (`contractJsonSchemas`, derivados uma vez no pacote — este servidor não deriva
+  schema de zod no fio) e o `dispatchTool` as despacha por `case`, então
+  registro, validação de entrada, telemetria e o laço do Worker cobrem as duas
+  sem caso especial. `@sbissoli/mcp-search` 0.3.0 é dependência nova.
+- Seção "ChatGPT (Deep Research)" nos dois READMEs; cluster `dr-` nas fixtures
+  do eval (44); `src/deep-research.test.ts`.
+
+### Changed
+
+- `scripts/smoke-mcp.mjs` deriva a contagem de tools do baseline
+  `surface-stdio-<versão>.json` mais recente em vez de pinar um literal, e
+  exercita `search` → `fetch` e o id desconhecido contra o endpoint.
+- O guarda de contagens nos textos (`contagem-nos-textos.test.ts`) passa a
+  vigiar `worker/src/config.ts` — ponto cego que ainda dizia "15 ferramentas" na
+  landing do Worker.
+- Baseline `baselines/surface-stdio-1.11.0.json` (17 tools).
+
 ## [1.10.1] - 2026-08-30
 
 Manutenção de dependências e de CI. Nada muda para quem usa o servidor: nenhuma

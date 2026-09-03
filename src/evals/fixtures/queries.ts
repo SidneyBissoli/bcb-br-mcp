@@ -1,5 +1,5 @@
 /**
- * Fixtures de seleção de tool — 42 consultas pt-BR na persona do usuário-alvo
+ * Fixtures de seleção de tool — 44 consultas pt-BR na persona do usuário-alvo
  * (jornalista de economia, analista, pesquisador brasileiro pedindo dado do
  * BCB).
  *
@@ -20,7 +20,9 @@
  *    tempo (elas andam juntas?) e recusa grades diferentes. Prefixo `stat-`.
  *
  * Prefixo do id = cluster: `serie-`, `desc-`, `stat-`, `focus-`, `cambio-`,
- * `sobrep-` (a sobreposição da arbitragem 3) e `ctrl-` (controles sem irmã).
+ * `sobrep-` (a sobreposição da arbitragem 3), `ctrl-` (controles sem irmã) e
+ * `dr-` (a forma Deep Research do ChatGPT: descobrir documentos no acervo e
+ * ler um por inteiro — `search`/`fetch`, contra as `bcb_*` que respondem dado).
  *
  * `expectedTools` = a(s) PRIMEIRA(S) chamada(s) aceitável(is). Mais de uma
  * entrada só onde duas tools são primeiro passo genuinamente defensável — e nas
@@ -305,5 +307,19 @@ export const FIXTURES: EvalFixture[] = [
     query: "Quanto vale hoje, em reais de agora, um salário de R$ 3.000 de 2010?",
     expectedTools: ["bcb_deflacionar"],
     note: "Controle de deflação."
+  },
+
+  // ── Deep Research (contrato do ChatGPT): documentos do acervo, não dados ──
+  {
+    id: "dr-01",
+    query: "Encontre documentos no acervo do BCB sobre crédito às famílias para eu ler um deles na íntegra e citar a página.",
+    expectedTools: ["search"],
+    note: "Descoberta de documentos com citação (a forma Deep Research) é `search`; as bcb_* respondem dado."
+  },
+  {
+    id: "dr-02",
+    query: "Abra o documento sgs:433 que a busca devolveu e me traga o texto completo com a URL para citar.",
+    expectedTools: ["fetch"],
+    note: "Id devolvido por `search` → `fetch` lê o documento inteiro; não é consulta de valores."
   }
 ];

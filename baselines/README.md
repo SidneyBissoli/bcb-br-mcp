@@ -67,7 +67,22 @@ Toda diferença precisa ser deliberada e constar da lista de mudanças da sessã
 A convergência dos dois transectos num contrato só (o do stdio, que é o mais
 forte) É uma mudança deliberada desta fundação — não uma regressão.
 
-## Baseline vigente: `surface-stdio-d2-correlacao.json` (segunda metade do D2)
+## Baseline vigente: `surface-stdio-1.11.0.json` (Deep Research — 03/09/2026)
+
+**17 tools**, 3 resources, 3 prompts. A diferença contra a superfície da
+1.10.1 (HEAD antes da mudança, capturada com o mesmo `--stdio`): **duas tools
+novas, `search` e `fetch`, e nada mais** — as 15 preexistentes, os resources e
+os prompts ficaram byte-idênticos, conferido programaticamente, tool a tool.
+A partir daqui o baseline leva a VERSÃO no nome (`surface-stdio-<versão>.json`,
+e `surface-http-prod-<versão>.json` para a produção): é dele que
+`scripts/smoke-mcp.mjs` deriva a contagem esperada, em vez de pinar um literal.
+
+| Tool | O que é |
+|:--|:--|
+| `search` | contrato Deep Research da OpenAI: busca no acervo (catálogo curado + índice do portal) → `{ id, title, url }` |
+| `fetch` | contrato Deep Research da OpenAI: `bcb_serie_metadados` como documento Markdown com a URL pública canônica |
+
+## Baseline anterior: `surface-stdio-d2-correlacao.json` (segunda metade do D2)
 
 **15 tools**, 3 resources, 3 prompts. A diferença contra
 `surface-stdio-d1-d2.json` é a mais limpa que a fase produziu: **duas tools

@@ -9,17 +9,26 @@
 
 import { describe, it, expect } from "vitest";
 import { validateFixtures } from "@sbissoli/mcp-evals";
+import { DEEP_RESEARCH_TOOLS } from "@sbissoli/mcp-search";
 import { AREA_BY_TOOL, CATALOG } from "./catalog.js";
 import { FIXTURES } from "./fixtures/queries.js";
 
 describe("catálogo do eval (vivo, de TOOL_DEFINITIONS)", () => {
-  it("captura exatamente as 15 tools publicadas", () => {
-    expect(CATALOG.tools).toHaveLength(15);
+  it("captura exatamente as 17 tools publicadas (15 bcb_* + as 2 do contrato Deep Research)", () => {
+    expect(CATALOG.tools).toHaveLength(17);
   });
 
-  it("toda tool leva o prefixo bcb_", () => {
+  it("toda tool leva o prefixo bcb_ — exceto as duas que o contrato do ChatGPT nomeia", () => {
+    // `search` e `fetch` são as ÚNICAS exceções admitidas: os nomes são fixados
+    // pela OpenAI (contrato Deep Research). Allowlist explícita do pacote, não
+    // um regex mais frouxo — uma terceira tool sem prefixo continua quebrando.
+    const excecoes = new Set<string>(DEEP_RESEARCH_TOOLS);
     for (const tool of CATALOG.tools) {
+      if (excecoes.has(tool.name)) continue;
       expect(tool.name).toMatch(/^bcb_/);
+    }
+    for (const nome of DEEP_RESEARCH_TOOLS) {
+      expect(CATALOG.toolNames, `${nome} ausente do catálogo`).toContain(nome);
     }
   });
 
@@ -52,13 +61,13 @@ describe("fixtures (as duas perguntas que a fase mandou medir)", () => {
 
   it("todo id carrega a etiqueta do cluster", () => {
     for (const f of FIXTURES) {
-      expect(f.id).toMatch(/^(serie|desc|stat|focus|cambio|sobrep|ctrl)-\d{2}$/);
+      expect(f.id).toMatch(/^(serie|desc|stat|focus|cambio|sobrep|ctrl|dr)-\d{2}$/);
     }
   });
 
-  it("os sete clusters são exercitados", () => {
+  it("os oito clusters são exercitados", () => {
     const clusters = new Set(FIXTURES.map(f => f.id.split("-")[0]));
-    expect([...clusters].sort()).toEqual(["cambio", "ctrl", "desc", "focus", "serie", "sobrep", "stat"]);
+    expect([...clusters].sort()).toEqual(["cambio", "ctrl", "desc", "dr", "focus", "serie", "sobrep", "stat"]);
   });
 
   it("a sobreposição SGS × Focus/PTAX (arbitragem 3) tem cobertura própria", () => {

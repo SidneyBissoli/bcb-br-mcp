@@ -17,7 +17,7 @@ import type { Catalog, CatalogTool, JsonSchema } from "@sbissoli/mcp-evals";
 import { TOOL_DEFINITIONS } from "../tools.js";
 
 /**
- * Área primária por tool — PARTIÇÃO das 15, alinhada aos agrupamentos em que a
+ * Área primária por tool — PARTIÇÃO das 17, alinhada aos agrupamentos em que a
  * confusão seria diagnóstica. `src/evals/fixtures.test.ts` exige que ela cubra
  * exatamente o catálogo, sem sobra nem falta.
  */
@@ -41,7 +41,10 @@ export const AREA_BY_TOOL: Record<string, string> = {
   bcb_focus_referencias: "focus",
   // Câmbio (PTAX).
   bcb_cambio_cotacao: "cambio",
-  bcb_cambio_moedas: "cambio"
+  bcb_cambio_moedas: "cambio",
+  // Contrato Deep Research da OpenAI (nomes fixados pelo ChatGPT; `deep-research.ts`).
+  search: "deep-research",
+  fetch: "deep-research"
 };
 
 const tools: CatalogTool[] = TOOL_DEFINITIONS.map(t => ({

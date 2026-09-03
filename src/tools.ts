@@ -11,6 +11,7 @@
  */
 
 import { CKAN_PACKAGE_LIST, obterCatalogo, buscarSeries } from "./catalog.js";
+import { criarDeepResearchTools } from "./deep-research.js";
 import { FOCUS_TOOL_DEFINITIONS, dispatchFocusTool } from "./focus.js";
 import { CAMBIO_TOOL_DEFINITIONS, dispatchCambioTool } from "./cambio.js";
 import {
@@ -2575,13 +2576,29 @@ const RAW_TOOL_DEFINITIONS = [
 const TOOLS_MULTI_PROVENIENCIA = new Set([
   "bcb_serie_metadados",
   "bcb_buscar_serie",
-  "bcb_cambio_cotacao"
+  "bcb_cambio_cotacao",
+  // `search` é a busca de `bcb_buscar_serie` (índice do portal + catálogo curado)
+  // e `fetch` é `bcb_serie_metadados` — herdam as duas procedências delas.
+  "search",
+  "fetch"
 ]);
+
+/**
+ * `search`/`fetch` do contrato Deep Research da OpenAI (`deep-research.ts`):
+ * montadas aqui, no ponto em que o `tools.ts` já tem o catálogo curado e o
+ * handler de metadados — o módulo não importa daqui para não fechar ciclo.
+ */
+const DEEP_RESEARCH = criarDeepResearchTools({
+  seriesPopulares: SERIES_POPULARES,
+  metadados: (codigo, timeoutMs, maxRetries) => handleSerieMetadados({ codigo }, timeoutMs, maxRetries),
+  provCatalogoCurado
+});
 
 export const TOOL_DEFINITIONS = [
   ...RAW_TOOL_DEFINITIONS,
   ...FOCUS_TOOL_DEFINITIONS,
-  ...CAMBIO_TOOL_DEFINITIONS
+  ...CAMBIO_TOOL_DEFINITIONS,
+  ...DEEP_RESEARCH.definitions
 ].map(tool => ({
   ...tool,
   inputSchema: sealDeep(tool.inputSchema),
@@ -2751,6 +2768,9 @@ async function despachar(
 
   const cambio = dispatchCambioTool(toolName, args, timeoutMs, maxRetries);
   if (cambio) return cambio;
+
+  const deepResearch = DEEP_RESEARCH.dispatch(toolName, args, timeoutMs, maxRetries);
+  if (deepResearch) return deepResearch;
 
   switch (toolName) {
     case "bcb_serie_valores":

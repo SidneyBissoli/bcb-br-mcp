@@ -18,7 +18,7 @@ Permite consultar indicadores econômicos e financeiros como **Selic**, **IPCA**
 
 > Se você achou este projeto útil, considere dar uma [estrela no GitHub](https://github.com/SidneyBissoli/bcb-br-mcp). Isso ajuda outras pessoas a descobrirem o projeto!
 
-**Capacidades:** 15 ferramentas (skills) · 3 recursos · 3 prompts — tudo o que um cliente MCP precisa para consultar o Banco Central do Brasil: séries temporais do SGS/BCB, a pesquisa de expectativas de mercado **Focus** e as cotações de câmbio **PTAX**.
+**Capacidades:** 17 ferramentas (skills) · 3 recursos · 3 prompts — tudo o que um cliente MCP precisa para consultar o Banco Central do Brasil: séries temporais do SGS/BCB, a pesquisa de expectativas de mercado **Focus** e as cotações de câmbio **PTAX**.
 
 ## Veja na prática
 
@@ -72,6 +72,8 @@ As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com pro
 | `bcb_focus_referencias` | Quais indicadores e datas de referência a Focus de fato publica, **discriminados por escopo** (os cinco horizontes mais `selic`, cujo eixo é a reunião do Copom) — o conjunto de indicadores muda com o escopo (9 no mensal contra 26 no anual) |
 | `bcb_cambio_cotacao` | Cotação PTAX de uma moeda (dólar por padrão), num dia ou num intervalo de datas |
 | `bcb_cambio_moedas` | Moedas com cotação publicada pelo BCB |
+| `search` | Contrato Deep Research da OpenAI: busca no catálogo de séries (curado + índice do portal de dados abertos) e devolve `{ id, title, url }` — ver [ChatGPT (Deep Research)](#chatgpt-deep-research) |
+| `fetch` | Contrato Deep Research da OpenAI: devolve uma série como documento legível com a sua URL pública canônica |
 
 ## Recursos
 
@@ -146,6 +148,16 @@ npm install -g bcb-br-mcp
   }
 }
 ```
+
+### ChatGPT (Deep Research)
+
+O Deep Research do ChatGPT (e o Company Knowledge, e os workflows de pesquisa da API Responses) só usa um servidor MCP que exponha exatamente `search` e `fetch` — este servidor expõe as duas, além das `bcb_*`. Aponte o conector para o endpoint hospedado, sem chave:
+
+```
+https://bcb.sidneybissoli.com/mcp
+```
+
+`search` ranqueia a consulta contra o catálogo de séries — as 135 curadas mais os milhares indexados do Portal de Dados Abertos — e devolve `{ id, title, url }` (os ids são `sgs:<código>`); `fetch` devolve a série em Markdown legível (nome, categoria, periodicidade, unidade, último valor) com a URL pública canônica, que é o que o ChatGPT cita: a página do dataset em dadosabertos.bcb.gov.br quando a série tem uma, senão a consulta pública do SGS às últimas observações dela (o SGS não tem página por série). As duas carregam o mesmo bloco de proveniência das demais ferramentas. No modo desenvolvedor do ChatGPT (Configurações → Segurança e login → Modo desenvolvedor) qualquer ferramenta pode ser chamada — para dados, as `bcb_*` continuam sendo as certas.
 
 ## Exemplos de Uso
 

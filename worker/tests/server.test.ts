@@ -28,13 +28,15 @@ afterEach(() => {
 });
 
 describe("buildServer (worker)", () => {
-  // 8 tools do SGS + 3 do Focus + 2 de câmbio, acrescentadas na sessão de D3.
-  it("expõe a superfície completa do pacote pai (15 tools, 3 resources, 3 prompts)", async () => {
+  // 8 tools do SGS + 3 do Focus + 2 de câmbio (sessão de D3) + as 2 do
+  // contrato Deep Research da OpenAI (`search`/`fetch`).
+  it("expõe a superfície completa do pacote pai (17 tools, 3 resources, 3 prompts)", async () => {
     const client = await connect(buildServer());
     const { tools } = await client.listTools();
     const { resources } = await client.listResources();
     const { prompts } = await client.listPrompts();
-    expect(tools).toHaveLength(15);
+    expect(tools).toHaveLength(17);
+    expect(tools.map(t => t.name)).toEqual(expect.arrayContaining(["search", "fetch"]));
     expect(resources).toHaveLength(3);
     expect(prompts).toHaveLength(3);
     await client.close();

@@ -44,6 +44,9 @@ const TEXTOS = [
   // resources/prompts são gerados da superfície (gen-lhm-manifest.mjs) e não
   // afirmam total nenhum — o que este guarda vigia é o texto editado à mão.
   "lhm.plugin.json",
+  // A landing do Worker afirma um total no texto de apresentação e ficava fora
+  // do alcance deste guarda (ponto cego achado ao acrescentar `search`/`fetch`).
+  "worker/src/config.ts",
 ];
 
 /** "15 tools", "15 ferramentas". */

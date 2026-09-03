@@ -13,7 +13,7 @@ export const SERVER_CONFIG = {
   /**
    * Nome, título, descrição, site e ícone vêm do PACOTE (src/identity.ts), que é
    * o que o handshake MCP anuncia nos dois transportes. Antes estavam escritos
-   * aqui: a landing dizia "8 ferramentas" (eram 15) e o `websiteUrl` apontava
+   * aqui: a landing anunciava uma contagem velha (8, quando já eram 15) e o `websiteUrl` apontava
    * para o repositório enquanto o server.json publicava a landing. Nada disso
    * dava erro — só divergia.
    */
@@ -76,7 +76,7 @@ export const RATE_LIMIT = {
 export const LANDING = {
   lang: "pt-BR" as "pt-BR" | "en",
   resumo:
-    "Servidor MCP com 15 ferramentas do Banco Central do Brasil: séries temporais do " +
+    "Servidor MCP com 17 ferramentas do Banco Central do Brasil: séries temporais do " +
     "SGS, expectativas de mercado da Focus e câmbio PTAX, com fonte citada.",
   exemplos: [
     "“Qual a taxa Selic atual?”",

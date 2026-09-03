@@ -1,30 +1,46 @@
 {
-  "identifier": "sidneybissoli-bcb-br-mcp",
-  "name": "Banco Central do Brasil - MCP",
-  "version": "1.10.1",
-  "description": "MCP server for the Brazilian Central Bank (Banco Central do Brasil, BCB): SGS time series (Selic, IPCA, exchange rates, GDP and other verified indicators), Focus market expectations (Olinda API) and PTAX exchange rates, with statistics (variation, correlation, deflation) and a provenance block on every response.",
-  "author": "Sidney Bissoli",
-  "authorUrl": "https://github.com/SidneyBissoli",
-  "homepage": "https://github.com/SidneyBissoli/bcb-br-mcp",
-  "icon": "🏦",
-  "category": "data-analytics",
-  "tags": [
-    "bcb",
-    "banco-central",
-    "central-bank",
-    "brazil",
-    "economy",
-    "selic",
-    "ipca",
-    "exchange-rate",
-    "gdp",
-    "time-series",
-    "finance",
-    "focus",
-    "ptax",
-    "expectations",
-    "provenance"
+  "prompts": [
+    {
+      "description": "Compara os principais índices de inflação do Brasil (IPCA, IGP-M, INPC) nos últimos 12 meses",
+      "name": "comparar_inflacao",
+      "title": "Comparar índices de inflação"
+    },
+    {
+      "description": "Consulta os principais indicadores econômicos do Brasil (Selic, IPCA, Dólar, IBC-Br)",
+      "name": "indicadores_atuais",
+      "title": "Indicadores econômicos atuais"
+    },
+    {
+      "description": "Gera um panorama completo da economia brasileira com os principais indicadores",
+      "name": "panorama_economico",
+      "title": "Panorama da economia brasileira"
+    }
   ],
+  "resources": [
+    {
+      "description": "Lista de categorias disponíveis no catálogo de séries do BCB",
+      "mimeType": "application/json",
+      "name": "categorias",
+      "title": "Categorias do catálogo",
+      "uri": "bcb://series/categorias"
+    },
+    {
+      "description": "Catálogo de 135 séries econômicas do BCB, verificadas contra a origem, organizadas por categoria; cada entrada traz `fonteNome` (nome transcrito do portal do BCB ou herdado com periodicidade medida)",
+      "mimeType": "application/json",
+      "name": "series_populares",
+      "title": "Catálogo curado de séries do BCB",
+      "uri": "bcb://series/populares"
+    },
+    {
+      "description": "Códigos dos indicadores econômicos mais utilizados (Selic, IPCA, Dólar, PIB, etc.)",
+      "mimeType": "application/json",
+      "name": "codigos_principais",
+      "title": "Códigos dos indicadores mais usados",
+      "uri": "bcb://series/principais"
+    }
+  ],
+  "serverName": "bcb-br-mcp",
+  "toolCount": 17,
   "tools": [
     {
       "annotations": {
@@ -4010,46 +4026,6 @@
         "type": "object"
       },
       "title": "Busca para Deep Research"
-    }
-  ],
-  "resources": [
-    {
-      "description": "Lista de categorias disponíveis no catálogo de séries do BCB",
-      "mimeType": "application/json",
-      "name": "categorias",
-      "title": "Categorias do catálogo",
-      "uri": "bcb://series/categorias"
-    },
-    {
-      "description": "Catálogo de 135 séries econômicas do BCB, verificadas contra a origem, organizadas por categoria; cada entrada traz `fonteNome` (nome transcrito do portal do BCB ou herdado com periodicidade medida)",
-      "mimeType": "application/json",
-      "name": "series_populares",
-      "title": "Catálogo curado de séries do BCB",
-      "uri": "bcb://series/populares"
-    },
-    {
-      "description": "Códigos dos indicadores econômicos mais utilizados (Selic, IPCA, Dólar, PIB, etc.)",
-      "mimeType": "application/json",
-      "name": "codigos_principais",
-      "title": "Códigos dos indicadores mais usados",
-      "uri": "bcb://series/principais"
-    }
-  ],
-  "prompts": [
-    {
-      "description": "Compara os principais índices de inflação do Brasil (IPCA, IGP-M, INPC) nos últimos 12 meses",
-      "name": "comparar_inflacao",
-      "title": "Comparar índices de inflação"
-    },
-    {
-      "description": "Consulta os principais indicadores econômicos do Brasil (Selic, IPCA, Dólar, IBC-Br)",
-      "name": "indicadores_atuais",
-      "title": "Indicadores econômicos atuais"
-    },
-    {
-      "description": "Gera um panorama completo da economia brasileira com os principais indicadores",
-      "name": "panorama_economico",
-      "title": "Panorama da economia brasileira"
     }
   ]
 }

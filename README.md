@@ -19,7 +19,7 @@ Query economic and financial indicators such as **Selic** (interest rate), **IPC
 
 > If you find this project useful, please consider giving it a [star on GitHub](https://github.com/SidneyBissoli/bcb-br-mcp). It helps others discover the project!
 
-**Capabilities:** 15 tools (skills) · 3 resources · 3 prompts — everything an MCP client needs to query the Brazilian Central Bank: SGS/BCB time series, the **Focus** market-expectations survey and **PTAX** exchange rates.
+**Capabilities:** 17 tools (skills) · 3 resources · 3 prompts — everything an MCP client needs to query the Brazilian Central Bank: SGS/BCB time series, the **Focus** market-expectations survey and **PTAX** exchange rates.
 
 ## See it in action
 
@@ -73,6 +73,8 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 | `bcb_focus_referencias` | Which indicators and reference dates the Focus survey actually publishes, **broken down per scope** (the five horizons plus `selic`, whose axis is the Copom meeting) — the indicator set differs by scope (9 monthly vs 26 annual) |
 | `bcb_cambio_cotacao` | PTAX quote for a currency (USD by default), single day or date range |
 | `bcb_cambio_moedas` | Currencies with quotes published by the BCB |
+| `search` | OpenAI Deep Research contract: searches the series catalog (curated + open data portal index) and returns `{ id, title, url }` — see [ChatGPT (Deep Research)](#chatgpt-deep-research) |
+| `fetch` | OpenAI Deep Research contract: returns one series as a readable document with its canonical public URL |
 
 ## Resources
 
@@ -147,6 +149,16 @@ npm install -g bcb-br-mcp
   }
 }
 ```
+
+### ChatGPT (Deep Research)
+
+ChatGPT deep research (and company knowledge, and research workflows over the Responses API) only uses an MCP server that exposes exactly `search` and `fetch` — this server does, on top of the `bcb_*` tools. Point the connector at the hosted endpoint, no key required:
+
+```
+https://bcb.sidneybissoli.com/mcp
+```
+
+`search` ranks the query against the series catalog — the 135 curated series plus the thousands indexed from the Open Data Portal — and returns `{ id, title, url }` (ids are `sgs:<code>`); `fetch` returns the series as readable Markdown (name, category, frequency, unit, latest value) with the canonical public URL, which is what ChatGPT cites: the dataset page on dadosabertos.bcb.gov.br when the series has one, otherwise the public SGS query for its latest observations (the SGS has no per-series page). Both carry the same provenance block as every other tool. In ChatGPT's developer mode (Settings → Security and login → Developer mode) any tool is callable — the `bcb_*` tools remain the ones to use for data.
 
 ## Usage Examples
 

@@ -7,11 +7,13 @@
  *   node scripts/smoke-mcp.mjs --url <url>     # outro endpoint (ex.: wrangler dev)
  *   node scripts/smoke-mcp.mjs --stdio         # dist/index.js local (exige npm run build)
  *
- * Verifica: handshake, superfície completa (15 tools / 3 resources / 3 prompts),
- * a busca com índice do portal, uma tool que vai ao SGS, as cinco tools de D3
- * (Focus e PTAX) contra a origem, leitura de resource, e a validação de entrada
- * (argumento obrigatório ausente tem de ser barrado ANTES de chamar o BCB —
- * regressão fechada na fundação).
+ * Verifica: handshake, superfície completa (a contagem de tools vem do baseline
+ * de superfície mais recente — não é literal —, 3 resources, 3 prompts), a
+ * busca com índice do portal, uma tool que vai ao SGS, as cinco tools de D3
+ * (Focus e PTAX) contra a origem, o contrato Deep Research do ChatGPT
+ * (search → fetch), leitura de resource, e a validação de entrada (argumento
+ * obrigatório ausente tem de ser barrado ANTES de chamar o BCB — regressão
+ * fechada na fundação).
  *
  * As asserções das tools de D3 pinam o que o mini-spike verificou contra a
  * origem, e não só "respondeu 200": nome de recurso por horizonte, os campos em
@@ -20,6 +22,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
 
 const DEFAULT_URL = "https://bcb.sidneybissoli.com/mcp";
 
@@ -151,12 +154,30 @@ try {
   check("initialize", !!init.result?.serverInfo, `${init.result?.serverInfo?.name} ${init.result?.serverInfo?.version}`);
   await client.notify("notifications/initialized");
 
+  // A contagem esperada NÃO é um literal: vem do baseline de superfície mais
+  // recente com versão no nome (baselines/surface-stdio-<versão>.json). Mudou
+  // a superfície sem recapturar o baseline → o smoke fica vermelho, que é o
+  // combinado; um número pinado aqui é o que envelhece sem ninguém notar.
+  const versaoDe = nome => nome.match(/(\d+)\.(\d+)\.(\d+)/).slice(1).map(Number);
+  const baselineMaisRecente = readdirSync("baselines")
+    .filter(f => /^surface-stdio-\d+\.\d+\.\d+\.json$/.test(f))
+    .sort((a, b) => {
+      const [va, vb] = [versaoDe(a), versaoDe(b)];
+      return va[0] - vb[0] || va[1] - vb[1] || va[2] - vb[2];
+    })
+    .at(-1);
+  if (!baselineMaisRecente) throw new Error("nenhum baselines/surface-stdio-<versão>.json para derivar a contagem");
+  const toolsEsperadas = JSON.parse(readFileSync(`baselines/${baselineMaisRecente}`, "utf8")).toolCount;
+
   const tools = (await client.rpc("tools/list")).result?.tools ?? [];
-  check("tools/list = 15", tools.length === 15, `${tools.length} tools`);
+  check(`tools/list = ${toolsEsperadas} (baseline ${baselineMaisRecente})`, tools.length === toolsEsperadas, `${tools.length} tools`);
+  // `search` e `fetch` são as únicas sem prefixo: nomes fixados pela OpenAI (contrato Deep Research).
+  const DEEP_RESEARCH_TOOLS = ["search", "fetch"];
   check(
-    "todas com prefixo bcb_, title e outputSchema",
-    tools.every(t => t.name.startsWith("bcb_") && t.annotations?.title && t.outputSchema)
+    "todas com prefixo bcb_ (salvo as duas do contrato Deep Research), title e outputSchema",
+    tools.every(t => (t.name.startsWith("bcb_") || DEEP_RESEARCH_TOOLS.includes(t.name)) && t.annotations?.title && t.outputSchema)
   );
+  check("as 2 tools do contrato Deep Research estão publicadas", DEEP_RESEARCH_TOOLS.every(n => tools.some(t => t.name === n)));
   const nomes = tools.map(t => t.name);
   const novas = [
     "bcb_focus_expectativas",
@@ -645,6 +666,36 @@ try {
     check("  → paridade não-USD ganha bloco de procedência própria", fontes.some(f => f.includes("Refinitiv")));
     check("  → e o bloco do BCB continua presente ao lado", fontes.some(f => f.includes("PTAX") && !f.includes("Refinitiv")));
   }
+
+  // Contrato Deep Research do ChatGPT: search → fetch, sobre o mesmo índice
+  // da busca. `content` tem UM bloco, com o JSON do objeto do contrato; a
+  // proveniência viaja em `structuredContent`; a `url` é o que o ChatGPT cita.
+  const busca3 = await call("search", { query: "selic meta copom" });
+  const buscaObj = busca3.result?.structuredContent;
+  const buscaTexto = (() => { try { return JSON.parse(busca3.result?.content?.[0]?.text ?? ""); } catch { return null; } })();
+  checkUpstream("search devolve resultados do contrato", busca3.result, `${buscaObj?.results?.length ?? 0} resultados`);
+  if (!busca3.result?.isError) {
+    const primeiro = buscaObj?.results?.[0];
+    check("  → content é UM bloco com o JSON de { results }", busca3.result?.content?.length === 1 && Array.isArray(buscaTexto?.results));
+    check("  → todo resultado tem id, title e url (a citação depende da url)",
+      (buscaObj?.results ?? []).length > 0 && buscaObj.results.every(r => r.id && r.title && r.url));
+    check("  → o id é sgs:<código> e a proveniência está no structuredContent",
+      /^sgs:\d+$/.test(primeiro?.id ?? "") && Array.isArray(buscaObj?.provenance), `${primeiro?.id} — ${primeiro?.title}`);
+
+    const doc = await call("fetch", { id: primeiro.id });
+    const docObj = doc.result?.structuredContent;
+    checkUpstream("fetch devolve o documento do id buscado", doc.result, `${docObj?.title}`);
+    if (!doc.result?.isError) {
+      check("  → id, title, text e url preenchidos, id igual ao pedido",
+        docObj?.id === primeiro.id && ["title", "text", "url"].every(k => typeof docObj?.[k] === "string" && docObj[k]),
+        `text ${docObj?.text?.length ?? 0} chars | ${docObj?.url}`);
+      check("  → a proveniência do fetch é a de bcb_serie_metadados (SGS + catálogo)",
+        Array.isArray(docObj?.provenance) && docObj.provenance.some(b => String(b.source).includes("SGS")));
+    }
+  }
+  const desconhecido = await call("fetch", { id: "sgs:0" });
+  check("fetch com id desconhecido é erro de tool, não sucesso vazio", desconhecido.result?.isError === true,
+    desconhecido.result?.content?.[0]?.text?.slice(0, 60));
 
   // Leitura de resource.
   const leitura = await client.rpc("resources/read", { uri: "bcb://series/principais" });

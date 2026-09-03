@@ -5,12 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 An MCP server, published to npm as `bcb-br-mcp`, exposing three public APIs of
-the Brazilian Central Bank as 15 tools over STDIO and Streamable HTTP: the SGS
+the Brazilian Central Bank as 17 tools over STDIO and Streamable HTTP: the SGS
 time series (Selic, IPCA, FX, GDP and 135 verified indicators), the **Focus**
 market-expectations survey (Olinda OData) and **PTAX** exchange rates. Pure
-TypeScript, ESM, three runtime dependencies: `@modelcontextprotocol/server` (MCP SDK
-v2), `@sbissoli/mcp-stats` (motor de estatística do portfólio) e
-`@sbissoli/mcp-provenance` (contrato de proveniência). Este último traz **zod de
+TypeScript, ESM, four runtime dependencies: `@modelcontextprotocol/server` (MCP SDK
+v2), `@sbissoli/mcp-stats` (motor de estatística do portfólio),
+`@sbissoli/mcp-search` (contrato Deep Research: `search`/`fetch`, desde a 1.11.0)
+e `@sbissoli/mcp-provenance` (contrato de proveniência). Este último traz **zod de
 volta, como dependência transitiva** — custo aceito de propósito no D4: a regra
 do portfólio é não reimplementar componente da Fase 0 localmente, e uma
 proveniência local faria o campo `motor` do bloco `derivacao` mentir, que é o
@@ -83,9 +84,10 @@ trouxe a segunda e a terceira API):
 | `src/olinda.ts` | Tradução do OData: montagem de URL, literais, datas, `consultarOData`. Concentra as pegadinhas da fonte. |
 | `src/focus.ts` | Expectativas de Mercado (Focus) — 3 tools. |
 | `src/cambio.ts` | PTAX — 2 tools, com disclaimer e qualificação de paridade. |
+| `src/deep-research.ts` | `search`/`fetch` do contrato Deep Research da OpenAI (nomes fixados pelo ChatGPT — a única exceção ao prefixo `bcb_`, allowlist `DEEP_RESEARCH_TOOLS` do `@sbissoli/mcp-search` nos gates). A fábrica do pacote é apontada para um coletor; as duas entram em `TOOL_DEFINITIONS` com os schemas do contrato em JSON Schema (`contractJsonSchemas`) e o canal de proveniência como as outras; `tools.ts` injeta o catálogo curado, o handler de metadados e o bloco do catálogo (sem ciclo de import). `search` = índice do portal + curadoria (id `sgs:<código>`, `url` = dataset do portal ou consulta pública `ultimos/10`); `fetch` = `bcb_serie_metadados` renderizado em Markdown, com a proveniência dele. |
 
-`dispatchTool` consulta `dispatchFocusTool` e `dispatchCambioTool` primeiro; cada
-um devolve `null` quando a tool não é dele.
+`dispatchTool` consulta `dispatchFocusTool`, `dispatchCambioTool` e o `dispatch`
+do deep-research primeiro; cada um devolve `null` quando a tool não é dele.
 
 **Fronteira consolidar × separar (decisão do decisor, arbitragem 3).** Não
 espelhar os ~18 recursos OData. As expectativas de calendário e as rolantes ficam
@@ -206,10 +208,13 @@ landing page. O contador `legacy_root_post` em `/metrics` mede quem ainda usa.
   quebra. **Ao acrescentar campo em resposta, acrescente o caso aqui.**
 - `src/provenance.test.ts` — o gate do canal de proveniência. Existe porque um
   bloco pode casar com o schema e ainda assim MENTIR, e o `output-contract` não
-  pega isso. Cobre as 15 tools (com asserção de cobertura), o instante servido de
+  pega isso. Cobre as 17 tools (com asserção de cobertura), o instante servido de
   cache, a ausência de contaminação entre chamadas concorrentes e as duas
   fronteiras de procedência.
-- `src/evals/fixtures.test.ts` — sinal offline do eval de seleção: valida as 42
+- `src/deep-research.test.ts` — o que é do adapter Deep Research: forma do id,
+  `url` por origem, acervo reconstruído quando o índice renova, `fetch` de id
+  fora do acervo, documento renderizado de `bcb_serie_metadados`.
+- `src/evals/fixtures.test.ts` — sinal offline do eval de seleção: valida as 44
   fixtures pt-BR contra o catálogo VIVO (montado de `TOOL_DEFINITIONS`). Renomear
   ou remover tool quebra aqui na hora, sem rede e sem custo.
 - `src/register.test.ts` — fidelidade registro↔wire pelo cliente v2 sobre
@@ -223,7 +228,7 @@ Depois de qualquer mudança que possa mexer na superfície:
 
 ```bash
 npm run build && node scripts/dump-surface.mjs --stdio > depois.json
-# baseline vigente: baselines/surface-stdio-d2-correlacao.json (15 tools)
+# baseline vigente: baselines/surface-stdio-1.11.0.json (17 tools) — o smoke deriva a contagem do surface-stdio-<versão>.json mais recente
 # baseline da fundação: baselines/surface-stdio-after-fundacao.json (8 tools)
 ```
 

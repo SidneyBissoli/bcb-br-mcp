@@ -18,6 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport } from "@modelcontextprotocol/client";
 
+import { DEEP_RESEARCH_TOOLS } from "@sbissoli/mcp-search";
 import { createServer } from "./register.js";
 import { TOOL_DEFINITIONS, RESOURCE_DEFINITIONS, PROMPT_DEFINITIONS, SERIES_POPULARES } from "./tools.js";
 
@@ -73,7 +74,8 @@ describe("tools/list", () => {
       expect(tool.annotations?.readOnlyHint).toBe(true);
       expect(tool.annotations?.destructiveHint).toBe(false);
       expect(tool.annotations?.title).toBeTruthy();
-      expect(tool.name.startsWith("bcb_")).toBe(true);
+      // As duas do contrato Deep Research são as únicas sem prefixo: nomes fixados pela OpenAI.
+      expect(tool.name.startsWith("bcb_") || (DEEP_RESEARCH_TOOLS as readonly string[]).includes(tool.name)).toBe(true);
       expect(tool.name.length).toBeLessThanOrEqual(64);
     }
   });
