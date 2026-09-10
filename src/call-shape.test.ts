@@ -94,6 +94,19 @@ describe("classifyError separa a bifurcação do conserto", () => {
     expect(classifyError("Validation error: codigo: Expected number")).toBe("contrato");
   });
 
+  it("as mensagens em inglês dos irmãos caem certo", () => {
+    // O classificador é cópia compartilhada; estes vêm do ilo e do medical.
+    expect(classifyError("Empty query: pass one or more search terms.")).toBe("contrato");
+    expect(classifyError("REF_AREA is not part of the SDMX key — use start_period instead.")).toBe(
+      "contrato",
+    );
+    expect(classifyError("Query too broad: no dimension filter given.")).toBe("contrato");
+    expect(classifyError("Dimension SEX has no enumerated codelist.")).toBe("contrato");
+    expect(classifyError('Dimension "FOO" does not exist in dataflow DF_X.')).toBe("nao_encontrado");
+    expect(classifyError('Dataflow "DF_X" not found at ILOSTAT.')).toBe("nao_encontrado");
+    expect(classifyError("Upstream returned an empty response")).toBe("nao_encontrado");
+  });
+
   it("a fonte falhou ou demorou é fonte", () => {
     expect(classifyError("Tempo esgotado ao consultar a fonte")).toBe("fonte");
     expect(classifyError("Fonte devolveu 503")).toBe("fonte");
