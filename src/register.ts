@@ -48,6 +48,7 @@ import {
 // interpreta o schema em vez de gerar código, funciona igual no Node, e assim
 // os dois transportes validam exatamente da mesma forma.
 import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/server/validators/cf-worker";
+import { classifyError, errorText, paramNames } from "./call-shape.js";
 
 import { announceServedVersions } from "./discover.js";
 import { SERVER_IDENTITY, SERVER_INSTRUCTIONS } from "./identity.js";
@@ -89,7 +90,20 @@ function passthroughSchema(schema: unknown): StandardSchemaWithJSON {
  * Worker passes its UsageTracker recorder. Names and counts only — never
  * arguments, never results.
  */
-export type ToolUsageRecorder = (kind: "tool_call" | "tool_error", name: string) => void;
+/**
+ * A FORMA da chamada, quando o chamador sabe informá-la: nomes dos parâmetros
+ * e classe do erro. Opcional — o stdio não passa recorder. Ver src/call-shape.ts.
+ */
+export interface FormaDaChamada {
+  params: string;
+  classe: string;
+}
+
+export type ToolUsageRecorder = (
+  kind: "tool_call" | "tool_error",
+  name: string,
+  forma?: FormaDaChamada
+) => void;
 
 export interface RegisterOptions {
   /** Per-transport timeout/retry budget (the Worker uses a tighter one). */
@@ -128,15 +142,19 @@ export function registerAll(server: McpServer, options: RegisterOptions = {}): v
             config.TIMEOUT_MS,
             config.MAX_RETRIES
           );
-          record?.("tool_call", tool.name);
-          if (result.isError === true) record?.("tool_error", tool.name);
+          const forma = { params: paramNames(args), classe: "" };
+          record?.("tool_call", tool.name, forma);
+          if (result.isError === true) {
+            record?.("tool_error", tool.name, { ...forma, classe: classifyError(errorText(result)) });
+          }
           return result;
         } catch (error) {
           // Handlers already trap their own failures; this is the last resort
           // so an unexpected throw never breaks the transport.
           const message = error instanceof Error ? error.message : String(error);
-          record?.("tool_call", tool.name);
-          record?.("tool_error", tool.name);
+          const forma = { params: paramNames(args), classe: classifyError(message) };
+          record?.("tool_call", tool.name, forma);
+          record?.("tool_error", tool.name, forma);
           return {
             content: [{ type: "text" as const, text: `Erro ao executar a tool "${tool.name}": ${message}` }],
             isError: true

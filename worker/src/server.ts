@@ -33,6 +33,9 @@ setServerVersion(SERVER_CONFIG.version);
 export function buildServer(record: RecordUsage = () => {}): McpServer {
   return createServer(SERVER_CONFIG.version, {
     config: WORKER_CONFIG,
-    record: (kind, name) => record(kind, name)
+    // A FORMA da chamada (3º argumento) tem de atravessar. Com aridade 2 este
+    // adaptador ENGOLE em silêncio o que o registerAll passa — foi o que fez a
+    // telemetria do medical-terminologies-mcp subir gravando vazio.
+    record: (kind, name, forma) => record(kind, name, forma)
   });
 }
