@@ -24,12 +24,69 @@
 import { spawn } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 
-const DEFAULT_URL = "https://bcb.sidneybissoli.com/mcp";
+/**
+ * O smoke fala pela ROTA DE USO PRÓPRIO, e isso não é detalhe de estilo.
+ *
+ * Ele exercita caminhos de erro para afirmar que a ferramenta recusa o que tem
+ * de recusar. Pela rota pública essas recusas entram na telemetria
+ * indistinguíveis de gente batendo numa porta emperrada — e entravam: medido em
+ * 11/09/2026, os DOIS primeiros itens da fila de urgências do painel eram o
+ * smoke dos servidores. No `ilo_get_data`, 30 dos 36 erros da janela vinham das
+ * redes da Azure, que são os runners do GitHub Actions, e os outros 6 da máquina
+ * do dono: nenhum de terceiro.
+ *
+ * O desconto de varredura do monitor não pega isto. Ele procura rajada de
+ * catálogo e assinatura de sessão repetida, e um smoke é uma sessão pequena e
+ * arrumada; pior, a repetição depende da CADÊNCIA DE DEPLOY, então ele era
+ * detectado nas semanas movimentadas e passava batido nas calmas. Detecção que
+ * depende de quantas vezes publicamos não é critério. Quem sabe que este
+ * tráfego é nosso é este arquivo, então é ele que se identifica.
+ *
+ * A cobertura da rota pública não se perde: `confereRotaPublica()` abre um
+ * handshake contra ela antes do roteiro. `initialize` é método de protocolo e o
+ * painel os exclui, então sai de graça na telemetria.
+ */
+const BASE_URL = "https://bcb.sidneybissoli.com";
+const ROTA_MCP = process.env.SMOKE_MCP_ROUTE ?? "/mcp/uso-proprio";
+const DEFAULT_URL = `${BASE_URL}${ROTA_MCP}`;
 
 const args = process.argv.slice(2);
 const urlIndex = args.indexOf("--url");
 const useStdio = args.includes("--stdio");
 const endpoint = urlIndex >= 0 ? args[urlIndex + 1] : DEFAULT_URL;
+
+/** Handshake contra a rota PÚBLICA, para uma quebra só nela não passar batida. */
+async function confereRotaPublica() {
+  if (useStdio || urlIndex >= 0 || ROTA_MCP === "/mcp") return;
+  const res = await fetch(`${BASE_URL}/mcp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 0,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "smoke-rota-publica", version: "0.0.0" }
+      }
+    })
+  });
+  const texto = await res.text();
+  if (!res.ok) {
+    console.error(`SMOKE FALHOU: rota pública /mcp: HTTP ${res.status} ${texto.slice(0, 200)}`);
+    process.exit(1);
+  }
+  const linha = texto.includes("data:")
+    ? texto.split("\n").find(l => l.startsWith("data:"))?.slice(5).trim()
+    : texto;
+  const nome = JSON.parse(linha)?.result?.serverInfo?.name;
+  if (!nome) {
+    console.error(`SMOKE FALHOU: rota pública /mcp sem serverInfo (${texto.slice(0, 200)})`);
+    process.exit(1);
+  }
+  console.log(`rota pública /mcp: ok (${nome})`);
+}
 
 let failures = 0;
 let warnings = 0;
@@ -141,6 +198,8 @@ function httpClient(url) {
 }
 
 // ==================== smoke ====================
+
+await confereRotaPublica();
 
 const client = useStdio ? stdioClient() : httpClient(endpoint);
 console.log(`\nSmoke: ${useStdio ? "STDIO (dist/index.js)" : endpoint}\n`);
