@@ -37,14 +37,20 @@ export function arredondarDerivado(valor: number): number {
 }
 
 export interface EstatisticasSerie {
-  /** Verbatim da fonte. */
-  maximo: number;
-  /** Verbatim da fonte. */
-  minimo: number;
-  /** Derivado, 4 casas. */
-  media: number;
-  /** Derivado, 4 casas. */
-  amplitude: number;
+  /**
+   * `null` quando a série vem VAZIA: máximo, mínimo, média e amplitude de
+   * nenhuma observação são indefinidos, não zero. Zero aqui sairia na resposta
+   * com cara de medida do BCB — "a Selic variou de 0 a 0 no período" — sobre uma
+   * consulta que não trouxe ponto nenhum. Segue a convenção do motor comum
+   * (`@sbissoli/mcp-stats` >= 0.3.0), que devolve `null` + `reason` no vazio.
+   */
+  maximo: number | null;
+  /** Verbatim da fonte; `null` na série vazia. */
+  minimo: number | null;
+  /** Derivado, 4 casas; `null` na série vazia. */
+  media: number | null;
+  /** Derivado, 4 casas; `null` na série vazia. */
+  amplitude: number | null;
   /** Observações consideradas. */
   n: number;
 }
@@ -58,11 +64,21 @@ export interface EstatisticasSerie {
 export function estatisticasDaSerie(valores: number[]): EstatisticasSerie {
   const e = computeStats(valores, v => v);
 
+  // Os dois chamadores de hoje já recusam antes de chegar aqui (bcb_variacao
+  // exige 2 pontos; bcb_comparar devolve "Sem dados no período"), então este
+  // ramo não é alcançável pela superfície atual. Ele existe como SEGUNDA
+  // linha: a guarda que mora só no chamador protege os chamadores que existem,
+  // não os que vierem — foi assim que o defeito do zero calado nasceu no
+  // servidor irmão, com a guarda dentro de duas tools e fora do funil.
+  if (e.n === 0) {
+    return { maximo: null, minimo: null, media: null, amplitude: null, n: 0 };
+  }
+
   return {
     maximo: e.max,
     minimo: e.min,
-    media: arredondarDerivado(e.mean),
-    amplitude: arredondarDerivado(e.max - e.min),
+    media: arredondarDerivado(e.mean as number),
+    amplitude: arredondarDerivado((e.max as number) - (e.min as number)),
     n: e.n
   };
 }
