@@ -762,7 +762,7 @@ export async function handleBuscarSerie(
   try {
     const limite = args.limite ?? 20;
     const { snapshot, aviso } = await obterCatalogo(timeoutMs, maxRetries);
-    const { total, series } = buscarSeries(args.termo, SERIES_POPULARES, snapshot?.entradas ?? null, limite);
+    const { total, series, notas } = buscarSeries(args.termo, SERIES_POPULARES, snapshot?.entradas ?? null, limite);
 
     const catalogo = snapshot
       ? {
@@ -791,6 +791,9 @@ export async function handleBuscarSerie(
       catalogo
     };
 
+    // A tradução de vocabulário é DITA: sem isto o resultado parece vir do que
+    // o usuário escreveu.
+    if (notas.length > 0) payload.notasVocabulario = notas;
     if (series.length < total) payload.observacao = `Exibindo ${series.length} de ${total} séries; aumente 'limite' ou refine o termo.`;
     if (aviso) payload.avisos = [aviso];
 
@@ -798,7 +801,11 @@ export async function handleBuscarSerie(
       payload.mensagem =
         "Nenhuma série casou com o termo no catálogo curado nem no índice do portal de dados abertos. " +
         "Isso não é prova de inexistência — veja 'catalogo.cobertura'.";
-      payload.sugestao = "Tente termos mais gerais (selic, ipca, dolar, cambio, pib, credito, emprego) ou o código da série.";
+      payload.sugestao =
+        "Todas as palavras precisam casar com o nome da série (acento não importa). Tente menos palavras, " +
+        "termos mais gerais (selic, ipca, dolar, cambio, pib, credito, emprego), a palavra que o BCB usa " +
+        "(resultado primário, não déficit; inadimplência, não calote; desocupação, não desemprego; " +
+        "transações correntes, não conta corrente) ou o código da série.";
     }
 
     // Duas camadas, duas procedências — e aqui o instante importa de verdade: o
@@ -1997,7 +2004,7 @@ const RAW_TOOL_DEFINITIONS = [
       properties: {
         termo: {
           type: "string" as const,
-          description: "Termo de busca (mínimo 2 caracteres) ou o código da série. Vários termos são combinados com E.",
+          description: "Termo de busca (mínimo 2 caracteres) ou o código da série. Vários termos são combinados com E, sem distinção de acento; a palavra de todo dia é traduzida para a do BCB (déficit→resultado primário, calote→inadimplência, desemprego→desocupação) e a resposta diz quando isso aconteceu (notasVocabulario).",
           minLength: 2
         },
         limite: {
@@ -2055,6 +2062,11 @@ const RAW_TOOL_DEFINITIONS = [
           required: ["origem", "seriesIndexadas", "cobertura"]
         },
         observacao: { type: "string" as const, description: "Aviso de corte quando há mais resultados que `limite`" },
+        notasVocabulario: {
+          type: "array" as const,
+          description: "Quando um termo foi ampliado para a palavra que o BCB usa (déficit→resultado primário), diz qual",
+          items: { type: "string" as const }
+        },
         avisos: {
           type: "array" as const,
           description: "Avisos de degradação (índice vencido ou indisponível)",

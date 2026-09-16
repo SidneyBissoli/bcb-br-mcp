@@ -38,6 +38,7 @@ import {
   type ProcedenciaNome,
   type SeriePopular
 } from "./shared.js";
+import { casaBusca, expandirBusca, normalizar, notasDeVocabulario } from "./vocabulario.js";
 
 export const CKAN_PACKAGE_LIST = "https://dadosabertos.bcb.gov.br/api/3/action/package_list";
 export const CKAN_DATASET_BASE = "https://dadosabertos.bcb.gov.br/dataset";
@@ -254,39 +255,44 @@ function comoEncontradaDoIndice(entrada: EntradaCatalogo): SerieEncontrada {
  * série está nele, ela vem primeiro e com o nome bom, porque foi revisada à
  * mão; o índice do portal entra depois, ordenado do slug mais curto (mais
  * específico) para o mais longo, com desempate estável pelo código.
+ *
+ * Cada termo vira um OR das grafias que o BCB usa para ele (src/vocabulario.ts):
+ * quem escreve "deficit" ou "calote" casa "resultado primario" e
+ * "inadimplencia" em vez de receber zero calado; stopwords ("taxa DE juros")
+ * ficam fora do AND. O `notas` devolvido diz quando houve tradução.
  */
 export function buscarSeries(
   termo: string,
   curadoria: SeriePopular[],
   entradas: EntradaCatalogo[] | null,
   limite: number
-): { total: number; series: SerieEncontrada[] } {
+): { total: number; series: SerieEncontrada[]; notas: string[] } {
   const termoNorm = normalizeString(termo).trim();
-  const tokens = termoNorm.split(/\s+/).filter(Boolean);
 
   // Busca por código: "433" deve achar a série 433, não as que contêm "433".
   if (/^\d+$/.test(termoNorm)) {
     const codigo = Number(termoNorm);
     const curada = curadoria.find(s => s.codigo === codigo);
-    if (curada) return { total: 1, series: [comoEncontrada(curada)] };
+    if (curada) return { total: 1, series: [comoEncontrada(curada)], notas: [] };
     const doIndice = entradas?.find(e => e.codigo === codigo);
-    if (doIndice) return { total: 1, series: [comoEncontradaDoIndice(doIndice)] };
-    return { total: 0, series: [] };
+    if (doIndice) return { total: 1, series: [comoEncontradaDoIndice(doIndice)], notas: [] };
+    return { total: 0, series: [], notas: [] };
   }
 
-  const casaTodosTokens = (texto: string) => tokens.every(t => texto.includes(t));
+  const expandidos = expandirBusca(termoNorm);
+  // O slug do portal separa palavras por "-": normalizar para espaço, senão
+  // "resultado primario" (frase da tabela) nunca casaria "resultado-primario".
+  const casa = (texto: string) => casaBusca(normalizar(texto.replace(/-+/g, " ")), expandidos);
 
-  const curadas = curadoria.filter(
-    s => casaTodosTokens(normalizeString(s.nome)) || casaTodosTokens(normalizeString(s.categoria))
-  );
+  const curadas = curadoria.filter(s => casa(s.nome) || casa(s.categoria));
   const codigosCurados = new Set(curadas.map(s => s.codigo));
 
   const doIndice = (entradas ?? [])
-    .filter(e => !codigosCurados.has(e.codigo) && casaTodosTokens(normalizeString(e.slug)))
+    .filter(e => !codigosCurados.has(e.codigo) && casa(e.slug))
     .sort((a, b) => a.slug.length - b.slug.length || a.codigo - b.codigo);
 
   const total = curadas.length + doIndice.length;
   const series = [...curadas.map(comoEncontrada), ...doIndice.map(comoEncontradaDoIndice)].slice(0, limite);
 
-  return { total, series };
+  return { total, series, notas: notasDeVocabulario(expandidos) };
 }
