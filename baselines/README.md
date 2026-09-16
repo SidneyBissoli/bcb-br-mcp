@@ -7,6 +7,8 @@ servidor omitida de propósito).
 
 | Arquivo | Como foi capturado | O que representa |
 |:--|:--|:--|
+| `surface-stdio-1.12.0.json` | `--stdio` sobre `dist/index.js` do fonte, 2026-09-16 | 17 tools; diff para a 1.11.0: só `bcb_buscar_serie` (descrição de `termo`, `notasVocabulario` no outputSchema — CHANGELOG 1.12.0) |
+| `surface-http-prod-1.12.0.json` | `--url https://bcb.sidneybissoli.com/mcp` | o que o endpoint hospedado serve desde 16/09/2026 (1.12.0) — byte-idêntico ao stdio 1.12.0 |
 | `surface-stdio-1.3.5.json` | `--stdio` sobre `dist/index.js` do fonte atual | o que o canal npm publica hoje |
 | `surface-worker-source-1.3.5.json` | `--source` (lê `TOOL_DEFINITIONS` de `dist/tools.js`) | o que o worker serviria se o fonte fosse deployado (só tools — o modo não enxerga resources/prompts, que o worker monta à mão em `worker.ts`) |
 | `surface-http-prod-1.3.1.json` | `--url https://bcb.sidneybissoli.workers.dev/` | o que o endpoint hospedado serve DE FATO hoje |
