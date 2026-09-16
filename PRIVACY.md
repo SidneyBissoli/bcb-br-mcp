@@ -15,6 +15,12 @@ login, and no API key.
   auth failure, rate-limited), tool or route name, and daily counts. These
   aggregates contain no IP addresses and no query content, and are publicly
   visible at `/metrics`.
+- **MCP session id and client name:** on each `initialize` the server issues
+  a random session id (UUID v4) and the client echoes it on later requests. It
+  is kept only in the aggregate usage telemetry, to link the messages of one
+  handshake; it is not stored server-side and identifies neither a person nor
+  a device. The name of the client software declared in the handshake
+  (`clientInfo.name`, normalised) is recorded on the handshake line only.
 - **Structured request logs** (Cloudflare Workers Logs) carry only HTTP method,
   path, response status and latency — never the request body, tool arguments
   or client IP.
