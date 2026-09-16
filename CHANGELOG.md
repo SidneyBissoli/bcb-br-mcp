@@ -5,6 +5,17 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.1] - 2026-09-16
+
+### Changed
+- **A mecânica do vocabulário da pergunta sobe para `@sbissoli/mcp-search` 0.5.0.**
+  `src/vocabulario.ts` fica só com a tabela medida e os nomes de sempre (em
+  português); frases, stopwords, singular, nota e ponta inversa vêm de
+  `createVocabulary` (locale `pt-BR`, fonte "o BCB"). Cinco servidores
+  carregavam a mesma receita em cópia — regra da Fase 0. Sem mudança de
+  comportamento nem de superfície: os 20 testes de `src/vocabulario.test.ts`
+  passam iguais.
+
 ## [1.12.0] - 2026-09-16
 
 ### Fixed
