@@ -48,6 +48,7 @@ import { CKAN_DATASET_BASE, CKAN_PACKAGE_LIST, nomeDoSlug, obterCatalogo, type S
 import { provenienciaBcb, resultadoComProveniencia, type Proveniencia } from "./provenance.js";
 import { BCB_SGS_BASE } from "./series.js";
 import { leituraRemota, type SeriePopular, type ToolDefinition, type ToolResult } from "./shared.js";
+import { palavrasPerguntadas } from "./vocabulario.js";
 
 export { DEEP_RESEARCH_TOOLS };
 
@@ -124,7 +125,15 @@ function construirAcervo(seriesPopulares: readonly SeriePopular[], snapshot: Sna
       id: idDe(s.codigo),
       title: s.nome,
       url: slug ? `${CKAN_DATASET_BASE}/${slug}` : urlConsultaPublica(s.codigo),
-      keywords: [String(s.codigo), s.categoria, s.periodicidade, ...(s.unidade ? [s.unidade] : [])],
+      keywords: [
+        String(s.codigo),
+        s.categoria,
+        s.periodicidade,
+        ...(s.unidade ? [s.unidade] : []),
+        // A palavra com que se PERGUNTA, quando difere da que o BCB escreve
+        // ("deficit" para o resultado primário) — src/vocabulario.ts.
+        ...palavrasPerguntadas(`${s.nome} ${s.categoria}`)
+      ],
       codigo: s.codigo,
       origem: "curado"
     });
@@ -137,7 +146,7 @@ function construirAcervo(seriesPopulares: readonly SeriePopular[], snapshot: Sna
       id: idDe(e.codigo),
       title: nomeDoSlug(e.slug),
       url: `${CKAN_DATASET_BASE}/${e.slug}`,
-      keywords: [String(e.codigo)],
+      keywords: [String(e.codigo), ...palavrasPerguntadas(nomeDoSlug(e.slug))],
       codigo: e.codigo,
       origem: "indice"
     });

@@ -63,7 +63,7 @@ As respostas vêm ao vivo da API SGS do Banco Central — valores exatos com pro
 | `bcb_serie_ultimos` | Obtém os últimos N valores de uma série (qualquer N — o teto de 20 da origem é contornado) |
 | `bcb_serie_metadados` | Retorna nome, periodicidade, categoria e último valor de uma série |
 | `bcb_series_populares` | Lista séries populares agrupadas por categoria |
-| `bcb_buscar_serie` | Busca séries por nome ou descrição (aceita termos sem acento) |
+| `bcb_buscar_serie` | Busca séries por nome ou descrição (aceita termos sem acento, AND entre palavras; a palavra de todo dia é traduzida para a do BCB, e a resposta diz que traduziu) |
 | `bcb_indicadores_atuais` | Valores mais recentes: Selic, IPCA, Dólar, IBC-Br |
 | `bcb_variacao` | Variação percentual de UMA série no período: entre as pontas para série de nível, **acumulado por encadeamento** para série que já é variação por período (IPCA, IGP-M, INPC…); `analise.metodo` diz qual |
 | `bcb_comparar` | Compara 2 a 5 séries no mesmo período com ranking (mesma regra nível/encadeamento por série, declarada em `metodo`) |
@@ -419,6 +419,22 @@ O SGS possui mais de 18.000 séries temporais. Para encontrar o código de outra
 2. Use a busca para encontrar a série desejada
 3. Anote o código da série
 4. Use esse código nas ferramentas deste servidor
+
+## Pergunte com as suas palavras, não com as do BCB
+
+`bcb_buscar_serie` casa as suas palavras, todas (AND), contra o catálogo curado (135 séries: nome e categoria) e os slugs dos datasets do Portal de Dados Abertos do BCB (3.579 séries identificadas por código). O acento já era ignorado; a palavra, não. Medido nas duas camadas em 16/09/2026 e consertado na 1.12.0: a palavra de todo dia é expandida para a do BCB, e a resposta diz isso em `notasVocabulario`; zero resultado vem com a saída.
+
+| você pergunta | achava (curado / portal) | o BCB escreve | acha |
+| --- | ---: | --- | ---: |
+| `déficit`, `superávit` | 0 / 0 | resultado primário, resultado nominal | 1 / 26, 0 / 22 |
+| `calote` | 0 / 0 | inadimplência | 6 / 484 |
+| `juros básicos` | 0 / 0 | Selic | 5 / 7 |
+| `desemprego` | 0 / 0 | desocupação | 1 / 0 |
+| `arrecadação`, `gasto` | 0 / 0 | receita, despesa | 2 / 8, 0 / 8 |
+| `investimento estrangeiro` | 0 / 0 | investimento direto | 1 / 12 |
+| `conta corrente` | 0 / 0 | transações correntes | 1 / 5 |
+
+Só entra par **medido** (`src/vocabulario.ts`): a palavra perguntada ausente das duas camadas, a palavra do BCB presente. O que o BCB não publica com nenhum desses nomes fica de fora e segue devolvendo zero — `salário mínimo`, `ibovespa`, `bitcoin`, `meta de inflação` — porque apelido para série inexistente promete o que a fonte não tem; e `empréstimo` não é mapeado para `crédito` de propósito (o portal já responde por ele com 45 datasets; o mapeamento os afogaria em 2 mil). A mesma tabela alimenta o índice de `search` (Deep Research).
 
 ## Características Técnicas
 

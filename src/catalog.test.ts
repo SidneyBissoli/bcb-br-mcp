@@ -214,7 +214,7 @@ describe("buscarSeries", () => {
       }
     ]);
     expect(buscarSeries("27826", SERIES_POPULARES, entradas, 50).series[0].origem).toBe("indice");
-    expect(buscarSeries("999999", SERIES_POPULARES, entradas, 50)).toEqual({ total: 0, series: [] });
+    expect(buscarSeries("999999", SERIES_POPULARES, entradas, 50)).toEqual({ total: 0, series: [], notas: [] });
   });
 
   it("vários termos são combinados com E, ignorando acentos", () => {

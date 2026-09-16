@@ -5,6 +5,50 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0] - 2026-09-16
+
+### Fixed
+- **`bcb_buscar_serie` devolvia ZERO quando a palavra do usuário não era a
+  do BCB.** A busca casa os termos, em AND e sem acento, contra o nome e a
+  categoria do catálogo curado (135 séries) e o slug do dataset no Portal de
+  Dados Abertos (3.579 séries por código); quem perguntava com a palavra de
+  todo dia recebia zero, calado. Medido nas duas camadas em 16/09/2026
+  (curado / portal): `déficit`/`superávit` **0 / 0** × resultado primário
+  1 / 26 e resultado nominal 0 / 22; `calote` 0 / 0 × inadimplência 6 / 484;
+  `juros básicos` 0 / 0 × Selic 5 / 7; `desemprego` 0 / 0 × desocupação
+  1 / 0; `arrecadação` 0 / 0 × receita 2 / 8; `gasto` 0 / 0 × despesa 0 / 8;
+  `investimento estrangeiro` 0 / 0 × investimento direto 1 / 12; `conta
+  corrente` 0 / 0 × transações correntes 1 / 5. A mesma classe consertada no
+  ilo (0.6.0), uis (0.3.0), ibge (5.1.0) e medical (1.12.0).
+
+  Conserto em `src/vocabulario.ts`: stopwords do pt-BR fora do AND, plural
+  sem fabricar caco, frases da tabela ("conta corrente", "juros básicos")
+  viram UM termo antes da quebra em palavras, e cada termo vira um OR das
+  grafias do BCB a partir de uma tabela só de par **medido** (o slug do portal
+  tem o "-" trocado por espaço para a frase casar). A tradução é **dita**
+  (`notasVocabulario`), `sugestao` do zero diz o vocabulário do BCB, e o
+  acervo de `search` (Deep Research) recebe a palavra perguntada como keyword
+  da série cujo nome traz a palavra da fonte — nas duas camadas. O que o BCB
+  não publica por esses nomes fica de fora (salário mínimo, ibovespa,
+  bitcoin, meta de inflação — a série da meta não está em nenhuma das
+  camadas), e empréstimo não é mapeado para crédito de propósito (o portal já
+  responde por ele com 45 séries; o mapeamento as afogaria em 2 mil). Rodado
+  sobre as duas camadas reais pelo código construído: déficit 0 / 0 → 1 / 47,
+  calote 0 / 0 → 6 / 478, juros básicos 0 / 0 → 5 / 2, investimento
+  estrangeiro 0 / 0 → 1 / 11; ibovespa e salário mínimo seguem em 0 / 0.
+  20 testes novos em `src/vocabulario.test.ts`, com a curadoria real e slugs
+  reais do portal. **Mudança de superfície:** a descrição de
+  `termo` diz a regra nova; o `outputSchema` ganha `notasVocabulario`
+  (opcional). Baseline `surface-stdio-1.12.0.json` capturado.
+
+### Added
+Levado pelo `main` sem publicar desde a 1.11.0 (datas do git):
+- Rota privada do dono, para o uso próprio não virar adoção na telemetria; o
+  smoke de produção fala por ela (11/09/2026). Auditoria semanal do mcpscore
+  (11/09). Telemetria grava os métodos de protocolo e o id de sessão e nome do
+  cliente, blobs 9 e 10 (16/09). `@sbissoli/mcp-stats` 0.3.0: o vazio deixa
+  de virar zero (14/09).
+
 ## [1.11.0] - 2026-09-03
 
 `search` e `fetch`: o contrato Deep Research da OpenAI, sobre o acervo de séries

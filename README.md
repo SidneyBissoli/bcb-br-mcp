@@ -64,7 +64,7 @@ The answers come live from the Brazilian Central Bank's SGS API — exact figure
 | `bcb_serie_ultimos` | Get the last N values of a series (any N — the upstream cap of 20 is worked around) |
 | `bcb_serie_metadados` | Get series metadata (name, frequency, category, last value) |
 | `bcb_series_populares` | List popular series grouped by category |
-| `bcb_buscar_serie` | Search series by name or description (accent-insensitive) |
+| `bcb_buscar_serie` | Search series by name or description (accent-insensitive, AND between words; everyday words resolved to the BCB's wording, and the response says so) |
 | `bcb_indicadores_atuais` | Latest values: Selic, IPCA, USD/BRL, IBC-Br |
 | `bcb_variacao` | Percentage variation of one series over a period: level change for level series, **compounded accumulation** for series that are already period-on-period rates (IPCA, IGP-M, INPC…); `analise.metodo` says which |
 | `bcb_comparar` | Compare 2 to 5 series over the same period with ranking (same level/compounding rule per series, declared in `metodo`) |
@@ -420,6 +420,22 @@ The SGS database contains over 18,000 time series. To find codes for other serie
 2. Search for the desired series
 3. Note the series code
 4. Use that code with this server's tools
+
+## Ask in your words, not the BCB's
+
+`bcb_buscar_serie` matches your words, all of them (AND), against the curated catalogue (135 series: name and category) and the dataset slugs of the BCB open-data portal (3,579 series identified by code). Accents were already ignored; the word was not. Measured over both layers on 2026-09-16, fixed since 1.12.0: the everyday word is expanded to the BCB's own, and the response says so in `notasVocabulario`; zero results come with a way out.
+
+| you ask | hits before (curated / portal) | the BCB writes | hits |
+| --- | ---: | --- | ---: |
+| `déficit`, `superávit` | 0 / 0 | resultado primário, resultado nominal | 1 / 26, 0 / 22 |
+| `calote` | 0 / 0 | inadimplência | 6 / 484 |
+| `juros básicos` | 0 / 0 | Selic | 5 / 7 |
+| `desemprego` | 0 / 0 | desocupação | 1 / 0 |
+| `arrecadação`, `gasto` | 0 / 0 | receita, despesa | 2 / 8, 0 / 8 |
+| `investimento estrangeiro` | 0 / 0 | investimento direto | 1 / 12 |
+| `conta corrente` | 0 / 0 | transações correntes | 1 / 5 |
+
+Only measured pairs enter the table (`src/vocabulario.ts`): the word you ask with absent from both layers, the BCB's word present. What the BCB does not publish under any of these names stays out and still returns zero — `salário mínimo`, `ibovespa`, `bitcoin`, `meta de inflação` — because an alias for a series that does not exist promises what the source does not have; and `empréstimo` is not mapped to `crédito` on purpose (the portal already answers it with 45 datasets; the mapping would drown them in 2,000). The same table feeds the Deep Research `search` index.
 
 ## Technical Details
 
