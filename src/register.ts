@@ -48,7 +48,7 @@ import {
 // interpreta o schema em vez de gerar código, funciona igual no Node, e assim
 // os dois transportes validam exatamente da mesma forma.
 import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/server/validators/cf-worker";
-import { classifyError, errorText, paramNames } from "./call-shape.js";
+import { classifyError, classifyThrown, errorText, paramNames } from "./call-shape.js";
 
 import { announceServedVersions } from "./discover.js";
 import { SERVER_IDENTITY, SERVER_INSTRUCTIONS } from "./identity.js";
@@ -152,7 +152,10 @@ export function registerAll(server: McpServer, options: RegisterOptions = {}): v
           // Handlers already trap their own failures; this is the last resort
           // so an unexpected throw never breaks the transport.
           const message = error instanceof Error ? error.message : String(error);
-          const forma = { params: paramNames(args), classe: classifyError(message) };
+          // `classifyThrown` e não `classifyError`: aqui o OBJETO do erro existe,
+          // e o tipo dele separa bug nosso (`TypeError` & cia. -> `defeito`) de
+          // condição da fonte. Pela mensagem, um `TypeError` caía em `outro`.
+          const forma = { params: paramNames(args), classe: classifyThrown(error) };
           record?.("tool_call", tool.name, forma);
           record?.("tool_error", tool.name, forma);
           return {
