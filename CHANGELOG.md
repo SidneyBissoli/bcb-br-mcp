@@ -5,6 +5,40 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-09-23
+
+Esta versão carrega tudo o que entrou desde a 1.12.1: a 1.13.0 foi numerada no
+`package.json` e nunca publicada, e a tag leva o master inteiro.
+
+### Added
+- **Classe `defeito` na telemetria, e `classifyThrown()`.** `classifyError`
+  classifica pela MENSAGEM, e a frase de uma exceção de runtime não casa com
+  padrão nenhum do vocabulário: um `TypeError` ia para `outro`, a classe que a
+  própria definição do tipo descreve como alarme — *se esta classe crescer, é
+  sinal de que falta uma classe*. O sinal honesto é o TIPO do erro (`TypeError`,
+  `RangeError`, `ReferenceError`, `SyntaxError` são bug NOSSO, não condição da
+  fonte); caçar por texto fossilizaria a mensagem do V8, que muda entre versões
+  de Node. `classifyThrown(error)` entra só no `catch`, onde o objeto do erro
+  existe. **`classifyError` fica INTACTA** — é ela que recebe mensagem,
+  inclusive no contrato do `@sbissoli/mcp-search` —, então nenhum consumidor
+  dela muda. Sem mudança de superfície: nenhuma tool, nenhum esquema e nenhuma
+  resposta mudam. Conserto nascido no `ibge-br-mcp` 5.1.2 e portado igual aos
+  cinco servidores irmãos.
+
+### Fixed
+- **A busca casava o MIOLO de uma palavra (1.13.0, não publicada).** Defeito da
+  mecânica compartilhada, consertado em `@sbissoli/mcp-search` 0.6.0: a
+  fronteira passa a valer no INÍCIO da palavra. A classe foi medida nos irmãos —
+  na CID-10 `convulsao` caía de 41 para 6 porque 35 eram ANTIconvulsivantes; na
+  CNAE `moveis` caía de 30 para 17 porque 13 eram AUTOmoveis. Aqui o catálogo
+  vem do CKAN em tempo de execução e a adoção não se mede do mesmo jeito; o que
+  se sabe é que a mudança só REMOVE casamento de miolo.
+
+### Changed
+- `publish.yml`: a janela de espera até o npm expor a versão sobe de 100 s para
+  10 min, antes do passo do MCP Registry.
+- Grupos de dependências menores e de correção (worker e devDependencies).
+
 ## [1.12.1] - 2026-09-16
 
 ### Changed
