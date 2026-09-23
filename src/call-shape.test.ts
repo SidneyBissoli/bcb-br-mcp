@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { classifyError, errorText, paramNames } from "./call-shape.js";
+import { classifyError, classifyThrown, errorText, paramNames } from "./call-shape.js";
 
 /**
  * A FORMA da chamada. O teste que importa aqui é a GUARDA: ele varre as
@@ -156,5 +156,47 @@ describe("errorText lê o texto que o handler devolveu", () => {
     expect(errorText({})).toBe("");
     expect(errorText(null)).toBe("");
     expect(errorText({ content: [] })).toBe("");
+  });
+});
+
+/**
+ * `classifyThrown` nomeia a exceção que ESCAPOU do handler.
+ *
+ * Em 22/09/2026 o `ibge_cnae` respondia `Cannot read properties of undefined
+ * (reading 'divisao')` — um `TypeError` — e nenhum padrão de `classifyError`
+ * casava com essa frase: ia para `outro`, que já era 13 dos 23 erros da
+ * ferramenta. O sinal é o TIPO do erro, não a frase, porque o texto do motor de
+ * JS muda entre versões de Node.
+ *
+ * A guarda PROVA a diferença em vez de afirmá-la: a mesma mensagem que
+ * `classifyError` só sabe chamar de `outro`, `classifyThrown` chama de
+ * `defeito`, porque tem o objeto do erro em mãos.
+ */
+describe("classifyThrown nomeia a exceção que escapou do handler", () => {
+  it("TypeError vira `defeito`, e não o `outro` anônimo", () => {
+    const erro = new TypeError("Cannot read properties of undefined (reading 'divisao')");
+    expect(classifyError(erro.message)).toBe("outro");
+    expect(classifyThrown(erro)).toBe("defeito");
+  });
+
+  it("as outras exceções de runtime também", () => {
+    expect(classifyThrown(new RangeError("Invalid array length"))).toBe("defeito");
+    expect(classifyThrown(new ReferenceError("x is not defined"))).toBe("defeito");
+    expect(classifyThrown(new SyntaxError("Unexpected token"))).toBe("defeito");
+  });
+
+  it("erro que NÓS escrevemos continua classificado pela mensagem", () => {
+    expect(classifyThrown(new Error("A série 433 não retornou dados entre 2030 e 2031."))).toBe(
+      "nao_encontrado"
+    );
+    expect(classifyThrown(new Error("Fonte devolveu 503"))).toBe("fonte");
+    expect(
+      classifyThrown(new Error('Índice de preços desconhecido: "X". Aceitos: 433, 189.'))
+    ).toBe("contrato");
+  });
+
+  it("lida com o que foi lançado sem ser Error", () => {
+    expect(classifyThrown("Tempo esgotado ao consultar a fonte")).toBe("fonte");
+    expect(classifyThrown(undefined)).toBe("outro");
   });
 });
