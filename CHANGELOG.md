@@ -5,7 +5,12 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.14.1] - 2026-09-24
+
+Bump PATCH: nenhuma tool, nenhum esquema e nenhuma resposta de sucesso mudam —
+só o tempo e a frase do caminho de erro. A tag leva o master inteiro, e a
+**1.13.0 e a 1.14.0 foram numeradas no `package.json` e nunca viraram release** —
+quem estiver na 1.12.1 do npm recebe as três entradas abaixo de uma vez.
 
 ### Fixed
 
