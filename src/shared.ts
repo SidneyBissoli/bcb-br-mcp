@@ -17,6 +17,33 @@ export const CONFIG = {
   RETRY_DELAY_MS: 1000
 };
 
+/**
+ * Orçamento de tempo do PEDIDO PEQUENO (`/dados/ultimos/N`, no máximo 20
+ * observações). Não é ajuste fino: é o que separa "não existe" de "demorou".
+ *
+ * Medido em 24/09/2026, 15 séries reais (432, 433, 11, 12, 13521, 7000, 189,
+ * 188, 4390, 20539, 24363, 21619, 1178, 28763, 25239): `ultimos/1` responde
+ * entre **0,18 s e 0,41 s**. Código inexistente (99999, 99999999, 999999999)
+ * responde `200 text/html` com a página de requisição inválida — mas depois de
+ * **~30,2 s**. São duas populações separadas por ~75×.
+ *
+ * Consequência que este valor conserta: os dois orçamentos do servidor (30 s no
+ * stdio, 10 s no Worker) ABORTAM antes dos 30,2 s, então a defesa que lê a
+ * página HTML (logo abaixo, medida em 13/08/2026) nunca chegava a rodar. Quem
+ * errava um dígito esperava duas tentativas inteiras para receber "Falha após 2
+ * tentativas: The operation was aborted" — mensagem que culpa a origem por um
+ * erro de digitação.
+ *
+ * 6 s dá ~15× de folga sobre a resposta real mais lenta já medida e corta a
+ * espera do código errado de ~25 s para ~6 s.
+ */
+export const TIMEOUT_PEDIDO_PEQUENO_MS = 6000;
+
+/** A forma de URL que pede no máximo 20 observações. */
+export function ehPedidoPequeno(url: string): boolean {
+  return /\/dados\/ultimos\/\d+/.test(url);
+}
+
 // Worker uses shorter timeout (Cloudflare has its own limits)
 export const WORKER_CONFIG = {
   TIMEOUT_MS: 10000,
@@ -302,9 +329,15 @@ export async function fetchBcbApi(
 ): Promise<unknown> {
   let lastError: Error | null = null;
 
+  // O pedido pequeno nunca precisa de 10 s, muito menos de 30: a resposta real
+  // mais lenta já medida levou 0,41 s. Encurtar o orçamento AQUI é o que faz a
+  // inexistência aparecer como inexistência em vez de como falha da origem.
+  const pequeno = ehPedidoPequeno(url);
+  const orcamentoMs = pequeno ? Math.min(timeoutMs, TIMEOUT_PEDIDO_PEQUENO_MS) : timeoutMs;
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const response = await fetchWithTimeout(url, timeoutMs);
+      const response = await fetchWithTimeout(url, orcamentoMs);
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -331,11 +364,21 @@ export async function fetchBcbApi(
         //
         // `ultimos/N` nunca é caso (b): pede no máximo 20 observações. Então a
         // forma da URL separa os dois sem uma requisição a mais.
-        const pediuPoucasObservacoes = /\/dados\/ultimos\/\d+/.test(url);
+        //
+        // (c) DESCOBERTO em 24/09/2026, e derruba o "determinístico" que estava
+        //     escrito aqui: a origem responde essa MESMA página, depois dos
+        //     mesmos ~30 s, a uma série que EXISTE. Medido na 432 (meta Selic):
+        //     3 páginas HTML em 9 chamadas numa janela de poucos minutos e,
+        //     logo depois, 20 chamadas seguidas devolvendo JSON em ≤ 0,4 s. Ou
+        //     seja: a página não prova inexistência — prova que ESTA tentativa
+        //     não trouxe dado. Tratá-la como veredito fazia o servidor dizer que
+        //     a meta Selic não existe sempre que a origem soluçasse.
+        //
+        // Por isso a suspeita de inexistência agora é RESOLVIDA POR REPETIÇÃO,
+        // no `catch` abaixo: código que não existe falha em todas as tentativas;
+        // série boa volta na seguinte, em décimos de segundo.
+        const pediuPoucasObservacoes = pequeno;
         if (pediuPoucasObservacoes) {
-          // Determinístico como um 4xx: o código não existe e não vai passar a
-          // existir na tentativa seguinte. Repetir aqui gastava as retentativas
-          // inteiras, com backoff, para chegar à mesma resposta.
           throw new ErroSerieInexistente(
             "A API do BCB respondeu com a página de 'requisição inválida' a um pedido pequeno — " +
             "é assim que ela indica série INEXISTENTE (não usa 404). Confira o código da série."
@@ -350,7 +393,8 @@ export async function fetchBcbApi(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      if (lastError instanceof ErroSerieInexistente || lastError.message.includes("não encontrada")) {
+      // 404 de verdade continua determinístico.
+      if (lastError.message.includes("não encontrada")) {
         throw lastError;
       }
 
@@ -364,6 +408,34 @@ export async function fetchBcbApi(
       const isTimeout = lastError.name === "AbortError" ||
         lastError.message.includes("aborted") ||
         lastError.message.includes("timeout");
+
+      // SUSPEITA de inexistência, no pedido pequeno: ou a origem devolveu a
+      // página de 'requisição inválida', ou não devolveu nada dentro do
+      // orçamento curto. As duas são a mesma coisa vista de dois lados — a
+      // origem leva ~30 s para negar um código que não existe, e o orçamento
+      // de 6 s corta esse silêncio antes de a página chegar.
+      //
+      // A suspeita se RESOLVE POR REPETIÇÃO, não por veredito na primeira
+      // tentativa: a mesma página sai para série que EXISTE (medição de
+      // 24/09/2026, série 432 — ver o comentário no `catch` do JSON). Código
+      // inexistente falha em todas; série boa volta na seguinte em décimos de
+      // segundo. Com o orçamento curto, insistir custa ~6 s por tentativa em
+      // vez dos ~10–30 s de antes.
+      const suspeitaInexistencia = pequeno && (lastError instanceof ErroSerieInexistente || isTimeout);
+
+      if (suspeitaInexistencia && attempt >= maxRetries) {
+        // Só aqui vira afirmação — e ainda assim nomeia a alternativa, porque
+        // queda de rede e indisponibilidade da origem terminam igual. Dizer
+        // "não existe" de um código certo seria trocar erro alto por plausível.
+        throw new ErroSerieInexistente(
+          `A API do BCB não trouxe dado em ${maxRetries} tentativas de um pedido de poucas ` +
+          `observações (orçamento de ${Math.round(orcamentoMs / 1000)}s cada). Série que existe ` +
+          "responde em menos de 0,5 s; é a série INEXISTENTE que fica ~30 s sem resposta antes de " +
+          "devolver a página de 'requisição inválida' (a origem não usa 404). Confira o código com " +
+          "`bcb_buscar_serie`. Se o código estiver certo, a origem está indisponível — repita em " +
+          "instantes."
+        );
+      }
 
       if (attempt < maxRetries) {
         const delayMs = CONFIG.RETRY_DELAY_MS * Math.pow(2, attempt - 1);

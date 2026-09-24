@@ -5,6 +5,59 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Código de série errado custava ~25 s de espera e uma mensagem que culpava a
+  origem — e a defesa que existia negava séries que EXISTEM.** Dois achados de
+  24/09/2026 (item `mcp:ausencia-com-200` do portfólio), o segundo mais grave
+  que o primeiro.
+
+  **O que foi medido.** `/dados/ultimos/1` de 15 séries reais (432, 433, 11,
+  12, 13521, 7000, 189, 188, 4390, 20539, 24363, 21619, 1178, 28763, 25239)
+  responde entre **0,18 s e 0,41 s**. Código inexistente (99999, 99999999,
+  999999999) responde `200 text/html` com a página de "requisição inválida" —
+  mas depois de **~30,2 s**. Os dois orçamentos do servidor (30 s no stdio,
+  10 s no Worker) abortam antes disso, então a defesa que LÊ essa página nunca
+  chegava a rodar: quem errava um dígito esperava duas tentativas inteiras para
+  receber *"Falha após 2 tentativas: The operation was aborted"*, uma frase que
+  responsabiliza o Banco Central por um erro de digitação.
+
+  **O achado que derruba a premissa anterior.** A mesma página HTML, com os
+  mesmos ~30 s, sai para série que EXISTE: medido na **432 (meta Selic)**, 3
+  páginas em 9 chamadas numa janela de poucos minutos e, logo depois, 20
+  chamadas seguidas devolvendo JSON em ≤ 0,4 s. A página não prova
+  inexistência — prova que *aquela tentativa* não trouxe dado. Desde 13/08/2026
+  o código a tratava como veredito ("determinístico como um 4xx", sem repetir),
+  então bastava a origem soluçar para o servidor afirmar que a meta Selic não
+  existe.
+
+  **O conserto, em duas partes.** (1) O pedido pequeno (`/dados/ultimos/N`, no
+  máximo 20 observações) ganha orçamento próprio de **6 s** — ~15× a resposta
+  real mais lenta já medida —, o que corta o silêncio de 30 s sem encostar nas
+  consultas de janela longa, que continuam com 10 s/30 s. (2) A suspeita de
+  inexistência (página HTML **ou** aborto, que são o mesmo fato visto de dois
+  lados) passa a ser **resolvida por repetição**, não por veredito na primeira
+  tentativa: código que não existe falha em todas; série boa volta na seguinte
+  em décimos de segundo.
+
+  **Medido depois, ao vivo, pelo orçamento do Worker:** código inexistente →
+  `ErroSerieInexistente` em **13,0 s** (era ~25 s, com a mensagem errada);
+  432 → **0,2 s**; 433 → 0,1 s; 7000 → 0,4 s. A mensagem final nomeia a causa
+  provável com o número que a sustenta E a alternativa (origem indisponível),
+  porque queda de rede termina igual — afirmar inexistência sozinha trocaria um
+  erro alto por um plausível.
+
+  **Descartado, com medição:** pré-validar o código contra o catálogo do portal
+  (CKAN) antes de ir à rede, que era a hipótese registrada no item. O
+  `package_list` traz 4.261 datasets, 3.577 nomeados por código — e **10 de 20
+  códigos válidos conhecidos estão FORA dele**, inclusive o 433 (IPCA) e o
+  7000. Validar ali recusaria série boa: um defeito pior que o consertado.
+
+  Sem mudança de superfície: nenhuma tool, nenhum esquema, nenhuma resposta de
+  sucesso muda.
+
 ## [1.14.0] - 2026-09-23
 
 Esta versão carrega tudo o que entrou desde a 1.12.1: a 1.13.0 foi numerada no
