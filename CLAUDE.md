@@ -358,11 +358,30 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   `package_search?q=codigo_sgs:N` e, sem dataset, meça `ultimos/20` e entre como
   `medido`. Invariantes em `src/catalogo-curado.test.ts`; medição em `bcb/docs/06`.
 - **A origem NÃO responde 404 a código inexistente** — responde **200 com a
-  página de "requisição inválida"**, a mesma que devolve para um código
-  inventado. Tratado em `shared.ts` (`ErroSerieInexistente`, não-retentável),
-  distinguido do corte por tempo pela forma da URL: `ultimos/N` pede no máximo 20
-  observações e nunca é corte por tempo. A origem oscila entre servir essa página
-  e pendurar a conexão nesses códigos — o smoke aceita as duas.
+  página de "requisição inválida"**, e leva **~30 s** para isso (medido em
+  24/09/2026 em 99999, 99999999 e 999999999). Série que existe responde em
+  **0,18–0,41 s** (15 séries medidas). Tratado em `shared.ts`, distinguido do
+  corte por tempo pela forma da URL: `ultimos/N` pede no máximo 20 observações
+  e nunca é corte por tempo — e por isso tem orçamento próprio
+  (`TIMEOUT_PEDIDO_PEQUENO_MS`, 6 s), que corta o silêncio de 30 s sem encostar
+  nas janelas longas.
+- **Essa mesma página sai para série que EXISTE, e isso derruba o "não
+  retentável".** Medido em 24/09/2026 na **432** (meta Selic): 3 páginas HTML em
+  9 chamadas numa janela de poucos minutos e, logo depois, 20 chamadas seguidas
+  devolvendo JSON em ≤ 0,4 s. **A página não prova inexistência** — prova que
+  AQUELA tentativa não trouxe dado. Até 24/09 o código a tratava como veredito e
+  lançava `ErroSerieInexistente` sem repetir, então bastava a origem soluçar
+  para o servidor afirmar que a meta Selic não existe. Agora a suspeita (página
+  HTML **ou** aborto, o mesmo fato visto de dois lados) se resolve por
+  **repetição**: código que não existe falha em todas as tentativas; série boa
+  volta na seguinte. Gate em `src/shared.fetch.test.ts`. **Não reintroduza o
+  atalho de lançar na primeira página HTML.**
+- **O catálogo do portal (CKAN) NÃO é oráculo de validade.** Medido em
+  24/09/2026: `package_list` traz 4.261 datasets, 3.577 nomeados por código — e
+  **10 de 20 códigos válidos conhecidos estão fora dele**, inclusive o **433
+  (IPCA)** e o 7000. Pré-validar um código contra ele antes de ir à rede
+  recusaria série boa. A ideia já foi levantada uma vez; a medição está aqui
+  para não voltar.
 - **O SGS não publica número-índice de preço**, só variação. O deflator é
   reconstruído encadeando as variações mensais — conferido contra a fonte:
   12 variações da 433 compostas batem com o acumulado em 12 meses da 13522 com
