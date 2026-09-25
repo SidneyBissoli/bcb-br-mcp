@@ -17,7 +17,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "dump:surface": "node scripts/dump-surface.mjs",
-    "smoke": "node scripts/smoke-mcp.mjs"
+    "smoke": "node scripts/smoke-mcp.mjs",
+    "manifest:lhm": "node scripts/gen-lhm-manifest.mjs"
   },
   "keywords": [
     "mcp",
