@@ -46,7 +46,7 @@
             "type": "number"
           },
           "termo": {
-            "description": "Termo de busca (mínimo 2 caracteres) ou o código da série. Vários termos são combinados com E.",
+            "description": "Termo de busca (mínimo 2 caracteres) ou o código da série. Vários termos são combinados com E, sem distinção de acento; a palavra de todo dia é traduzida para a do BCB (déficit→resultado primário, calote→inadimplência, desemprego→desocupação) e a resposta diz quando isso aconteceu (notasVocabulario).",
             "minLength": 2,
             "type": "string"
           }
@@ -105,6 +105,13 @@
           "mensagem": {
             "description": "Mensagem exibida quando nada é encontrado",
             "type": "string"
+          },
+          "notasVocabulario": {
+            "description": "Quando um termo foi ampliado para a palavra que o BCB usa (déficit→resultado primário), diz qual",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "observacao": {
             "description": "Aviso de corte quando há mais resultados que `limite`",
