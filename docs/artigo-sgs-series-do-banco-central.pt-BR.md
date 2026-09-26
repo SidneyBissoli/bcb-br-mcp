@@ -175,7 +175,7 @@ real da extração e a licença. E as armadilhas acima ficam do lado do servidor
 o fatiamento da janela, o teto de 20, o encadeamento das séries de taxa, os
 escopos da Focus, o aviso da PTAX.
 
-É o que o [`bcb-br-mcp`](https://github.com/SidneyBissoli/bcb-br-mcp) faz: 15
+É o que o [`bcb-br-mcp`](https://github.com/SidneyBissoli/bcb-br-mcp) faz: 17
 ferramentas sobre SGS, Focus e PTAX, com catálogo curado de 135 séries
 verificadas contra a origem, para clientes que falam
 [MCP](https://modelcontextprotocol.io). Quando ele calcula alguma coisa —
