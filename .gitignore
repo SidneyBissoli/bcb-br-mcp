@@ -27,3 +27,6 @@ docs/promotion-roadmap.md
 # bcb-br-mcp. O painel do portfolio-monitor le o arquivo LOCAL e renderiza o
 # HTML fora do repositorio do produto.
 ROADMAP.md
+
+# material local de divulgacao (imagem social, geradores): nao vai para o repo publico
+docs/_local/
