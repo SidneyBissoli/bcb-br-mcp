@@ -5,6 +5,47 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.2] - 2026-09-26
+
+Bump PATCH: nenhuma tool, nenhum esquema e nenhuma resposta mudam. A tag leva o
+master inteiro, então esta entrada cobre tudo desde a 1.14.1 publicada — dois
+PRs que entraram sem versão e dois metadados de descoberta.
+
+### Added
+
+- **`funding` no `package.json`** apontando para o GitHub Sponsors. O README
+  pedia apoio desde a 1.9 e o npm não anunciava, porque só lê o campo do
+  manifesto publicado (`npm fund`, ficha do pacote). Achado da medição da fase
+  de SEO do roadmap de divulgação, em 26/09/2026.
+- **Badge do mcpindex (`drift-monitored`)** nos dois READMEs. O claim no
+  mcpindex.ai estava feito desde 02/09/2026 e o selo respondia vivo sem estar
+  em lugar nenhum onde o diretório é descoberto.
+
+### Fixed
+
+- **A recusa de esquema deixa de ser invisível na telemetria do Worker (#37).**
+  A reconciliação entre o hook de tools e a camada HTTP era por STATUS e
+  supunha que 200 implica hook gravado; a recusa de esquema é respondida pelo
+  validador antes do handler, então a chamada não era contada nem como chamada
+  nem como erro. Medido em produção em 24/09/2026, os três em HTTP 200: recusa
+  de esquema, ferramenta inexistente (-32602) e método inexistente (-32601).
+  A reconciliação passa a ser por NOME contra o recibo do hook e o desfecho sai
+  do envelope JSON-RPC casado por `id`. A parte que toca este pacote:
+  `classeDoErroRpc` entra em `src/call-shape.ts`, na raiz, ao lado da guarda
+  de vocabulário — o Worker importa de `dist/` para não haver segunda cópia.
+  Mesmo defeito e mesmo conserto do ilo-mcp-server (PR #19).
+
+### Changed
+
+- **O manifesto do LobeHub (`lhm.plugin.json`) passa a ser preso à superfície
+  servida (#38).** Medido em 25/09/2026: a ficha no LobeHub estava na 1.11.0
+  com o npm em 1.14.1, e o manifesto commitado tinha descrições e esquemas
+  anteriores ao vocabulário de 22/09. `scripts/gen-lhm-manifest.mjs`
+  (`npm run manifest:lhm`) o regenera e `src/lhm-manifest.test.ts` compara o
+  arquivo com `tools/list`, `resources/list` e `prompts/list` do servidor real
+  e a identidade com `server.json` e `package.json` — manifesto velho reprova
+  antes do release.
+
 ## [1.14.1] - 2026-09-24
 
 Bump PATCH: nenhuma tool, nenhum esquema e nenhuma resposta de sucesso mudam —
