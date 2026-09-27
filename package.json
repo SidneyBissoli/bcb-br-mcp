@@ -18,7 +18,9 @@
     "typecheck": "tsc --noEmit",
     "dump:surface": "node scripts/dump-surface.mjs",
     "smoke": "node scripts/smoke-mcp.mjs",
-    "manifest:lhm": "node scripts/gen-lhm-manifest.mjs"
+    "manifest:lhm": "node scripts/gen-lhm-manifest.mjs",
+    "eval:session:dry": "tsx ../mcp-br-commons/packages/mcp-evals/dist/session/cli.js --server dist/index.js --tasks src/evals/session/tasks.ts --dry",
+    "eval:session": "tsx ../mcp-br-commons/packages/mcp-evals/dist/session/cli.js --server dist/index.js --tasks src/evals/session/tasks.ts"
   },
   "keywords": [
     "mcp",
@@ -75,7 +77,7 @@
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.0.0",
-    "@sbissoli/mcp-evals": "^0.1.0",
+    "@sbissoli/mcp-evals": "^0.2.0",
     "@types/node": "^26.6.1",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
