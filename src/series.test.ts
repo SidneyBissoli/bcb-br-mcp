@@ -42,14 +42,9 @@ function mock(rotas: Array<[string, unknown]>): void {
     if (!hit) throw new Error(`URL não roteada: ${url}`);
     const corpo = hit[1] as Record<string, unknown>;
     if (corpo && typeof corpo === "object" && "__status" in corpo) {
-      return {
-        ok: false,
-        status: corpo.__status as number,
-        statusText: "Not Acceptable",
-        json: async () => ({ error: "janela" })
-      } as unknown as Response;
+      return new Response(JSON.stringify(({ error: "janela" })), { status: corpo.__status as number, statusText: "Not Acceptable", headers: { "content-type": "application/json" } });
     }
-    return { ok: true, status: 200, statusText: "OK", json: async () => hit[1] } as unknown as Response;
+    return new Response(JSON.stringify(hit[1]), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
 }
 
@@ -199,9 +194,9 @@ describe("buscarSerieSgs", () => {
       urls.push(String(input));
       chamada++;
       if (chamada === 1) {
-        return { ok: false, status: 406, statusText: "Not Acceptable", json: async () => ({}) } as unknown as Response;
+        return new Response(JSON.stringify(({})), { status: 406, statusText: "Not Acceptable", headers: { "content-type": "application/json" } });
       }
-      return { ok: true, status: 200, statusText: "OK", json: async () => diarias("2020-01-01", 3) } as unknown as Response;
+      return new Response(JSON.stringify(diarias("2020-01-01", 3)), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
     }) as unknown as typeof fetch;
 
     const r = await buscarSerieSgs({ codigo: 1 }, 5000, 1);

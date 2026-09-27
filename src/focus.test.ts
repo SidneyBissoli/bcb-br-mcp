@@ -21,14 +21,9 @@ function mockOlinda(value: unknown[] | { __status: number }): void {
   global.fetch = vi.fn(async (input: string | URL | Request) => {
     fetchCalls.push(String(input));
     if (value && typeof value === "object" && "__status" in value) {
-      return {
-        ok: false,
-        status: (value as { __status: number }).__status,
-        statusText: "Bad Gateway",
-        json: async () => ({})
-      } as unknown as Response;
+      return new Response(JSON.stringify(({})), { status: (value as { __status: number }).__status, statusText: "Bad Gateway", headers: { "content-type": "application/json" } });
     }
-    return { ok: true, status: 200, statusText: "OK", json: async () => ({ value }) } as unknown as Response;
+    return new Response(JSON.stringify(({ value })), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
 }
 
@@ -379,9 +374,9 @@ describe("bcb_focus_referencias", () => {
       const chave = Object.keys(porRecurso).find(r => url.includes(`/${r}?`));
       const valor = chave ? porRecurso[chave] : [];
       if (valor instanceof Error) {
-        return { ok: false, status: 502, statusText: "Bad Gateway", json: async () => ({}) } as unknown as Response;
+        return new Response(JSON.stringify(({})), { status: 502, statusText: "Bad Gateway", headers: { "content-type": "application/json" } });
       }
-      return { ok: true, status: 200, statusText: "OK", json: async () => ({ value: valor }) } as unknown as Response;
+      return new Response(JSON.stringify(({ value: valor })), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
     }) as unknown as typeof fetch;
   }
 

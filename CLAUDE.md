@@ -75,7 +75,7 @@ trouxe a segunda e a terceira API):
 
 | Módulo | Responsabilidade |
 |:--|:--|
-| `src/shared.ts` | Primitivos sem dependência: fetch com timeout/retry, config, versão, tipos, `structuredResult`/`erroResult`, `sealDeep`, `ErroHttpBcb` (erro com o status preservado — é o que permite casar o 406). Não importa ninguém — é o que impede ciclo. `tools.ts` re-exporta tudo, porque worker e testes importam desses nomes de lá desde a fundação. |
+| `src/shared.ts` | Primitivos: o ponto único de rede (`fetchBcbApi`, sobre o fetch comum `@sbissoli/mcp-upstream` desde a 1.15.0 — retry, timeout, orçamento e a contagem do `retrieval`; a política por transporte sai de `upstreamBcb`), config, versão, tipos, `structuredResult`/`erroResult`, `sealDeep`, `ErroHttpBcb` (erro com o status preservado — é o que permite casar o 406). Não importa módulo irmão — é o que impede ciclo. `tools.ts` re-exporta tudo, porque worker e testes importam desses nomes de lá desde a fundação. |
 | `src/series.ts` | Engenharia de série do SGS (D1): inferência de periodicidade, fatiamento de janela, busca com chunking, contorno do teto de 20, harmonização de frequências, **alinhamento de grades** e **deflator encadeado**. Concentra os limites medidos da origem. |
 | `src/stats.ts` | Adaptador do `@sbissoli/mcp-stats` (D2) — distribuição, **correlação** e as convenções de arredondamento e de derivação do servidor. |
 | `src/tools.ts` | Tools do SGS + montagem do catálogo canônico + `dispatchTool`. |
@@ -111,11 +111,11 @@ sem `additionalProperties`; resources publicados com nomes diferentes;
 descrições de tool 12× menores em produção). A medição está em
 `baselines/README.md` — leia antes de mexer na superfície.
 
-**Proveniência (contrato v1.0 do portfólio, desde o D4).** Toda resposta de
-sucesso carrega `provenance` + `attribution` em `structuredContent`, com espelho
-em `_meta` sob `br.com.sidneybissoli.bcb/*`. Três coisas aqui não são iguais às
-dos servidores irmãos, e cada uma tem um fato por trás (medições em
-`bcb/docs/07`):
+**Proveniência (contrato v1.1 do portfólio, desde o D4; `retrieval` desde a
+1.15.0).** Toda resposta de sucesso carrega `provenance` + `attribution` em
+`structuredContent`, com espelho em `_meta` sob `br.com.sidneybissoli.bcb/*`.
+Três coisas aqui não são iguais às dos servidores irmãos, e cada uma tem um
+fato por trás (medições em `bcb/docs/07`):
 
 - **O canal de rodapé de texto NÃO existe aqui.** No ibge e no medical o canal
   de texto é Markdown; aqui ele é o payload serializado em JSON
@@ -127,14 +127,25 @@ dos servidores irmãos, e cada uma tem um fato por trás (medições em
   (`bcb_series_populares`, `bcb_buscar_serie`, `bcb_serie_metadados`) e BCB ×
   agência de informação (`bcb_cambio_cotacao` em moeda não-USD). A lista está em
   `TOOLS_MULTI_PROVENIENCIA`, em `tools.ts`.
-- **`retrieved_at` é o instante REAL da extração**, coletado por
-  `AsyncLocalStorage` aberto no `dispatchTool` e alimentado no ponto único de
-  rede (`fetchBcbApi`) e no acerto de cache do catálogo. Uma busca servida do
-  cache de 24 h reporta o instante do fetch ORIGINAL — que pode ser de ontem, e
-  é a data com peso legal. Carimbar `new Date()` ali seria afirmar uma extração
-  que não aconteceu. Regra de agregação: instante mais ANTIGO entre os acessos;
-  `served_from_cache` só quando TUDO veio de cache. A serialização do contrato
-  trunca no segundo.
+- **`retrieved_at` é o instante REAL da extração**, coletado pelo `UpstreamCall`
+  do `@sbissoli/mcp-upstream` (isolado por `AsyncLocalStorage`, aberto no
+  `dispatchTool` com `withCall` e lido por `currentCall()`) no ponto único de
+  rede (`fetchBcbApi`) e no acerto de cache do catálogo (`recordCache`). Uma
+  busca servida do cache de 24 h reporta o instante do fetch ORIGINAL — que
+  pode ser de ontem, e é a data com peso legal. Carimbar `new Date()` ali seria
+  afirmar uma extração que não aconteceu. Regra de agregação: instante mais
+  ANTIGO entre os acessos; `served_from_cache` só quando TUDO veio de cache. A
+  serialização do contrato trunca no segundo.
+- **`retrieval` é medição REAL, nunca inventada** (v1.1): o mesmo coletor conta
+  idas, tentativas e anomalias da chamada — TODA tentativa falha conta, superada
+  ou final (o 406 que dispara o fatiamento também) — e a lib deriva `unstable`.
+  Sai `null` onde não há o que medir: catálogo curado (dado do servidor),
+  resposta servida só de cache, coletor não aberto. `null` é "não medido", não
+  "foi limpo".
+- **O schema do bloco é IMPORTADO do pacote** (`CONCISE_BLOCK_JSON_SCHEMA`), não
+  transcrito: medido em 26/09/2026, a transcrição à mão fechada pelo `sealDeep`
+  fazia o SDK recusar TODA chamada ("must NOT have additional properties") ao
+  subir para um contrato com chave nova. Gate em `src/provenance.test.ts`.
 
 O canal é acrescentado aos `outputSchema` num lugar só, na montagem de
 `TOOL_DEFINITIONS` — tool nova o herda sem depender de ninguém lembrar. O gate é

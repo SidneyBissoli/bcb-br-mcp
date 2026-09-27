@@ -25,14 +25,9 @@ function mockFetch(rotas: Array<[string, unknown]>): void {
     if (!hit) throw new Error(`URL não roteada no mock: ${url}`);
     const corpo = hit[1] as Record<string, unknown>;
     if (corpo && typeof corpo === "object" && "__status" in corpo) {
-      return {
-        ok: false,
-        status: corpo.__status as number,
-        statusText: "Not Acceptable",
-        json: async () => ({})
-      } as unknown as Response;
+      return new Response(JSON.stringify(({})), { status: corpo.__status as number, statusText: "Not Acceptable", headers: { "content-type": "application/json" } });
     }
-    return { ok: true, status: 200, statusText: "OK", json: async () => hit[1] } as unknown as Response;
+    return new Response(JSON.stringify(hit[1]), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
 }
 

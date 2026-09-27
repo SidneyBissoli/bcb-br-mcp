@@ -49,7 +49,6 @@ import {
 import {
   CONFIG,
   calculateVariation,
-  comColetorDeExtracao,
   erroResult,
   fetchBcbApi,
   formatDateForApi,
@@ -57,11 +56,13 @@ import {
   normalizeString,
   sealDeep,
   structuredResult,
+  upstreamBcb,
   type SerieMetadados,
   type SeriePopular,
   type SerieValor,
   type ToolResult
 } from "./shared.js";
+import { withCall } from "@sbissoli/mcp-upstream/als";
 import {
   NOTA_DERIVACAO_DEFLACAO,
   NOTA_DERIVACAO_ENCADEAMENTO,
@@ -89,7 +90,6 @@ export {
   calculateVariation,
   erroResult,
   fetchBcbApi,
-  fetchWithTimeout,
   formatDateForApi,
   getUserAgent,
   mensagemDeErro,
@@ -2756,7 +2756,10 @@ export const PROMPT_DEFINITIONS: PromptDefinition[] = [
  * tenha: os dois transportes, os testes e qualquer chamada direta. É o que faz
  * o `retrieved_at` do bloco de proveniência ser o instante real da extração —
  * inclusive quando a resposta vem do cache de 24 h do índice do portal, caso em
- * que o instante correto é de até um dia atrás (`bcb/docs/07`).
+ * que o instante correto é de até um dia atrás (`bcb/docs/07`) — e, desde a
+ * 1.15.0, o que faz o `retrieval` do bloco ser a contagem REAL de idas,
+ * tentativas e anomalias desta chamada (`@sbissoli/mcp-upstream`, política do
+ * transporte: `timeoutMs`/`maxRetries` de quem despacha).
  */
 export async function dispatchTool(
   toolName: string,
@@ -2764,7 +2767,7 @@ export async function dispatchTool(
   timeoutMs?: number,
   maxRetries?: number
 ): Promise<ToolResult> {
-  return comColetorDeExtracao(() => despachar(toolName, args, timeoutMs, maxRetries));
+  return withCall(upstreamBcb(timeoutMs, maxRetries), () => despachar(toolName, args, timeoutMs, maxRetries));
 }
 
 async function despachar(

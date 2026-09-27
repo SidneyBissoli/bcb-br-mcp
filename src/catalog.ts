@@ -31,10 +31,10 @@
 // Só primitivos: a curadoria de séries entra por parâmetro (e não por import de
 // `tools.ts`) para a busca ser testável sem estado global e para não haver ciclo
 // entre os módulos de tool.
+import { currentCall } from "@sbissoli/mcp-upstream/als";
 import {
   fetchBcbApi,
   normalizeString,
-  registrarAcesso,
   type ProcedenciaNome,
   type SeriePopular
 } from "./shared.js";
@@ -172,7 +172,9 @@ export async function obterCatalogo(timeoutMs?: number, maxRetries?: number): Pr
     // ser de até 24 h atrás — e é essa a data juridicamente relevante. Sem este
     // registro o bloco de proveniência afirmaria uma extração que não houve
     // (medido em `bcb/docs/07`: a 2ª busca responde com ZERO requisição).
-    registrarAcesso(CKAN_PACKAGE_LIST, new Date(cache.obtidoEm), true);
+    // Acerto de cache não é ida à origem: entra em `retrieved_at` e em
+    // `served_from_cache`, nunca em `retrieval`.
+    currentCall()?.recordCache(CKAN_PACKAGE_LIST, cache.obtidoEm);
     return { snapshot: cache };
   }
 
@@ -194,7 +196,7 @@ export async function obterCatalogo(timeoutMs?: number, maxRetries?: number): Pr
     if (cache) {
       // Retrato VENCIDO servido por degradação — a extração segue sendo a do
       // fetch original, e agora ela é ainda mais antiga que 24 h.
-      registrarAcesso(CKAN_PACKAGE_LIST, new Date(cache.obtidoEm), true);
+      currentCall()?.recordCache(CKAN_PACKAGE_LIST, cache.obtidoEm);
       return {
         snapshot: cache,
         aviso:

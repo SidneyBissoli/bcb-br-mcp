@@ -21,7 +21,7 @@ function mockFetch(rotas: Array<[string, unknown]>): void {
     fetchCalls.push(url);
     const hit = rotas.find(([m]) => url.includes(m));
     if (!hit) throw new Error(`URL não roteada no mock: ${url}`);
-    return { ok: true, status: 200, statusText: "OK", json: async () => hit[1] } as unknown as Response;
+    return new Response(JSON.stringify(hit[1]), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
 }
 

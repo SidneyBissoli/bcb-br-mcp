@@ -1,5 +1,5 @@
 /**
- * Bloco de proveniência (contrato v1.0 do portfólio) — adaptador pt-BR sobre
+ * Bloco de proveniência (contrato v1.1 do portfólio) — adaptador pt-BR sobre
  * `@sbissoli/mcp-provenance`. O modelo canônico, as projeções
  * `concise`/`detailed`, o determinismo da serialização, o fuso e o texto do
  * rodapé moram no pacote; este módulo o amarra ao servidor do BCB:
@@ -7,8 +7,10 @@
  *  - um `ProvenanceContext` para o servidor inteiro (namespace
  *    `br.com.sidneybissoli.bcb`, pt-BR, horário de Brasília, modo `concise`);
  *  - o registro `FONTES_BCB` — uma entrada por procedência, não por API;
- *  - `provenienciaBcb(...)`, o construtor por chamada, que puxa o instante REAL
- *    da extração do coletor aberto no `dispatchTool` (`shared.ts`).
+ *  - `provenienciaBcb(...)`, o construtor por chamada, que puxa do coletor
+ *    aberto no `dispatchTool` (`@sbissoli/mcp-upstream`, via `shared.ts`) o
+ *    instante REAL da extração e, desde a 1.15.0, o `retrieval` — a contagem
+ *    real de idas, tentativas e anomalias desta chamada (diagnóstico de origem).
  *
  * ## Por que o registro NÃO é "uma entrada por API"
  *
@@ -40,16 +42,17 @@
  */
 
 import {
+  CONCISE_BLOCK_JSON_SCHEMA,
   attributionList,
   createProvenanceContext,
   renderConcise,
   type CanonicalProvenance,
   type ConciseBlock
 } from "@sbissoli/mcp-provenance";
+import { currentCall } from "@sbissoli/mcp-upstream/als";
 import {
   DISCLAIMER_PTAX,
   QUALIFICACAO_PARIDADE,
-  extracaoDaChamada,
   structuredResult,
   type ToolResult
 } from "./shared.js";
@@ -262,11 +265,25 @@ export interface OpcoesProveniencia {
  * filtrados pelos acessos daquela fonte: o instante mais ANTIGO, e cache só se
  * TUDO veio de cache (`bcb/docs/07`, S1 e S4). Sem coletor aberto — chamada
  * direta em teste — degrada para o instante da chamada, nunca quebra.
+ *
+ * `retrieval` (contrato v1.1) é a contagem REAL de idas, tentativas e anomalias
+ * da chamada, medida pelo próprio coletor (`@sbissoli/mcp-upstream`), e sai
+ * `null` quando não há o que medir: fonte sem endpoint (o catálogo curado é
+ * dado do servidor), resposta servida só de cache, ou coletor não aberto. Nunca
+ * um `{requests: 1, attempts: 1}` inventado — `null` é "não medido", não "foi
+ * limpo". O bloco é por chamada e nenhuma tool mistura APIs, então o mesmo
+ * `retrieval` vale para toda fonte com endpoint da resposta.
  */
 export function provenienciaBcb(opts: OpcoesProveniencia): Proveniencia {
   const fonte: FonteBcb = FONTES_BCB[opts.fonte];
   const prefixo = fonte.prefixoUrl;
-  const extracao = extracaoDaChamada(prefixo ? url => url.startsWith(prefixo) : () => false);
+  const call = currentCall();
+  const daFonte = prefixo ? (url: string) => url.startsWith(prefixo) : () => false;
+  const extracao = {
+    retrievedAt: call ? call.retrievedAt(daFonte) : new Date(),
+    servedFromCache: call ? call.servedFromCache(daFonte) : null,
+    retrieval: call && prefixo ? call.retrieval() : null
+  };
   const data = dataCitacao(extracao.retrievedAt);
 
   return provenanceContext.build({
@@ -294,6 +311,7 @@ export function provenienciaBcb(opts: OpcoesProveniencia): Proveniencia {
     derived: opts.derivado !== undefined,
     ...(opts.derivado !== undefined ? { derivation_note: opts.derivado.nota } : {}),
     served_from_cache: extracao.servedFromCache,
+    retrieval: extracao.retrieval,
     ...(opts.fontesPorCampo !== undefined
       ? {
           field_sources: opts.fontesPorCampo.map(f => ({
@@ -364,29 +382,17 @@ export function resultadoComProveniencia(
 // A superfície publicada deste servidor é JSON Schema escrito à mão e servido
 // verbatim (`CLAUDE.md`): nada de derivar schema de zod aqui, mesmo com o zod
 // tendo voltado como dependência transitiva do pacote de proveniência.
+//
+// O bloco de proveniência é a EXCEÇÃO, e por um achado medido (26/09/2026):
+// este módulo transcrevia a projeção `concise` à mão, com `additionalProperties:
+// false` aplicado pelo `sealDeep`, e o SDK valida `structuredContent` em
+// runtime — subir o pacote para um contrato com chave nova (v1.1, `retrieval`)
+// sem tocar a transcrição derrubava TODA chamada de tool ("must NOT have
+// additional properties"). O schema do bloco vem do pacote, que o prende à
+// própria projeção por teste; a chave nova entra junto com a lib que a emite.
 
 /** Projeção `concise` de um bloco — a forma que vai em `structuredContent`/`_meta`. */
-export const PROVENANCE_BLOCK_SCHEMA = {
-  type: "object" as const,
-  description: "Bloco de proveniência (contrato v1.0): fonte, URL, competência, extração e licença",
-  properties: {
-    source: { type: "string" as const, description: "Fonte oficial do dado" },
-    source_url: { type: "string" as const, description: "URL canônica que reproduz a consulta" },
-    data_vintage: {
-      type: ["string", "null"] as const,
-      description: "Competência do dado segundo a fonte; null quando a fonte não expõe"
-    },
-    retrieved_at: {
-      type: "string" as const,
-      description:
-        "Instante REAL da extração na origem (ISO-8601, horário de Brasília). Resposta servida " +
-        "de cache mantém o instante do fetch ORIGINAL, que é a data de extração relevante."
-    },
-    citation: { type: "string" as const, description: "Citação pronta para uso" },
-    license: { type: ["string", "null"] as const, description: "Regime legal do dado" }
-  },
-  required: ["source", "source_url", "data_vintage", "retrieved_at", "citation", "license"]
-};
+export const PROVENANCE_BLOCK_SCHEMA = CONCISE_BLOCK_JSON_SCHEMA;
 
 const ATTRIBUTION_SCHEMA = {
   type: "array" as const,
@@ -422,7 +428,7 @@ export function comProvenienciaMulti(schema: SchemaObjeto): SchemaObjeto {
   return estender(schema, {
     type: "array" as const,
     description:
-      "Um bloco por procedência que contribuiu com esta resposta (contrato v1.0; licenças nunca se fundem)",
+      "Um bloco por procedência que contribuiu com esta resposta (contrato v1.1; licenças nunca se fundem)",
     items: PROVENANCE_BLOCK_SCHEMA
   });
 }

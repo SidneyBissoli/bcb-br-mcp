@@ -30,7 +30,8 @@ const validador = new CfWorkerJsonSchemaValidator();
 function mockFontes(): void {
   global.fetch = vi.fn(async (input: string | URL | Request) => {
     const url = String(input);
-    const json = (body: unknown) => ({ ok: true, status: 200, statusText: "OK", json: async () => body }) as unknown as Response;
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 
     // Portal de Dados Abertos (CKAN) — índice da busca.
     if (url.includes("dadosabertos.bcb.gov.br")) {
@@ -246,9 +247,9 @@ function mockRotas(rotas: Array<[string, unknown]>): void {
     if (!hit) throw new Error(`URL não roteada: ${url}`);
     const corpo = hit[1] as Record<string, unknown>;
     if (corpo && typeof corpo === "object" && "__status" in corpo) {
-      return { ok: false, status: corpo.__status as number, statusText: "Erro", json: async () => ({}) } as unknown as Response;
+      return new Response("{}", { status: corpo.__status as number, statusText: "Erro", headers: { "content-type": "application/json" } });
     }
-    return { ok: true, status: 200, statusText: "OK", json: async () => hit[1] } as unknown as Response;
+    return new Response(JSON.stringify(hit[1]), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
 }
 
