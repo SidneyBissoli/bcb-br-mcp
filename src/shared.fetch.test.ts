@@ -22,10 +22,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CONFIG,
+  ErroHttpBcb,
   ErroSerieInexistente,
   TIMEOUT_PEDIDO_PEQUENO_MS,
+  WORKER_CONFIG,
   ehPedidoPequeno,
-  fetchBcbApi
+  fetchBcbApi,
+  orcamentoTotalMs
 } from "./shared.js";
 
 const PEQUENO = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.99999999/dados/ultimos/1?formato=json";
@@ -210,5 +213,100 @@ describe("série que existe não é afetada", () => {
     );
     const dados = await fetchBcbApi(PEQUENO, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES);
     expect(dados).toEqual([{ data: "01/09/2026", valor: "15.00" }]);
+  });
+});
+
+/**
+ * 1.15.0: a ida à origem passou ao fetch comum do portfólio
+ * (`@sbissoli/mcp-upstream`). O pacote classifica; este módulo decide. Estes
+ * testes prendem o que MUDOU de propósito (429 repete) e o que NÃO podia mudar
+ * (4xx determinístico, as duas causas da página HTML, os números).
+ */
+describe("fetch comum (1.15.0): o que mudou e o que se preservou", () => {
+  it("429 REPETE, honrando Retry-After — antes caía na regra do 4xx e não repetia", async () => {
+    vi.useFakeTimers();
+    let n = 0;
+    const instantes: number[] = [];
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      instantes.push(Date.now());
+      return ++n === 1 ? new Response("", { status: 429, headers: { "retry-after": "3" } }) : respostaJson();
+    }));
+
+    const capturado = fetchBcbApi(PEQUENO, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).then((d) => d, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(3000 + CONFIG.RETRY_DELAY_MS);
+
+    expect(await capturado).toEqual([{ data: "01/09/2026", valor: "15.00" }]);
+    expect(n).toBe(2);
+    // Esperou o Retry-After (3 s), não só o backoff (1 s).
+    expect(instantes[1] - instantes[0]).toBeGreaterThanOrEqual(3000);
+  });
+
+  it("404 e outros 4xx continuam determinísticos: UMA requisição, status preservado", async () => {
+    const fetch404 = vi.fn(async () => new Response("", { status: 404 }));
+    vi.stubGlobal("fetch", fetch404);
+    const e404 = (await fetchBcbApi(GRANDE, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).catch((e: unknown) => e)) as ErroHttpBcb;
+    expect(e404).toBeInstanceOf(ErroHttpBcb);
+    expect(e404.status).toBe(404);
+    expect(e404.message).toContain("Série não encontrada");
+    expect(fetch404).toHaveBeenCalledTimes(1);
+
+    // O 406 da janela decenal é o que dispara o fatiamento em `series.ts`.
+    const fetch406 = vi.fn(async () => new Response("", { status: 406 }));
+    vi.stubGlobal("fetch", fetch406);
+    const e406 = (await fetchBcbApi(GRANDE, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).catch((e: unknown) => e)) as ErroHttpBcb;
+    expect(e406).toBeInstanceOf(ErroHttpBcb);
+    expect(e406.status).toBe(406);
+    expect(fetch406).toHaveBeenCalledTimes(1);
+  });
+
+  it("5xx repete e, esgotado, a mensagem traz o status e a contagem", async () => {
+    vi.useFakeTimers();
+    const f = vi.fn(async () => new Response("", { status: 503 }));
+    vi.stubGlobal("fetch", f);
+
+    const capturado = fetchBcbApi(GRANDE, CONFIG.TIMEOUT_MS, 2).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(CONFIG.RETRY_DELAY_MS * 4);
+    const erro = (await capturado) as Error;
+
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(erro.message).toContain("Falha após 2 tentativas");
+    expect(erro.message).toContain("503");
+  });
+
+  describe("HTML em 200: as DUAS causas continuam separadas pela forma da URL", () => {
+    it("pedido pequeno com a página em TODAS as tentativas é série inexistente", async () => {
+      vi.useFakeTimers();
+      const f = vi.fn(async () => respostaHtml());
+      vi.stubGlobal("fetch", f);
+
+      const capturado = fetchBcbApi(PEQUENO, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(CONFIG.RETRY_DELAY_MS * 4);
+      const erro = (await capturado) as Error;
+
+      expect(f).toHaveBeenCalledTimes(CONFIG.MAX_RETRIES);
+      expect(erro).toBeInstanceOf(ErroSerieInexistente);
+      expect(erro.message).toContain("INEXISTENTE");
+    });
+
+    it("janela larga com a página em todas as tentativas é falha da origem, com as duas hipóteses", async () => {
+      vi.useFakeTimers();
+      const f = vi.fn(async () => respostaHtml());
+      vi.stubGlobal("fetch", f);
+
+      const capturado = fetchBcbApi(GRANDE, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(CONFIG.RETRY_DELAY_MS * 4);
+      const erro = (await capturado) as Error;
+
+      expect(f).toHaveBeenCalledTimes(CONFIG.MAX_RETRIES);
+      expect(erro).not.toBeInstanceOf(ErroSerieInexistente);
+      expect(erro.message).toContain("Falha após");
+      expect(erro.message).toContain("não é JSON");
+      expect(erro.message).toContain("reduza o período");
+    });
+  });
+
+  it("o orçamento total é o que as tentativas e as esperas somam — os números de antes", () => {
+    expect(orcamentoTotalMs(CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES)).toBe(3 * 30000 + 1000 + 2000);
+    expect(orcamentoTotalMs(WORKER_CONFIG.TIMEOUT_MS, WORKER_CONFIG.MAX_RETRIES)).toBe(2 * 10000 + 1000);
   });
 });

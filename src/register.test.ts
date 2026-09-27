@@ -128,15 +128,15 @@ describe("resources/list e prompts/list", () => {
 
 describe("tools/call", () => {
   beforeEach(() => {
-    global.fetch = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: async () => [
-        { data: "01/01/2020", valor: "100" },
-        { data: "01/02/2020", valor: "110" }
-      ]
-    })) as unknown as typeof fetch;
+    global.fetch = vi.fn(async () =>
+      new Response(
+        JSON.stringify([
+          { data: "01/01/2020", valor: "100" },
+          { data: "01/02/2020", valor: "110" }
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    ) as unknown as typeof fetch;
   });
 
   it("resposta de sucesso traz structuredContent (regra dura do SDK v2) e o espelho em texto", async () => {
@@ -162,12 +162,7 @@ describe("tools/call", () => {
   });
 
   it("falha do upstream vira isError com texto, não erro de protocolo", async () => {
-    global.fetch = vi.fn(async () => ({
-      ok: false,
-      status: 404,
-      statusText: "Not Found",
-      json: async () => ({})
-    })) as unknown as typeof fetch;
+    global.fetch = vi.fn(async () => new Response("{}", { status: 404, statusText: "Not Found" })) as unknown as typeof fetch;
 
     const { client } = await connectedClient();
     const result = await client.callTool({ name: "bcb_serie_valores", arguments: { codigo: 1 } });

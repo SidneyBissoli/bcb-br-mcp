@@ -23,7 +23,7 @@ function mockFetch(routes: Array<[match: string, body: unknown]>): void {
     const url = String(input);
     const hit = routes.find(([match]) => url.includes(match));
     if (!hit) throw new Error(`URL não roteada no mock: ${url}`);
-    return { ok: true, status: 200, statusText: "OK", json: async () => hit[1] } as unknown as Response;
+    return new Response(JSON.stringify(hit[1]), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
 }
 

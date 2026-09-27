@@ -43,14 +43,9 @@ function mockCkan(body: unknown | { __status: number }, atraso = 0): void {
     fetchCalls.push(String(input));
     if (atraso > 0) await new Promise(r => setTimeout(r, atraso));
     if (body && typeof body === "object" && "__status" in (body as Record<string, unknown>)) {
-      return {
-        ok: false,
-        status: (body as { __status: number }).__status,
-        statusText: "Bad Gateway",
-        json: async () => ({})
-      } as unknown as Response;
+      return new Response(JSON.stringify(({})), { status: (body as { __status: number }).__status, statusText: "Bad Gateway", headers: { "content-type": "application/json" } });
     }
-    return { ok: true, status: 200, statusText: "OK", json: async () => body } as unknown as Response;
+    return new Response(JSON.stringify(body), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
 }
 

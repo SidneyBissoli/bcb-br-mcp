@@ -5,6 +5,69 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-09-27
+
+Bump MINOR: a superfície publicada muda — o bloco de proveniência de TODAS as
+17 tools ganha a chave `retrieval` (contrato v1.1), e o `outputSchema` anuncia
+isso. Nenhuma tool, nenhum parâmetro e nenhum campo de dado mudam. A 1.14.2
+está publicada no npm, então esta entrada cobre só o que entrou depois dela.
+
+### Added
+
+- **Diagnóstico de origem no bloco de proveniência (`retrieval`, contrato
+  v1.1).** Toda resposta de sucesso passa a dizer COMO o dado foi obtido:
+  `{ requests, attempts, anomalies: [{ kind, count }], unstable }` — quantas
+  idas à origem compuseram a resposta, quantas tentativas somadas, quais
+  anomalias (`timeout`, `network`, `http_4xx`, `http_5xx`, `rate_limited`,
+  `malformed_body`) e se a obtenção foi instável. É **medição real** do coletor
+  da chamada, nunca um `{1, 1}` inventado; sai `null` onde não há o que medir
+  (catálogo curado, resposta servida só do cache de 24 h do índice do portal).
+  Motivação: sem o campo, um sucesso obtido na terceira tentativa depois de
+  duas páginas HTML é indistinguível de um sucesso limpo, e o agente responde
+  com a mesma certeza aos dois. Ideia vinda de um leitor do artigo no dev.to
+  (26/09/2026). Decisão presa por teste: **toda tentativa falha conta**,
+  superada ou final — inclusive o 406 que dispara o fatiamento de janela e a
+  sonda `ultimos/20` que falha antes de a janela responder —, porque uma
+  resposta composta por fatias porque a primeira ida foi recusada não é uma
+  obtenção limpa.
+
+### Changed
+
+- **A ida à origem passa ao fetch comum do portfólio, `@sbissoli/mcp-upstream`
+  0.2.0** (retry com backoff e `Retry-After`, timeout por tentativa, orçamento
+  total por ida e a contagem acima). O pacote classifica; o servidor decide —
+  e o que era do servidor continua nele, preso por `src/shared.fetch.test.ts`:
+  3 tentativas/30 s no stdio e 2/10 s no Worker; **6 s por tentativa no pedido
+  pequeno** (`ultimos/N`), agora como `timeoutMs` por requisição dentro do mesmo
+  coletor (o pacote ganhou essa opção na 0.2.0 exatamente para isto); backoff
+  1 s, 2 s; 404 e 4xx determinísticos, sem repetição (o 406 volta rápido com o
+  status, para o fatiamento); e a página HTML em 200 com as DUAS causas
+  separadas pela forma da URL e resolvidas por repetição (medições de 13/08 e
+  24/09/2026, série 432). O coletor por chamada continua isolado por
+  `AsyncLocalStorage` — agora é o `UpstreamCall` do pacote, aberto no
+  `dispatchTool`.
+- **O schema do bloco de proveniência é importado do `@sbissoli/mcp-provenance`
+  0.2.0 (`CONCISE_BLOCK_JSON_SCHEMA`), não mais transcrito à mão.** Achado
+  medido em 26/09/2026 nos sete servidores: a transcrição, fechada pelo
+  `sealDeep` com `additionalProperties: false`, fazia o SDK — que valida
+  `structuredContent` em runtime — recusar TODA chamada de tool ("must NOT have
+  additional properties") assim que a lib passasse a emitir a chave nova. O
+  gate novo em `src/provenance.test.ts` prende o `outputSchema` ao schema do
+  pacote e a ordem das chaves do bloco à do contrato. Baseline da superfície:
+  `baselines/surface-stdio-1.15.0.json` (diferença contra a 1.11.0: só o bloco
+  `provenance` das 17 tools; resources e prompts idênticos).
+- Mensagens de erro do caminho de rede: a contagem passa a ser a real
+  (`Falha após N tentativas`, N o que foi feito, não o teto), o timeout diz o
+  prazo em segundos em vez de *"The operation was aborted"*, e a falha de rede
+  traz a causa. As frases que os clientes casam (`Série não encontrada…`,
+  `Falha após`, `INEXISTENTE`, o status numérico do 5xx) não mudam.
+
+### Fixed
+
+- **HTTP 429 passa a repetir, honrando `Retry-After`.** Antes caía na regra do
+  4xx ("determinístico, não repete") e a chamada morria na primeira resposta
+  de limitação de taxa. Colateral nomeado pelo dono ao aprovar o fetch comum.
+
 ## [1.14.2] - 2026-09-26
 
 Bump PATCH: nenhuma tool, nenhum esquema e nenhuma resposta mudam. A tag leva o

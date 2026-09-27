@@ -19,7 +19,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { dispatchTool, TOOL_DEFINITIONS, type ToolResult } from "./tools.js";
 import { _resetCatalogo, _seedCatalogo, CATALOGO_TTL_MS } from "./catalog.js";
 import { _resetDeepResearch } from "./deep-research.js";
-import { FONTES_BCB, LICENCA_ODBL } from "./provenance.js";
+import { CONCISE_BLOCK_JSON_SCHEMA } from "@sbissoli/mcp-provenance";
+import { FONTES_BCB, LICENCA_ODBL, comProveniencia } from "./provenance.js";
 import { DISCLAIMER_PTAX, QUALIFICACAO_PARIDADE } from "./shared.js";
 
 // ==================== fixtures ====================
@@ -48,7 +49,7 @@ function mockFetch(routes: Array<[match: string, body: unknown]>): void {
     const url = String(input);
     const hit = routes.find(([match]) => url.includes(match));
     if (!hit) throw new Error(`URL não roteada no mock: ${url}`);
-    return { ok: true, status: 200, statusText: "OK", json: async () => hit[1] } as unknown as Response;
+    return new Response(JSON.stringify(hit[1]), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
 }
 
@@ -258,7 +259,7 @@ describe("retrieved_at é o instante REAL da extração", () => {
       const url = String(input);
       const lenta = url.includes("bcdata.sgs.1/");
       await new Promise(r => setTimeout(r, lenta ? 60 : 1));
-      return { ok: true, status: 200, statusText: "OK", json: async () => OBS_MENSAL } as unknown as Response;
+      return new Response(JSON.stringify(OBS_MENSAL), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
     }) as unknown as typeof fetch;
 
     const [lenta, rapida] = await Promise.all([
@@ -367,5 +368,120 @@ describe("data_vintage sai de dado já em mãos, sem requisição a mais", () =>
     ]);
     const r = await call("bcb_focus_expectativas", { horizonte: "anual", indicador: "IPCA", referencia: "2027" });
     expect(bloco(r).data_vintage).toBe("2026-08-12");
+  });
+});
+
+// ==================== diagnóstico de origem (contrato v1.1) ====================
+
+/**
+ * `retrieval` é medição REAL do coletor da chamada (`@sbissoli/mcp-upstream`,
+ * desde a 1.15.0) — quantas idas, quantas tentativas, quais anomalias — e sai
+ * `null` quando não há o que medir. Um `{requests: 1, attempts: 1}` inventado
+ * seria a mentira que este gate existe para pegar: "não sei" não é "foi limpo".
+ */
+describe("retrieval é medição real do coletor, nunca inventada", () => {
+  const json = (body: unknown) =>
+    new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+
+  it("ida limpa: 1 request, 1 attempt, sem anomalia — e o bloco diz estável", async () => {
+    mockFetch([["bcdata.sgs.433", OBS_MENSAL]]);
+    const r = await call("bcb_serie_ultimos", { codigo: 433, quantidade: 3 });
+    expect(bloco(r).retrieval).toEqual({ requests: 1, attempts: 1, anomalies: [], unstable: false });
+  });
+
+  it("503 superado na repetição sai CONTADO: attempts 2, anomalia http_5xx, instável", async () => {
+    let n = 0;
+    global.fetch = vi.fn(async () => (++n === 1 ? new Response("", { status: 503 }) : json(OBS_MENSAL))) as unknown as typeof fetch;
+
+    const r = await dispatchTool("bcb_serie_ultimos", { codigo: 433, quantidade: 3 }, 5000, 3);
+
+    expect(bloco(r).retrieval).toEqual({
+      requests: 1,
+      attempts: 2,
+      anomalies: [{ kind: "http_5xx", count: 1 }],
+      unstable: true
+    });
+  }, 10_000);
+
+  it("resposta fatiada conta CADA ida: requests = requisições que compuseram a resposta", async () => {
+    // Sonda `ultimos/20` falha (500), a consulta direta leva 406 e o fatiamento
+    // por janela responde — o mesmo roteiro do `output-contract`.
+    const diarias = Array.from({ length: 5 }, (_, i) => ({
+      data: `0${i + 3}/01/2005`,
+      valor: String(2.7 + i / 100)
+    }));
+    let requisicoes = 0;
+    global.fetch = vi.fn(async (input: string | URL | Request) => {
+      requisicoes++;
+      const url = String(input);
+      if (url.includes("dados/ultimos/20")) return new Response("", { status: 500 });
+      if (url.includes("dataInicial=01/01/2005&dataFinal=01/01/2025")) return new Response("", { status: 406 });
+      return json(diarias);
+    }) as unknown as typeof fetch;
+
+    const r = await call("bcb_serie_valores", { codigo: 1, dataInicial: "01/01/2005", dataFinal: "01/01/2025" });
+    const ret = bloco(r).retrieval as { requests: number; attempts: number; anomalies: unknown[]; unstable: boolean };
+
+    expect(ret.requests).toBe(requisicoes);
+    expect(ret.attempts).toBe(requisicoes);
+    // A sonda que falhou com 500 e o 406 que disparou o fatiamento são anomalias
+    // SUPERADAS (por outra fatia), e o bloco tem de dizer as duas: a resposta
+    // foi composta porque a primeira ida foi recusada — engolir isso seria
+    // vender como limpa uma obtenção que não foi. Ordem canônica do vocabulário.
+    expect(ret.anomalies).toEqual([
+      { kind: "http_4xx", count: 1 },
+      { kind: "http_5xx", count: 1 }
+    ]);
+    expect(ret.unstable).toBe(true);
+  });
+
+  it("servido só do cache do índice: retrieval null — 'não medido', não 'limpo'", async () => {
+    _seedCatalogo({
+      entradas: [{ codigo: 433, slug: "433-ipca-variacao-mensal" }],
+      obtidoEm: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+      totalDatasets: 1,
+      expiraEm: Date.now() + CATALOGO_TTL_MS
+    });
+    mockFetch([]);
+
+    const r = await call("bcb_buscar_serie", { termo: "ipca" });
+    const doPortal = blocos(r).find(b => String(b.source).includes("Portal"));
+    const doCatalogo = blocos(r).find(b => String(b.source).includes("catálogo curado"));
+
+    expect(doPortal).toBeDefined();
+    expect(doPortal!.retrieval).toBeNull();
+    // Fonte sem endpoint (dado do servidor) nunca tem o que medir.
+    expect(doCatalogo).toBeDefined();
+    expect(doCatalogo!.retrieval).toBeNull();
+  });
+
+  it("o mesmo índice buscado na REDE conta a ida, e o bloco do catálogo segue null", async () => {
+    mockFetch([["dadosabertos.bcb.gov.br", { success: true, result: ["433-ipca-variacao-mensal"] }]]);
+    const r = await call("bcb_buscar_serie", { termo: "ipca" });
+    const doPortal = blocos(r).find(b => String(b.source).includes("Portal"));
+    const doCatalogo = blocos(r).find(b => String(b.source).includes("catálogo curado"));
+    expect(doPortal!.retrieval).toEqual({ requests: 1, attempts: 1, anomalies: [], unstable: false });
+    expect(doCatalogo!.retrieval).toBeNull();
+  });
+
+  it("bcb_series_populares (zero rede) passa null", async () => {
+    mockFetch([]);
+    const r = await call("bcb_series_populares", {});
+    for (const b of blocos(r)) expect(b.retrieval).toBeNull();
+  });
+});
+
+describe("o schema do bloco vem do pacote — importado, não transcrito", () => {
+  // O achado de 26/09/2026: a transcrição à mão, fechada pelo `sealDeep`, fazia o
+  // SDK recusar TODA chamada quando o contrato ganhou a chave `retrieval`.
+  it("`comProveniencia` anuncia exatamente o schema da projeção concise do contrato", () => {
+    const schema = comProveniencia({ type: "object", properties: {} });
+    expect((schema.properties as Record<string, unknown>).provenance).toBe(CONCISE_BLOCK_JSON_SCHEMA);
+  });
+
+  it("todo bloco emitido tem as chaves do schema, na ordem dele, e nenhuma a mais", async () => {
+    mockFetch([["bcdata.sgs.433", OBS_MENSAL]]);
+    const r = await call("bcb_serie_valores", { codigo: 433 });
+    expect(Object.keys(bloco(r))).toEqual(CONCISE_BLOCK_JSON_SCHEMA.required);
   });
 });

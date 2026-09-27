@@ -46,15 +46,10 @@ function mockFetch(routes: Array<[match: string, body: MockBody]>): void {
 
     const body = hit[1] as Record<string, unknown>;
     if (body && typeof body === "object" && "__status" in body) {
-      return {
-        ok: false,
-        status: body.__status as number,
-        statusText: (body.__statusText as string) ?? "Error",
-        json: async () => ({})
-      } as unknown as Response;
+      return new Response(JSON.stringify(({})), { status: body.__status as number, statusText: (body.__statusText as string) ?? "Error", headers: { "content-type": "application/json" } });
     }
 
-    return { ok: true, status: 200, statusText: "OK", json: async () => hit[1] } as unknown as Response;
+    return new Response(JSON.stringify(hit[1]), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
 }
 

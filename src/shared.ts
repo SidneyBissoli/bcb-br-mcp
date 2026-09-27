@@ -5,8 +5,9 @@
  * uma API só (SGS) e passou a falar com três (SGS, Olinda/Expectativas e PTAX).
  * `tools.ts` re-exporta tudo daqui, de propósito: worker e testes importam
  * desses nomes desde a fundação, e o D3 não é hora de mexer em quem importa o
- * quê. A regra de dependência é uma só — `shared.ts` não importa ninguém, e é
- * por isso que não há ciclo entre os módulos de tool.
+ * quê. A regra de dependência é uma só — `shared.ts` não importa nenhum módulo
+ * irmão (só pacotes do portfólio), e é por isso que não há ciclo entre os
+ * módulos de tool.
  */
 
 // ==================== CONFIG ====================
@@ -227,226 +228,224 @@ export class ErroSerieInexistente extends Error {
   }
 }
 
-// ==================== COLETOR DE EXTRAÇÃO (D4) ====================
+// ==================== REDE E COLETOR DE EXTRAÇÃO ====================
 //
-// O bloco de proveniência precisa publicar o instante REAL da extração na
-// origem, e três fatos medidos em 13/08/2026 (`bcb/docs/07`) definem esta forma:
+// Desde a 1.15.0 a ida à origem é do `@sbissoli/mcp-upstream`, o fetch comum do
+// portfólio: retry com backoff e `Retry-After`, timeout por tentativa, orçamento
+// total por ida e a CONTAGEM que alimenta o bloco `retrieval` do contrato de
+// proveniência v1.1 — quantas idas, quantas tentativas, quais anomalias. O
+// pacote classifica; este módulo DECIDE. O que era daqui continua daqui:
 //
-//  1. Uma chamada faz de 0 a 6 requisições — não existe "o" instante. A regra
-//     adotada é o instante mais ANTIGO entre os acessos que alimentaram a
-//     resposta (precedente medical).
-//  2. Há cache: o índice do portal vale 24 h e responde SEM tocar a origem
-//     (medido: 2ª busca em 3 ms, zero requisições). Carimbar `new Date()` ali
-//     afirmaria uma extração que não aconteceu — com erro de até um dia, no
-//     campo de peso legal. Por isso o cache registra o instante ORIGINAL.
-//  3. Variável de módulo estaria errada no hospedado: o isolate atende
-//     requisições concorrentes e a proveniência de um usuário vazaria na
-//     resposta de outro. `AsyncLocalStorage` isola por despacho — medido no
-//     workerd, com a mesma `compatibility_date` e os mesmos flags do worker:
-//     sobrevive a `await`, sobrevive a `Promise.all` e não contamina.
+//  - os números: 3 tentativas/30 s no stdio, 2/10 s no Worker, 6 s por
+//    tentativa no pedido pequeno (`TIMEOUT_PEDIDO_PEQUENO_MS`), backoff 1 s,
+//    2 s — sem jitter, e é o que os testes com relógio falso contam;
+//  - a leitura da página HTML em 200, que tem DUAS causas (série inexistente ×
+//    consulta cortada por tempo) e se resolve por REPETIÇÃO, nunca na primeira
+//    (medição de 24/09/2026 na 432 — ver `traduzirErroDaOrigem`);
+//  - 404 e 4xx determinísticos, sem repetição (o 406 da janela decenal tem de
+//    voltar rápido, com o status, para o `series.ts` fatiar);
+//  - as mensagens em pt-BR que chegam ao usuário.
+//
+// O que MUDOU com o pacote: 429 passou a repetir honrando `Retry-After` (antes
+// caía na regra do 4xx e não repetia), e toda tentativa — superada ou final —
+// fica contada e sai no bloco de proveniência.
+//
+// O coletor por chamada segue isolado por `AsyncLocalStorage` — os três fatos
+// de `bcb/docs/07` que o exigiam não mudaram: uma chamada faz de 0 a 6
+// requisições (o instante publicado é o mais ANTIGO), o cache de 24 h do
+// portal responde sem tocar a origem (registra o instante ORIGINAL), e o
+// isolate hospedado atende requisições concorrentes (variável de módulo
+// vazaria a proveniência de um usuário na resposta de outro). Só que agora o
+// coletor é o `UpstreamCall` do pacote: `dispatchTool` o abre com `withCall`, e
+// `fetchBcbApi`, o cache do catálogo e `provenienciaBcb` o leem por
+// `currentCall()`. Fora de um despacho — teste, chamada direta — cada ida ganha
+// um coletor descartável e a proveniência degrada para o instante da chamada,
+// nunca quebra.
 
-import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  createUpstream,
+  defaultRetryOn,
+  UpstreamError,
+  type RetryContext,
+  type Upstream,
+  type UpstreamCall
+} from "@sbissoli/mcp-upstream";
+import { currentCall } from "@sbissoli/mcp-upstream/als";
 
-/** Um acesso a dado da origem dentro de uma chamada de tool. */
-export interface AcessoOrigem {
-  url: string;
-  /** Instante da extração na origem — de cache, é o instante do fetch ORIGINAL. */
-  instante: Date;
-  deCache: boolean;
-}
-
-const coletor = new AsyncLocalStorage<AcessoOrigem[]>();
+/** Backoff do bcb: 1 s, 2 s, 4 s..., sem jitter (os testes contam o relógio). */
+export const BACKOFF_BCB = { baseMs: CONFIG.RETRY_DELAY_MS, maxMs: 8000, jitterMs: 0 } as const;
 
 /**
- * Abre um coletor para uma chamada. Fora dele, `registrarAcesso` é no-op e a
- * proveniência degrada para o instante da chamada — nunca quebra.
+ * Orçamento TOTAL de uma ida: as N tentativas inteiras mais as esperas entre
+ * elas. É o que o código anterior gastava no pior caso — o pacote exige um teto
+ * explícito, e o teto honesto é o que já valia (93 s no stdio, 21 s no Worker).
  */
-export function comColetorDeExtracao<T>(fn: () => Promise<T>): Promise<T> {
-  return coletor.run([], fn);
-}
-
-/** Registra um acesso a dado da origem. Chamado no ponto de rede e no cache. */
-export function registrarAcesso(url: string, instante: Date, deCache = false): void {
-  coletor.getStore()?.push({ url, instante, deCache });
-}
-
-/** Só para os testes: o que foi registrado na chamada corrente. */
-export function acessosRegistrados(): AcessoOrigem[] {
-  return [...(coletor.getStore() ?? [])];
-}
-
-export interface ExtracaoAgregada {
-  /** Instante mais antigo entre os acessos; a hora da chamada se não houve nenhum. */
-  retrievedAt: Date;
-  /** `true` só se TODO acesso veio de cache; `null` quando não houve acesso à origem. */
-  servedFromCache: boolean | null;
-  /** Quantos acessos alimentaram a resposta (0 = respondida só com dado do servidor). */
-  acessos: number;
+export function orcamentoTotalMs(timeoutMs: number, tentativas: number): number {
+  let esperas = 0;
+  for (let r = 0; r < tentativas - 1; r++) {
+    esperas += Math.min(BACKOFF_BCB.baseMs * 2 ** r, BACKOFF_BCB.maxMs);
+  }
+  return tentativas * timeoutMs + esperas;
 }
 
 /**
- * Agrega os acessos da chamada corrente. `filtro` restringe a uma fonte quando
- * a resposta mistura procedências (ex.: portal × catálogo curado).
+ * A política de rede de UMA chamada de tool. `dispatchTool` abre uma por
+ * despacho com os números do transporte (`CONFIG` × `WORKER_CONFIG`).
+ * `maxRetries` é o TOTAL de tentativas (nome histórico do servidor), não os
+ * retries além da primeira — a tradução para o pacote é feita aqui, uma vez.
  */
-export function extracaoDaChamada(filtro?: (url: string) => boolean): ExtracaoAgregada {
-  const todos = coletor.getStore() ?? [];
-  const acessos = filtro ? todos.filter(a => filtro(a.url)) : todos;
-
-  if (acessos.length === 0) {
-    return { retrievedAt: new Date(), servedFromCache: null, acessos: 0 };
-  }
-
-  const maisAntigo = acessos.reduce((a, b) => (a.instante <= b.instante ? a : b));
-  return {
-    retrievedAt: maisAntigo.instante,
-    servedFromCache: acessos.every(a => a.deCache),
-    acessos: acessos.length
-  };
+export function upstreamBcb(
+  timeoutMs: number = CONFIG.TIMEOUT_MS,
+  maxRetries: number = CONFIG.MAX_RETRIES
+): Upstream {
+  const tentativas = Math.max(1, maxRetries);
+  return createUpstream({
+    userAgent: getUserAgent(),
+    timeoutMs,
+    retries: tentativas - 1,
+    budgetMs: orcamentoTotalMs(timeoutMs, tentativas),
+    backoff: BACKOFF_BCB,
+    honorRetryAfter: true,
+    retryOn: ctx => registrarTentativaFalha(ctx, tentativas),
+    // Ligação TARDIA ao `fetch` global: os testes o dublam depois de o módulo
+    // carregar, e a guarda sem rede do worker também.
+    fetchImpl: (input, init) => globalThis.fetch(input, init)
+  });
 }
 
-export async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "Accept": "application/json",
-        "User-Agent": getUserAgent()
-      }
-    });
-    return response;
-  } finally {
-    clearTimeout(timeoutId);
+/** A política de repetição é a padrão do pacote; aqui só entra o log que já existia. */
+function registrarTentativaFalha(ctx: RetryContext, tentativas: number): boolean {
+  const repete = defaultRetryOn(ctx);
+  if (repete && ctx.attempt < tentativas) {
+    console.error(`Tentativa ${ctx.attempt}/${tentativas} falhou (${ctx.kind}). Repetindo...`);
   }
+  return repete;
 }
 
+const MENSAGEM_404 = "Série não encontrada ou sem dados para o período solicitado";
+
+/**
+ * Ponto ÚNICO de rede do servidor.
+ *
+ * Dentro de um despacho, a ida vai pelo coletor da chamada (`currentCall()`),
+ * com a política do transporte; fora, por um coletor descartável com a política
+ * pedida. `timeoutMs` é honrado nos dois casos, requisição a requisição —
+ * é assim que o pedido pequeno recebe 6 s dentro de um despacho de 30 s.
+ */
 export async function fetchBcbApi(
   url: string,
   timeoutMs: number = CONFIG.TIMEOUT_MS,
   maxRetries: number = CONFIG.MAX_RETRIES
 ): Promise<unknown> {
-  let lastError: Error | null = null;
-
   // O pedido pequeno nunca precisa de 10 s, muito menos de 30: a resposta real
   // mais lenta já medida levou 0,41 s. Encurtar o orçamento AQUI é o que faz a
   // inexistência aparecer como inexistência em vez de como falha da origem.
   const pequeno = ehPedidoPequeno(url);
   const orcamentoMs = pequeno ? Math.min(timeoutMs, TIMEOUT_PEDIDO_PEQUENO_MS) : timeoutMs;
+  const call: UpstreamCall = currentCall() ?? upstreamBcb(timeoutMs, maxRetries).call();
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetchWithTimeout(url, orcamentoMs);
+  try {
+    return await call.json(url, { headers: { Accept: "application/json" }, timeoutMs: orcamentoMs });
+  } catch (erro) {
+    throw traduzirErroDaOrigem(erro, pequeno, orcamentoMs);
+  }
+}
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new ErroHttpBcb(404, `Série não encontrada ou sem dados para o período solicitado`);
-        }
-        throw new ErroHttpBcb(response.status, `Erro na API do BCB: ${response.status} ${response.statusText}`);
-      }
-
-      try {
-        const dados = await response.json();
-        // Instante da extração para o bloco de proveniência (D4). Registrado só
-        // no sucesso: uma tentativa que falhou não extraiu dado nenhum.
-        registrarAcesso(url, new Date(), false);
-        return dados;
-      } catch {
-        // 200 com a página institucional em HTML tem DUAS causas, e mandar o
-        // usuário para a errada custa caro:
-        //
-        // (a) série inexistente. Medido em 13/08/2026: um código certamente
-        //     inválido (999999999) devolve exatamente a mesma página que os
-        //     códigos 14 e 13523 — a origem não usa 404 para isso.
-        // (b) consulta cortada por tempo, por volta de 30 s numa janela diária
-        //     larga (`bcb/docs/04`).
-        //
-        // `ultimos/N` nunca é caso (b): pede no máximo 20 observações. Então a
-        // forma da URL separa os dois sem uma requisição a mais.
-        //
-        // (c) DESCOBERTO em 24/09/2026, e derruba o "determinístico" que estava
-        //     escrito aqui: a origem responde essa MESMA página, depois dos
-        //     mesmos ~30 s, a uma série que EXISTE. Medido na 432 (meta Selic):
-        //     3 páginas HTML em 9 chamadas numa janela de poucos minutos e,
-        //     logo depois, 20 chamadas seguidas devolvendo JSON em ≤ 0,4 s. Ou
-        //     seja: a página não prova inexistência — prova que ESTA tentativa
-        //     não trouxe dado. Tratá-la como veredito fazia o servidor dizer que
-        //     a meta Selic não existe sempre que a origem soluçasse.
-        //
-        // Por isso a suspeita de inexistência agora é RESOLVIDA POR REPETIÇÃO,
-        // no `catch` abaixo: código que não existe falha em todas as tentativas;
-        // série boa volta na seguinte, em décimos de segundo.
-        const pediuPoucasObservacoes = pequeno;
-        if (pediuPoucasObservacoes) {
-          throw new ErroSerieInexistente(
-            "A API do BCB respondeu com a página de 'requisição inválida' a um pedido pequeno — " +
-            "é assim que ela indica série INEXISTENTE (não usa 404). Confira o código da série."
-          );
-        }
-        throw new Error(
-          "Resposta da API do BCB não é JSON — ou a série não existe, ou a origem cortou a " +
-          "consulta por tempo (janelas longas em séries diárias fazem isso). " +
-          "Confira o código da série e, se ele estiver certo, reduza o período solicitado."
-        );
-      }
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-
-      // 404 de verdade continua determinístico.
-      if (lastError.message.includes("não encontrada")) {
-        throw lastError;
-      }
-
-      // Erro de cliente (4xx) é determinístico: repetir só gasta tempo e
-      // requisição. O 406 da janela decenal é o caso que importa — quem chama
-      // precisa dele de volta rápido para fatiar a janela e tentar de novo.
-      if (lastError instanceof ErroHttpBcb && lastError.status >= 400 && lastError.status < 500) {
-        throw lastError;
-      }
-
-      const isTimeout = lastError.name === "AbortError" ||
-        lastError.message.includes("aborted") ||
-        lastError.message.includes("timeout");
-
-      // SUSPEITA de inexistência, no pedido pequeno: ou a origem devolveu a
-      // página de 'requisição inválida', ou não devolveu nada dentro do
-      // orçamento curto. As duas são a mesma coisa vista de dois lados — a
-      // origem leva ~30 s para negar um código que não existe, e o orçamento
-      // de 6 s corta esse silêncio antes de a página chegar.
-      //
-      // A suspeita se RESOLVE POR REPETIÇÃO, não por veredito na primeira
-      // tentativa: a mesma página sai para série que EXISTE (medição de
-      // 24/09/2026, série 432 — ver o comentário no `catch` do JSON). Código
-      // inexistente falha em todas; série boa volta na seguinte em décimos de
-      // segundo. Com o orçamento curto, insistir custa ~6 s por tentativa em
-      // vez dos ~10–30 s de antes.
-      const suspeitaInexistencia = pequeno && (lastError instanceof ErroSerieInexistente || isTimeout);
-
-      if (suspeitaInexistencia && attempt >= maxRetries) {
-        // Só aqui vira afirmação — e ainda assim nomeia a alternativa, porque
-        // queda de rede e indisponibilidade da origem terminam igual. Dizer
-        // "não existe" de um código certo seria trocar erro alto por plausível.
-        throw new ErroSerieInexistente(
-          `A API do BCB não trouxe dado em ${maxRetries} tentativas de um pedido de poucas ` +
-          `observações (orçamento de ${Math.round(orcamentoMs / 1000)}s cada). Série que existe ` +
-          "responde em menos de 0,5 s; é a série INEXISTENTE que fica ~30 s sem resposta antes de " +
-          "devolver a página de 'requisição inválida' (a origem não usa 404). Confira o código com " +
-          "`bcb_buscar_serie`. Se o código estiver certo, a origem está indisponível — repita em " +
-          "instantes."
-        );
-      }
-
-      if (attempt < maxRetries) {
-        const delayMs = CONFIG.RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-        const reason = isTimeout ? "timeout" : "erro";
-        console.error(`Tentativa ${attempt}/${maxRetries} falhou (${reason}). Aguardando ${delayMs}ms...`);
-        await sleep(delayMs);
-      }
-    }
+/**
+ * Do erro do pacote (classe + contagem) ao erro do servidor (tipo + mensagem).
+ *
+ * A página institucional em HTML com status 200 tem DUAS causas, e mandar o
+ * usuário para a errada custa caro:
+ *
+ * (a) série inexistente. Medido em 13/08/2026: um código certamente inválido
+ *     (999999999) devolve exatamente a mesma página que os códigos 14 e 13523 —
+ *     a origem não usa 404 para isso — e leva ~30 s para devolvê-la (24/09/2026).
+ * (b) consulta cortada por tempo, por volta de 30 s numa janela diária larga
+ *     (`bcb/docs/04`).
+ *
+ * `ultimos/N` nunca é caso (b): pede no máximo 20 observações. Então a forma da
+ * URL separa os dois sem uma requisição a mais.
+ *
+ * (c) DESCOBERTO em 24/09/2026, e derruba o "determinístico" que estava escrito
+ *     aqui: a origem responde essa MESMA página a uma série que EXISTE. Medido
+ *     na 432 (meta Selic): 3 páginas HTML em 9 chamadas numa janela de poucos
+ *     minutos e, logo depois, 20 chamadas seguidas devolvendo JSON em ≤ 0,4 s.
+ *     A página não prova inexistência — prova que ESTA tentativa não trouxe
+ *     dado. Tratá-la como veredito fazia o servidor dizer que a meta Selic não
+ *     existe sempre que a origem soluçasse.
+ *
+ * Por isso a suspeita de inexistência é RESOLVIDA POR REPETIÇÃO: o pacote
+ * repete `malformed_body` e `timeout` como qualquer transitório, e só quando
+ * TODAS as tentativas de um pedido pequeno falham é que isto vira afirmação —
+ * e ainda assim nomeia a alternativa, porque queda de rede e indisponibilidade
+ * da origem terminam igual. Dizer "não existe" de um código certo seria trocar
+ * erro alto por plausível.
+ */
+function traduzirErroDaOrigem(erro: unknown, pequeno: boolean, orcamentoMs: number): Error {
+  if (!(erro instanceof UpstreamError)) {
+    return erro instanceof Error ? erro : new Error(String(erro));
   }
 
-  throw new Error(`Falha após ${maxRetries} tentativas: ${lastError?.message || "Erro desconhecido"}`);
+  // 404 de verdade continua determinístico.
+  if (erro.kind === "not_found") {
+    return new ErroHttpBcb(404, MENSAGEM_404);
+  }
+
+  // Erro de cliente (4xx) é determinístico: repetir só gasta tempo e
+  // requisição. O 406 da janela decenal é o caso que importa — quem chama
+  // precisa dele de volta rápido para fatiar a janela e tentar de novo.
+  if (erro.kind === "http_4xx") {
+    return new ErroHttpBcb(erro.status ?? 400, `Erro na API do BCB: ${erro.status}`);
+  }
+
+  // SUSPEITA de inexistência, no pedido pequeno: ou a origem devolveu a página
+  // de 'requisição inválida', ou não devolveu nada dentro do orçamento curto.
+  // As duas são a mesma coisa vista de dois lados — a origem leva ~30 s para
+  // negar um código que não existe, e o orçamento de 6 s corta esse silêncio
+  // antes de a página chegar. Código inexistente falha em todas as tentativas;
+  // série boa volta na seguinte, em décimos de segundo.
+  if (pequeno && (erro.kind === "timeout" || erro.kind === "malformed_body")) {
+    return new ErroSerieInexistente(
+      `A API do BCB não trouxe dado em ${contarTentativas(erro.attempts)} de um pedido de poucas ` +
+        `observações (orçamento de ${Math.round(orcamentoMs / 1000)}s cada). Série que existe ` +
+        "responde em menos de 0,5 s; é a série INEXISTENTE que fica ~30 s sem resposta antes de " +
+        "devolver a página de 'requisição inválida' (a origem não usa 404). Confira o código com " +
+        "`bcb_buscar_serie`. Se o código estiver certo, a origem está indisponível — repita em " +
+        "instantes."
+    );
+  }
+
+  return new Error(`Falha após ${contarTentativas(erro.attempts)}: ${descreverFalha(erro, orcamentoMs)}`);
+}
+
+function contarTentativas(n: number): string {
+  return `${n} ${n === 1 ? "tentativa" : "tentativas"}`;
+}
+
+/** A última falha, em pt-BR, com o número que a sustenta quando há um. */
+function descreverFalha(erro: UpstreamError, orcamentoMs: number): string {
+  switch (erro.kind) {
+    case "timeout":
+      return `a origem não respondeu dentro do prazo de ${Math.round(orcamentoMs / 1000)}s`;
+    case "network": {
+      const causa = erro.cause instanceof Error ? ` (${erro.cause.message})` : "";
+      return `falha de rede ao alcançar a origem${causa}`;
+    }
+    case "rate_limited": {
+      const espera = erro.retryAfterMs !== undefined ? `, Retry-After de ${Math.ceil(erro.retryAfterMs / 1000)}s` : "";
+      return `a origem limitou a taxa de requisições (HTTP 429${espera})`;
+    }
+    case "http_5xx":
+      return `Erro na API do BCB: ${erro.status}`;
+    case "malformed_body":
+      return (
+        "Resposta da API do BCB não é JSON — ou a série não existe, ou a origem cortou a " +
+        "consulta por tempo (janelas longas em séries diárias fazem isso). " +
+        "Confira o código da série e, se ele estiver certo, reduza o período solicitado."
+      );
+    default:
+      return erro.message;
+  }
 }
 
 export function calculateVariation(valorInicial: number, valorFinal: number): number {
