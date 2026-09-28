@@ -282,9 +282,13 @@ export function buscarSeries(
   }
 
   const expandidos = expandirBusca(termoNorm);
-  // O slug do portal separa palavras por "-": normalizar para espaço, senão
-  // "resultado primario" (frase da tabela) nunca casaria "resultado-primario".
-  const casa = (texto: string) => casaBusca(normalizar(texto.replace(/-+/g, " ")), expandidos);
+  // O hífen é espaço nos DOIS lados dentro do `@sbissoli/mcp-search` (0.7.0):
+  // "resultado primario" casa o slug "resultado-primario" e "IGP-M" casa
+  // "IGP-M - Variação mensal". Até a 1.15.0 este arquivo trocava `-` por espaço
+  // SÓ no texto, e a consulta "igp-m" ficava inteira — era exatamente a
+  // assimetria que devolvia zero (medido em 27/09/2026). Não reintroduza uma
+  // normalização local: o par consulta × texto tem de passar pelo mesmo funil.
+  const casa = (texto: string) => casaBusca(normalizar(texto), expandidos);
 
   const curadas = curadoria.filter(s => casa(s.nome) || casa(s.categoria));
   const codigosCurados = new Set(curadas.map(s => s.codigo));

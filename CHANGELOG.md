@@ -5,6 +5,26 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.1] - 2026-09-27
+
+Bump PATCH: corrige o resultado de `bcb_buscar_serie` para termos com hífen. Nenhuma
+tool, parâmetro ou campo muda.
+
+### Fixed
+
+- **`bcb_buscar_serie("IGP-M")` devolvia zero** — e "IGP" achava a 189. Medido em
+  27/09/2026 pelo `--dry` do runner de sessão longa. Causa: o texto trocava `-` por
+  espaço antes de casar e a consulta não, então "igp-m" ficava um padrão só, que
+  não começa palavra nenhuma num texto onde o hífen separa. A correção mora no
+  `@sbissoli/mcp-search` 0.7.0 (hífen é espaço nos DOIS lados; a palavra composta
+  da consulta vira frase), e a normalização local do texto saiu: um só funil para
+  consulta e texto. "IGP-M" → 189 (só ela, não IGP-DI/IGP-10); "IPCA-15" → 7478;
+  "IPC-Fipe" → 193. Gate em `src/catalog.test.ts`.
+
+### Changed
+
+- `@sbissoli/mcp-search` ^0.6.0 → ^0.7.0.
+
 ## [1.15.0] - 2026-09-27
 
 Bump MINOR: a superfície publicada muda — o bloco de proveniência de TODAS as

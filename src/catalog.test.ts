@@ -217,6 +217,20 @@ describe("buscarSeries", () => {
     expect(series.map(s => s.codigo)).toEqual([10844]);
   });
 
+  it("termo com hífen acha a série de nome hifenizado — e SÓ ela", () => {
+    // Medido em 27/09/2026 (1.15.0): "IGP-M" devolvia ZERO enquanto "IGP" achava
+    // a 189. O texto trocava `-` por espaço e a consulta não — assimetria que a
+    // 0.7.0 do @sbissoli/mcp-search fecha nos dois lados. A palavra composta é
+    // FRASE: "IGP-M" não pode trazer IGP-DI (190) nem IGP-10 (7447) pela letra
+    // `m` de "mensal".
+    expect(buscarSeries("IGP-M", SERIES_POPULARES, null, 10).series.map(s => s.codigo)).toEqual([189]);
+    expect(buscarSeries("IPCA-15", SERIES_POPULARES, null, 10).series.map(s => s.codigo)).toEqual([7478]);
+    expect(buscarSeries("IPC-Fipe", SERIES_POPULARES, null, 10).series.map(s => s.codigo)).toEqual([193]);
+    // O slug do portal também é hifenizado; a frase da tabela continua casando.
+    const { series } = buscarSeries("IGP-M", SERIES_POPULARES, entradas, 10);
+    expect(series[0]?.codigo).toBe(189);
+  });
+
   it("`limite` corta a lista mas `total` continua sendo o total", () => {
     const { total, series } = buscarSeries("ipca", SERIES_POPULARES, entradas, 3);
 
