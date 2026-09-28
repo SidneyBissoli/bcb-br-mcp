@@ -132,11 +132,11 @@ export const TASK_SET: TaskSet = {
       prompt: "Quanto acumulou o IGP-M no ano de 2023? Não sei o código da série, descubra.",
       expectedTools: ["bcb_buscar_serie"],
       script: [
-        { tool: "bcb_buscar_serie", args: { termo: "IGP", limite: 5 } },
+        { tool: "bcb_buscar_serie", args: { termo: "IGP-M", limite: 5 } },
         { tool: "bcb_serie_valores", args: { codigo: 189, dataInicial: "2023-01-01", dataFinal: "2023-12-31", frequencia: "anual", agregacao: "acumulada" } },
       ],
       answer: { kind: "number", value: -3.18, tolerance: 0.01 },
-      trap: "Série pedida por NOME: exige descoberta antes da leitura. Medido em 27/09/2026: o termo \"IGP-M\" devolve ZERO no bcb_buscar_serie (o hífen não casa); \"IGP\" encontra 189. O IGP-M também é variação (acumular, não subtrair).",
+      trap: "Série pedida por NOME: exige descoberta antes da leitura. Até a 1.15.0 o termo \"IGP-M\" devolvia ZERO em bcb_buscar_serie (o hífen não casava — corrigido no @sbissoli/mcp-search 0.7.0 / bcb 1.15.1); a rodada mede o servidor corrigido. O IGP-M também é variação (acumular, não subtrair).",
       note: "Descoberta → leitura.",
     },
     {
