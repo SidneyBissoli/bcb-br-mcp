@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-09-28T01:34:33.164Z",
+  "server": "bcb-br-mcp",
+  "serverSha": "22a9d21",
+  "model": "claude-sonnet-5",
+  "arm": "A",
+  "fault": "0",
+  "sessions": 24,
+  "completed": 24,
+  "costUSD": 0.7189,
+  "spentThisRunUSD": 0,
+  "budgetUSD": 24
+}
