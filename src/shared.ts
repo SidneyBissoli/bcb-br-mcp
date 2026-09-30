@@ -7,8 +7,11 @@
  * desses nomes desde a fundação, e o D3 não é hora de mexer em quem importa o
  * quê. A regra de dependência é uma só — `shared.ts` não importa nenhum módulo
  * irmão (só pacotes do portfólio), e é por isso que não há ciclo entre os
- * módulos de tool.
+ * módulos de tool. A exceção é `call-shape.ts`, que é FOLHA (não importa nada):
+ * o vocabulário de classe de erro mora lá, e os erros daqui nascem com ela.
  */
+
+import { CLASSE_DO_ERRO, classifyThrown, type ErrorClass } from "./call-shape.js";
 
 // ==================== CONFIG ====================
 
@@ -163,9 +166,27 @@ export function structuredResult(payload: Record<string, unknown>): ToolResult {
   };
 }
 
-/** Falha de tool: `isError` com texto em pt-BR, nunca erro de protocolo. */
-export function erroResult(texto: string): ToolResult {
-  return { content: [{ type: "text" as const, text: texto }], isError: true };
+/**
+ * Falha de tool: `isError` com texto em pt-BR, nunca erro de protocolo.
+ *
+ * `classe`, quando dada, viaja numa chave-símbolo não enumerável
+ * (`CLASSE_DO_ERRO`): a telemetria a lê, o fio não a vê. Sem ela, a telemetria
+ * classifica pela frase, como sempre fez.
+ */
+export function erroResult(texto: string, classe?: ErrorClass): ToolResult {
+  const r: ToolResult = { content: [{ type: "text" as const, text: texto }], isError: true };
+  if (classe !== undefined) Object.defineProperty(r, CLASSE_DO_ERRO, { value: classe, enumerable: false });
+  return r;
+}
+
+/**
+ * Falha de tool a partir da exceção que o handler capturou: o texto é o de
+ * sempre (`prefixo: mensagem`), e a classe sai do TIPO da exceção, não da frase.
+ * É o que todo `catch` de handler usa — achatar a exceção em texto antes daqui
+ * foi o que jogou o timeout da origem em `outro` (ver `CLASSE_DO_ERRO`).
+ */
+export function erroDeExcecao(prefixo: string, error: unknown): ToolResult {
+  return erroResult(`${prefixo}: ${mensagemDeErro(error)}`, classifyThrown(error));
 }
 
 export function mensagemDeErro(error: unknown): string {
@@ -204,11 +225,28 @@ export function sleep(ms: number): Promise<void> {
  */
 export class ErroHttpBcb extends Error {
   readonly status: number;
+  /** 404 é a fonte dizendo que não existe; qualquer outro status é a fonte recusando ou falhando. */
+  readonly classe: ErrorClass;
 
   constructor(status: number, mensagem: string) {
     super(mensagem);
     this.name = "ErroHttpBcb";
     this.status = status;
+    this.classe = status === 404 ? "nao_encontrado" : "fonte";
+  }
+}
+
+/**
+ * Falha da origem que já sabe a própria classe — é o `UpstreamError` traduzido
+ * para pt-BR sem perder o `kind`. Ver `CLASSE_DO_ERRO` em call-shape.ts.
+ */
+export class ErroDaOrigem extends Error {
+  readonly classe: ErrorClass;
+
+  constructor(mensagem: string, classe: ErrorClass) {
+    super(mensagem);
+    this.name = "ErroDaOrigem";
+    this.classe = classe;
   }
 }
 
@@ -222,6 +260,15 @@ export class ErroHttpBcb extends Error {
  * a consulta: como um 4xx, isto é determinístico.
  */
 export class ErroSerieInexistente extends Error {
+  /**
+   * `nao_encontrado`, e não pela frase: a mensagem diz "requisição inválida"
+   * (a página que a origem devolve), e o regex a lia como `contrato` — classe
+   * que o painel EXCLUI da taxa de erro. A queda da origem num `ultimos/N`
+   * sumia da saúde junto. Após todas as tentativas, o fato medido é "a fonte
+   * não trouxe essa série", que é a definição de `nao_encontrado`.
+   */
+  readonly classe: ErrorClass = "nao_encontrado";
+
   constructor(mensagem: string) {
     super(mensagem);
     this.name = "ErroSerieInexistente";
@@ -415,7 +462,13 @@ function traduzirErroDaOrigem(erro: unknown, pequeno: boolean, orcamentoMs: numb
     );
   }
 
-  return new Error(`Falha após ${contarTentativas(erro.attempts)}: ${descreverFalha(erro, orcamentoMs)}`);
+  // A classe sai do `kind`, não da frase de `descreverFalha`. O corpo que não é
+  // JSON tem as duas leituras que a mensagem nomeia; fica em `nao_encontrado`,
+  // como a frase já o classificava.
+  return new ErroDaOrigem(
+    `Falha após ${contarTentativas(erro.attempts)}: ${descreverFalha(erro, orcamentoMs)}`,
+    erro.kind === "malformed_body" ? "nao_encontrado" : "fonte"
+  );
 }
 
 function contarTentativas(n: number): string {

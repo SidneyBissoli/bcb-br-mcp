@@ -49,6 +49,7 @@ import {
 import {
   CONFIG,
   calculateVariation,
+  erroDeExcecao,
   erroResult,
   fetchBcbApi,
   formatDateForApi,
@@ -63,6 +64,7 @@ import {
   type ToolResult
 } from "./shared.js";
 import { withCall } from "@sbissoli/mcp-upstream/als";
+import { classifyThrown, type ErrorClass } from "./call-shape.js";
 import {
   NOTA_DERIVACAO_DEFLACAO,
   NOTA_DERIVACAO_ENCADEAMENTO,
@@ -88,6 +90,7 @@ export {
   CONFIG,
   WORKER_CONFIG,
   calculateVariation,
+  erroDeExcecao,
   erroResult,
   fetchBcbApi,
   formatDateForApi,
@@ -593,10 +596,7 @@ export async function handleSerieValores(
       provSerieSgs(args.codigo, observacoes, args)
     );
   } catch (error) {
-    return {
-      content: [{ type: "text" as const, text: `Erro ao consultar série ${args.codigo}: ${error instanceof Error ? error.message : String(error)}` }],
-      isError: true
-    };
+    return erroDeExcecao(`Erro ao consultar série ${args.codigo}`, error);
   }
 }
 
@@ -634,10 +634,7 @@ export async function handleSerieUltimos(
       provSerieSgs(args.codigo, resultado.observacoes)
     );
   } catch (error) {
-    return {
-      content: [{ type: "text" as const, text: `Erro ao consultar últimos valores da série ${args.codigo}: ${error instanceof Error ? error.message : String(error)}` }],
-      isError: true
-    };
+    return erroDeExcecao(`Erro ao consultar últimos valores da série ${args.codigo}`, error);
   }
 }
 
@@ -706,10 +703,7 @@ export async function handleSerieMetadados(
       proveniencia
     );
   } catch (error) {
-    return {
-      content: [{ type: "text" as const, text: `Erro ao consultar metadados da série ${args.codigo}: ${error instanceof Error ? error.message : String(error)}` }],
-      isError: true
-    };
+    return erroDeExcecao(`Erro ao consultar metadados da série ${args.codigo}`, error);
   }
 }
 
@@ -741,10 +735,7 @@ export async function handleSeriesPopulares(
       provCatalogoCurado()
     );
   } catch (error) {
-    return {
-      content: [{ type: "text" as const, text: `Erro ao listar séries: ${error instanceof Error ? error.message : String(error)}` }],
-      isError: true
-    };
+    return erroDeExcecao(`Erro ao listar séries`, error);
   }
 }
 
@@ -826,10 +817,7 @@ export async function handleBuscarSerie(
 
     return resultadoComProveniencia(payload, proveniencia);
   } catch (error) {
-    return {
-      content: [{ type: "text" as const, text: `Erro ao buscar séries: ${error instanceof Error ? error.message : String(error)}` }],
-      isError: true
-    };
+    return erroDeExcecao(`Erro ao buscar séries`, error);
   }
 }
 
@@ -878,10 +866,7 @@ export async function handleIndicadoresAtuais(
       )
     );
   } catch (error) {
-    return {
-      content: [{ type: "text" as const, text: `Erro ao consultar indicadores: ${error instanceof Error ? error.message : String(error)}` }],
-      isError: true
-    };
+    return erroDeExcecao(`Erro ao consultar indicadores`, error);
   }
 }
 
@@ -959,10 +944,7 @@ export async function handleVariacao(
       })
     );
   } catch (error) {
-    return {
-      content: [{ type: "text" as const, text: `Erro ao calcular variação: ${error instanceof Error ? error.message : String(error)}` }],
-      isError: true
-    };
+    return erroDeExcecao(`Erro ao calcular variação`, error);
   }
 }
 
@@ -1128,10 +1110,7 @@ export async function handleComparar(
       )
     );
   } catch (error) {
-    return {
-      content: [{ type: "text" as const, text: `Erro ao comparar séries: ${error instanceof Error ? error.message : String(error)}` }],
-      isError: true
-    };
+    return erroDeExcecao(`Erro ao comparar séries`, error);
   }
 }
 
@@ -1171,7 +1150,7 @@ async function buscarVarias(
   dataFinal: string,
   timeoutMs?: number,
   maxRetries?: number
-): Promise<{ series: SeriePreparada[]; erros: Array<Record<string, unknown>> }> {
+): Promise<{ series: SeriePreparada[]; erros: Array<Record<string, unknown>>; classes: ErrorClass[] }> {
   const concorrencia = concorrenciaPorSerie(codigos.length);
 
   const resultados = await Promise.all(
@@ -1183,7 +1162,10 @@ async function buscarVarias(
           timeoutMs, maxRetries, concorrencia
         );
         if (r.observacoes.length === 0) {
-          return { erro: { codigo, nome: info?.nome || `Série ${codigo}`, erro: "Sem dados no período" } };
+          return {
+            erro: { codigo, nome: info?.nome || `Série ${codigo}`, erro: "Sem dados no período" },
+            classe: "nao_encontrado" as const
+          };
         }
         return {
           serie: {
@@ -1194,15 +1176,22 @@ async function buscarVarias(
           } satisfies SeriePreparada
         };
       } catch (err) {
-        return { erro: { codigo, nome: info?.nome || `Série ${codigo}`, erro: mensagemDeErro(err) } };
+        return { erro: { codigo, nome: info?.nome || `Série ${codigo}`, erro: mensagemDeErro(err) }, classe: classifyThrown(err) };
       }
     })
   );
 
   return {
     series: resultados.flatMap(r => ("serie" in r && r.serie ? [r.serie] : [])),
-    erros: resultados.flatMap(r => ("erro" in r && r.erro ? [r.erro] : []))
+    erros: resultados.flatMap(r => ("erro" in r && r.erro ? [r.erro] : [])),
+    // A classe de cada falha, pelo TIPO — `erros` vai ao payload e só leva texto.
+    classes: resultados.flatMap(r => ("classe" in r && r.classe ? [r.classe] : []))
   };
+}
+
+/** A classe comum a todas as falhas; `undefined` quando divergem (aí vale a frase). */
+function classeComum(classes: ErrorClass[]): ErrorClass | undefined {
+  return classes.length > 0 && classes.every(c => c === classes[0]) ? classes[0] : undefined;
 }
 
 export async function handleCorrelacao(
@@ -1222,14 +1211,15 @@ export async function handleCorrelacao(
     const metodo: MetodoCorrelacao = args.metodo ?? "pearson";
     const base: BaseCorrelacao = args.base ?? "nivel";
 
-    const { series, erros } = await buscarVarias(
+    const { series, erros, classes } = await buscarVarias(
       args.codigos, args.dataInicial, args.dataFinal, timeoutMs, maxRetries
     );
 
     if (series.length < 2) {
       return erroResult(
         `Correlação exige ao menos duas séries com dados no período, e apenas ${series.length} retornou. ` +
-        (erros.length > 0 ? `Motivos: ${erros.map(e => `${e.codigo} — ${e.erro}`).join("; ")}.` : "")
+        (erros.length > 0 ? `Motivos: ${erros.map(e => `${e.codigo} — ${e.erro}`).join("; ")}.` : ""),
+        classeComum(classes)
       );
     }
 
@@ -1317,7 +1307,7 @@ export async function handleCorrelacao(
       )
     );
   } catch (error) {
-    return erroResult(`Erro ao calcular correlação: ${mensagemDeErro(error)}`);
+    return erroDeExcecao(`Erro ao calcular correlação`, error);
   }
 }
 
@@ -1453,7 +1443,7 @@ export async function handleDeflacionar(
       { nota: NOTA_DERIVACAO_DEFLACAO }
     ));
   } catch (error) {
-    return erroResult(`Erro ao deflacionar a série: ${mensagemDeErro(error)}`);
+    return erroDeExcecao(`Erro ao deflacionar a série`, error);
   }
 }
 

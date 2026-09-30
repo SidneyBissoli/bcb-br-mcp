@@ -191,7 +191,44 @@ export function classifyThrown(error: unknown): ErrorClass {
   ) {
     return "defeito";
   }
+  // Erro nosso que já NASCEU sabendo a classe (`ErroDaOrigem` e irmãos em
+  // shared.ts). Ver `CLASSE_DO_ERRO` abaixo para o porquê.
+  const declarada = (error as { classe?: unknown } | null)?.classe;
+  if (ehClasse(declarada)) return declarada;
   return classifyError(error instanceof Error ? error.message : String(error));
+}
+
+const CLASSES: ReadonlySet<string> = new Set<ErrorClass>(["contrato", "nao_encontrado", "fonte", "defeito", "outro"]);
+
+function ehClasse(x: unknown): x is ErrorClass {
+  return typeof x === "string" && CLASSES.has(x);
+}
+
+/**
+ * Onde um resultado de erro leva a classe decidida pelo TIPO da exceção.
+ *
+ * Por que existe. Em 28/09/2026 o vigia do painel apontou 5 de 7 erros de uso
+ * do `bcb_serie_valores` em `outro`, e os Workers Logs mostraram que 8 de 8
+ * eram o TIMEOUT da origem: "Falha após 2 tentativas: a origem não respondeu
+ * dentro do prazo de 10s". A definição de `fonte` diz "timeout" com todas as
+ * letras; a frase é que não dizia. Era a segunda vez: antes da 1.15.0 a mesma
+ * falha saía como "The operation was aborted", também `outro`. O tipo existia
+ * (`UpstreamError.kind === "timeout"`) e morria em dois lugares — a tradução
+ * para `Error` genérico em shared.ts e o `catch` de cada handler, que achata a
+ * exceção em texto antes de o hook de telemetria vê-la.
+ *
+ * O conserto não reescreve frase nem alarga regex: carrega a classe AO LADO do
+ * texto, numa chave-símbolo não enumerável, que o `JSON.stringify` não vê — o
+ * que o cliente recebe não muda em nada. O hook (`register.ts`) lê esta chave
+ * antes de cair na frase, que continua sendo o caminho do erro sem tipo.
+ */
+export const CLASSE_DO_ERRO: unique symbol = Symbol.for("br.com.sidneybissoli.bcb/classe-do-erro");
+
+/** A classe anexada a um resultado de erro, ou `undefined` quando não há. */
+export function classeAnexada(result: unknown): ErrorClass | undefined {
+  if (!result || typeof result !== "object") return undefined;
+  const c = (result as { [CLASSE_DO_ERRO]?: unknown })[CLASSE_DO_ERRO];
+  return ehClasse(c) ? c : undefined;
 }
 
 /**
