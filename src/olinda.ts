@@ -20,7 +20,7 @@
  * não reconstruir, não cachear.
  */
 
-import { fetchBcbApi } from "./shared.js";
+import { ErroDaOrigem, fetchBcbApi } from "./shared.js";
 
 export const OLINDA_BASE = "https://olinda.bcb.gov.br/olinda/servico";
 export const EXPECTATIVAS_ODATA = `${OLINDA_BASE}/Expectativas/versao/v1/odata`;
@@ -66,7 +66,7 @@ export async function consultarOData(
   const resposta = (await fetchBcbApi(url, timeoutMs, maxRetries)) as { value?: unknown };
 
   if (!resposta || !Array.isArray(resposta.value)) {
-    throw new Error("Resposta inesperada do Olinda: payload OData sem a coleção `value`");
+    throw new ErroDaOrigem("Resposta inesperada do Olinda: payload OData sem a coleção `value`", "fonte");
   }
 
   return resposta.value as Array<Record<string, unknown>>;

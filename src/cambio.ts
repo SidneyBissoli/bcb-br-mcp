@@ -33,9 +33,9 @@ import {
 import {
   DISCLAIMER_PTAX,
   QUALIFICACAO_PARIDADE,
+  erroDeExcecao,
   erroResult,
   leituraRemota,
-  mensagemDeErro,
   type ToolDefinition,
   type ToolResult
 } from "./shared.js";
@@ -215,7 +215,7 @@ export async function handleCambioCotacao(
       montada.dolar ? [bloco("PTAX")] : [bloco("PTAX"), bloco("PARIDADE_REFINITIV")]
     );
   } catch (error) {
-    return erroResult(`Erro ao consultar cotação de câmbio: ${mensagemDeErro(error)}`);
+    return erroDeExcecao(`Erro ao consultar cotação de câmbio`, error);
   }
 }
 
@@ -265,7 +265,7 @@ export async function handleCambioMoedas(
       })
     );
   } catch (error) {
-    return erroResult(`Erro ao listar moedas: ${mensagemDeErro(error)}`);
+    return erroDeExcecao(`Erro ao listar moedas`, error);
   }
 }
 

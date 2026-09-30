@@ -36,7 +36,14 @@ import {
   somarDiasIso,
   textoOuNulo
 } from "./olinda.js";
-import { erroResult, leituraRemota, mensagemDeErro, type ToolDefinition, type ToolResult } from "./shared.js";
+import {
+  erroDeExcecao,
+  erroResult,
+  leituraRemota,
+  mensagemDeErro,
+  type ToolDefinition,
+  type ToolResult
+} from "./shared.js";
 import {
   provenienciaBcb,
   resultadoComProveniencia,
@@ -352,7 +359,7 @@ export async function handleFocusExpectativas(
       })
     );
   } catch (error) {
-    return erroResult(`Erro ao consultar expectativas do Focus: ${mensagemDeErro(error)}`);
+    return erroDeExcecao(`Erro ao consultar expectativas do Focus`, error);
   }
 }
 
@@ -425,7 +432,7 @@ export async function handleFocusSelic(
       })
     );
   } catch (error) {
-    return erroResult(`Erro ao consultar expectativas de Selic: ${mensagemDeErro(error)}`);
+    return erroDeExcecao(`Erro ao consultar expectativas de Selic`, error);
   }
 }
 
@@ -555,11 +562,14 @@ export async function handleFocusReferencias(
   const referenciasUniao = new Set<string>();
   const falhas: Array<{ escopo: string; erro: string }> = [];
   let totalRegistros = 0;
+  // A exceção da primeira falha, com o TIPO — `falhas` vai ao payload e só leva texto.
+  let primeiraExcecao: unknown;
 
   const blocos = consultas.map(({ plano, url }, i) => {
     const resposta = respostas[i];
     const linhas = resposta.status === "fulfilled" ? resposta.value : [];
     if (resposta.status === "rejected") {
+      if (falhas.length === 0) primeiraExcecao = resposta.reason;
       falhas.push({ escopo: plano.escopo, erro: mensagemDeErro(resposta.reason) });
     }
 
@@ -595,7 +605,7 @@ export async function handleFocusReferencias(
 
   // Só é erro se NADA respondeu: com a origem instável, meia resposta ainda é útil.
   if (falhas.length === escopos.length) {
-    return erroResult(`Erro ao consultar referências do Focus: ${falhas[0].erro}`);
+    return erroDeExcecao("Erro ao consultar referências do Focus", primeiraExcecao);
   }
 
   const payload: Record<string, unknown> = {

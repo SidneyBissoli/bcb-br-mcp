@@ -24,7 +24,7 @@
  * saber a periodicidade de origem, e é este módulo que a conhece.
  */
 
-import { ErroHttpBcb, fetchBcbApi, type SerieValor } from "./shared.js";
+import { ErroDaOrigem, ErroHttpBcb, fetchBcbApi, type SerieValor } from "./shared.js";
 
 export const BCB_SGS_BASE = "https://api.bcb.gov.br/dados/serie/bcdata.sgs";
 
@@ -701,7 +701,10 @@ export function construirDeflator(
 
   const meses = [...porMes.keys()].sort();
   if (meses.length === 0) {
-    throw new Error("O índice de preços não devolveu observações no período necessário para deflacionar.");
+    throw new ErroDaOrigem(
+      "O índice de preços não devolveu observações no período necessário para deflacionar.",
+      "nao_encontrado"
+    );
   }
 
   // Nível do índice: o mês anterior ao primeiro vale 1, e cada mês aplica a sua variação.

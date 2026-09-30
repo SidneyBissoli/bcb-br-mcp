@@ -48,7 +48,7 @@ import {
 // interpreta o schema em vez de gerar código, funciona igual no Node, e assim
 // os dois transportes validam exatamente da mesma forma.
 import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/server/validators/cf-worker";
-import { classifyError, classifyThrown, errorText, paramNames } from "./call-shape.js";
+import { classeAnexada, classifyError, classifyThrown, errorText, paramNames } from "./call-shape.js";
 
 import { announceServedVersions } from "./discover.js";
 import { SERVER_IDENTITY, SERVER_INSTRUCTIONS } from "./identity.js";
@@ -145,7 +145,10 @@ export function registerAll(server: McpServer, options: RegisterOptions = {}): v
           const forma = { params: paramNames(args), classe: "" };
           record?.("tool_call", tool.name, forma);
           if (result.isError === true) {
-            record?.("tool_error", tool.name, { ...forma, classe: classifyError(errorText(result)) });
+            // A classe que o handler anexou pelo TIPO da exceção vence a frase;
+            // a frase fica para o erro que nasceu sem tipo. Ver CLASSE_DO_ERRO.
+            const classe = classeAnexada(result) ?? classifyError(errorText(result));
+            record?.("tool_error", tool.name, { ...forma, classe });
           }
           return result;
         } catch (error) {

@@ -5,6 +5,25 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Só telemetria do canal hospedado: nenhuma tool, parâmetro, campo ou mensagem
+muda, e a superfície publicada é idêntica à da 1.15.0.
+
+### Fixed
+
+- **Timeout da origem era gravado como erro de classe `outro`.** Medido em
+  28/09/2026: 5 de 7 erros de uso do `bcb_serie_valores` em 28 dias caíam em
+  `outro`, e os Workers Logs mostraram 8 de 8 com "Falha após 2 tentativas: a
+  origem não respondeu dentro do prazo de 10s". O tipo da falha
+  (`UpstreamError.kind`) morria na tradução para `Error` genérico e no `catch`
+  de cada handler, e a telemetria só via a frase. Agora a classe nasce com o
+  erro (`ErroDaOrigem`, `ErroHttpBcb`, `ErroSerieInexistente`), viaja ao lado
+  do texto numa chave-símbolo que não é serializada, e o hook a lê antes da
+  frase. Timeout, rede, 429, 5xx e 4xx ≠ 404 → `fonte`; 404 e série
+  inexistente → `nao_encontrado` (a inexistente caía em `contrato`, que a
+  saúde do painel exclui). Gate em `src/classe-do-erro.test.ts`.
+
 ## [1.15.1] - 2026-09-27
 
 Bump PATCH: corrige o resultado de `bcb_buscar_serie` para termos com hífen. Nenhuma
