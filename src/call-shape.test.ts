@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { classifyError, classifyThrown, errorText, paramNames } from "./call-shape.js";
+import { classifyError, classifyThrown, errorText, paramNames, type ErrorClass } from "./call-shape.js";
 
 /**
  * A FORMA da chamada. O teste que importa aqui é a GUARDA: ele varre as
@@ -23,8 +23,18 @@ const SRC = dirname(fileURLToPath(import.meta.url));
 const CHAMADA = /erroResult\(([\s\S]{10,1200}?)\n?\s*\);/g;
 const LITERAL = /(["'`])((?:\\.|(?!\1)[\s\S])*)\1/g;
 
-function mensagensDeErro(): string[] {
-  const achadas = new Set<string>();
+/** O 2º argumento de `erroResult` quando é uma classe LITERAL. Separado da
+ * mensagem antes de juntar os literais — senão "contrato" grudaria na frase. */
+const CLASSE_LITERAL = /,\s*"(contrato|nao_encontrado|fonte|defeito|outro)"\s*,?\s*$/;
+
+interface MensagemDeErro {
+  texto: string;
+  /** A classe declarada na chamada quando é literal; `undefined` quando é expressão. */
+  classe?: ErrorClass;
+}
+
+function mensagensDeErro(): MensagemDeErro[] {
+  const achadas = new Map<string, MensagemDeErro>();
   const ande = (dir: string): void => {
     for (const entrada of readdirSync(dir)) {
       const caminho = join(dir, entrada);
@@ -35,17 +45,21 @@ function mensagensDeErro(): string[] {
       if (!entrada.endsWith(".ts") || entrada.includes(".test.")) continue;
       const fonte = readFileSync(caminho, "utf8");
       for (const chamada of fonte.matchAll(CHAMADA)) {
-        const partes = [...chamada[1].matchAll(LITERAL)].map((p) => p[2]);
+        const declarada = CLASSE_LITERAL.exec(chamada[1]);
+        const argumentos = declarada ? chamada[1].slice(0, declarada.index) : chamada[1];
+        const partes = [...argumentos.matchAll(LITERAL)].map((p) => p[2]);
         if (partes.length === 0) continue;
         const texto = partes.join("").replace(/\$\{[^}]*\}/g, "X").replace(/\s+/g, " ").trim();
         // Exige espaco: literais colados sem prosa (uma lista de nomes de
         // parametro, por exemplo) nao sao mensagem e nao se classificam.
-        if (texto.length > 15 && /\s/.test(texto)) achadas.add(texto);
+        if (texto.length > 15 && /\s/.test(texto)) {
+          achadas.set(texto, { texto, classe: declarada?.[1] as ErrorClass | undefined });
+        }
       }
     }
   };
   ande(SRC);
-  return [...achadas];
+  return [...achadas.values()];
 }
 
 /** Mensagem que só repassa o texto de cima ("Erro ao consultar X: ${e}"). O
@@ -59,9 +73,21 @@ describe("guarda: as mensagens deste servidor são classificáveis", () => {
     expect(mensagens.length).toBeGreaterThan(10);
   });
 
+  // A mesma ordem do hook de telemetria (`classeAnexada(result) ?? classifyError(texto)`):
+  // a classe declarada na chamada vence a frase. Desde que `erroResult` passou a
+  // EXIGIR a classe, a frase só decide quando a classe é uma expressão (a de
+  // várias séries, a do `catch` do registro) — e aí continua não podendo cair em
+  // `outro`. Classe literal `outro` também reprova: é declarar que não se sabe.
   it("nenhuma mensagem própria cai em `outro`", () => {
-    const orfas = mensagens.filter((m) => !REPASSE.test(m) && classifyError(m) === "outro");
-    expect(orfas, `sem classe:\n${orfas.map((m) => `  - ${m}`).join("\n")}`).toEqual([]);
+    const orfas = mensagens.filter(
+      (m) => !REPASSE.test(m.texto) && (m.classe ?? classifyError(m.texto)) === "outro"
+    );
+    expect(orfas, `sem classe:\n${orfas.map((m) => `  - ${m.texto}`).join("\n")}`).toEqual([]);
+  });
+
+  it("a varredura separa a classe declarada da mensagem", () => {
+    expect(mensagens.some((m) => m.classe !== undefined)).toBe(true);
+    expect(mensagens.filter((m) => /(contrato|nao_encontrado|fonte|defeito|outro)$/.test(m.texto))).toEqual([]);
   });
 });
 

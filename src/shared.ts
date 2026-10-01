@@ -169,13 +169,16 @@ export function structuredResult(payload: Record<string, unknown>): ToolResult {
 /**
  * Falha de tool: `isError` com texto em pt-BR, nunca erro de protocolo.
  *
- * `classe`, quando dada, viaja numa chave-símbolo não enumerável
- * (`CLASSE_DO_ERRO`): a telemetria a lê, o fio não a vê. Sem ela, a telemetria
- * classifica pela frase, como sempre fez.
+ * `classe` é OBRIGATÓRIA e viaja numa chave-símbolo não enumerável
+ * (`CLASSE_DO_ERRO`): a telemetria a lê, o fio não a vê. Obrigatória para o
+ * compilador pegar o erro que nasceria sem classe — sem ela, a telemetria cairia
+ * na frase, e a frase ecoa o argumento do chamador ("INVALID" casou `invalid`
+ * no medical e virou `contrato`). Este é o ÚNICO lugar de produção que monta
+ * `isError: true` (o teste-guarda `sem-iserror-literal.test.ts` cobra isso).
  */
-export function erroResult(texto: string, classe?: ErrorClass): ToolResult {
+export function erroResult(texto: string, classe: ErrorClass): ToolResult {
   const r: ToolResult = { content: [{ type: "text" as const, text: texto }], isError: true };
-  if (classe !== undefined) Object.defineProperty(r, CLASSE_DO_ERRO, { value: classe, enumerable: false });
+  Object.defineProperty(r, CLASSE_DO_ERRO, { value: classe, enumerable: false });
   return r;
 }
 

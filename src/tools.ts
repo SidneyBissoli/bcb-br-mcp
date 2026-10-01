@@ -881,7 +881,7 @@ export async function handleVariacao(
     const metodo = metodoVariacaoDaSerie(args.codigo);
     // Recusa ANTES da rede: a série já é o acumulado, não há conta a fazer.
     if (metodo === "acumulado") {
-      return erroResult(mensagemRecusaAcumulado(args.codigo, nome));
+      return erroResult(mensagemRecusaAcumulado(args.codigo, nome), "contrato");
     }
 
     // `periodos` mantém a precedência sobre as datas (comportamento de sempre).
@@ -902,10 +902,12 @@ export async function handleVariacao(
     const data: SerieValor[] = resultado.observacoes;
 
     if (!Array.isArray(data) || data.length < 2) {
-      return {
-        content: [{ type: "text" as const, text: `Dados insuficientes para calcular variação. São necessários pelo menos 2 valores.` }],
-        isError: true
-      };
+      // A origem respondeu, e respondeu com menos de dois pontos na janela:
+      // ausência de dado, não falha da fonte nem argumento inválido.
+      return erroResult(
+        `Dados insuficientes para calcular variação. São necessários pelo menos 2 valores.`,
+        "nao_encontrado"
+      );
     }
 
     const valores = data.map(d => parseFloat(d.valor));
@@ -1189,9 +1191,16 @@ async function buscarVarias(
   };
 }
 
-/** A classe comum a todas as falhas; `undefined` quando divergem (aí vale a frase). */
-function classeComum(classes: ErrorClass[]): ErrorClass | undefined {
-  return classes.length > 0 && classes.every(c => c === classes[0]) ? classes[0] : undefined;
+/**
+ * A classe da falha de várias séries: a comum a todas; quando divergem, a de
+ * maior precedência (`defeito` > `fonte` > `contrato` > `nao_encontrado` >
+ * `outro`) — basta UMA série ter sofrido falha da fonte para a chamada não ter
+ * dado certo por causa da fonte. Antes, divergência caía na frase ("Correlação
+ * EXIGE…"), e a frase lia `contrato`.
+ */
+const PRECEDENCIA: readonly ErrorClass[] = ["defeito", "fonte", "contrato", "nao_encontrado", "outro"];
+function classeComum(classes: ErrorClass[]): ErrorClass {
+  return PRECEDENCIA.find(c => classes.includes(c)) ?? "outro";
 }
 
 export async function handleCorrelacao(
@@ -1246,7 +1255,8 @@ export async function handleCorrelacao(
         `Cruzar grades diferentes por data casa apenas as datas coincidentes — uma série diária e uma mensal ` +
         `coincidem em cerca de 7 datas por ano, os dias 1º que caem em dia útil —, e o coeficiente resultante ` +
         `descreveria esse punhado de pontos, não as séries. Informe \`frequencia\` (mensal, trimestral ou anual) ` +
-        `para harmonizá-las na mesma grade antes de correlacionar, escolhendo a convenção em \`agregacao\`.`
+        `para harmonizá-las na mesma grade antes de correlacionar, escolhendo a convenção em \`agregacao\`.`,
+        "contrato"
       );
     }
 
@@ -1336,7 +1346,8 @@ export async function handleDeflacionar(
     const deflatorInfo = DEFLATORES[chaveIndice];
     if (!deflatorInfo) {
       return erroResult(
-        `Índice de preços desconhecido: "${args.indice}". Aceitos: ${Object.keys(DEFLATORES).join(", ")}.`
+        `Índice de preços desconhecido: "${args.indice}". Aceitos: ${Object.keys(DEFLATORES).join(", ")}.`,
+        "contrato"
       );
     }
 
@@ -1355,12 +1366,13 @@ export async function handleDeflacionar(
     ]);
 
     if (serie.observacoes.length === 0) {
-      return erroResult(`A série ${args.codigo} não retornou dados entre ${inicio} e ${fim}.`);
+      return erroResult(`A série ${args.codigo} não retornou dados entre ${inicio} e ${fim}.`, "nao_encontrado");
     }
     if (indice.observacoes.length === 0) {
       return erroResult(
         `O índice de preços (${chaveIndice.toUpperCase()}, série ${deflatorInfo.codigo}) não retornou dados no período — ` +
-        `sem ele não há como deflacionar.`
+        `sem ele não há como deflacionar.`,
+        "nao_encontrado"
       );
     }
 
@@ -2828,9 +2840,8 @@ async function despachar(
         timeoutMs, maxRetries
       );
     default:
-      return {
-        content: [{ type: "text" as const, text: `Tool não encontrada: ${toolName}` }],
-        isError: true
-      };
+      // Inalcançável pelo servidor: o SDK só despacha nomes registrados. Chegar
+      // aqui é bug nosso (tabela de despacho e definições fora de sincronia).
+      return erroResult(`Tool não encontrada: ${toolName}`, "defeito");
   }
 }

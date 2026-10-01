@@ -159,7 +159,9 @@ export async function handleCambioCotacao(
   maxRetries?: number
 ): Promise<ToolResult> {
   const montada = montarUrlCotacao(args);
-  if ("erro" in montada) return erroResult(montada.erro);
+  // Toda recusa de `montarUrlCotacao` é da combinação de argumentos (data
+  // inválida, `data` com intervalo, janela invertida): culpa de quem chamou.
+  if ("erro" in montada) return erroResult(montada.erro, "contrato");
 
   try {
     const linhas = await consultarOData(montada.url, timeoutMs, maxRetries);
