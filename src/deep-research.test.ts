@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { dispatchTool, TOOL_DEFINITIONS, type ToolResult } from "./tools.js";
 import { _resetCatalogo, _seedCatalogo, CATALOGO_TTL_MS, CKAN_DATASET_BASE } from "./catalog.js";
 import { _resetDeepResearch, DEEP_RESEARCH_LIMIT } from "./deep-research.js";
+import { classeAnexada } from "./call-shape.js";
 
 const OBS = [
   { data: "01/01/2026", valor: "0.50" },
@@ -175,5 +176,16 @@ describe("fetch", () => {
     const r = await call("fetch", { id: "sgs:99999" });
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toMatch(/Falha em `fetch`/);
+    // Medido em 30/09/2026: a exceção virava `new Error(texto)` e a classe
+    // `fonte` de `bcb_serie_metadados` se perdia — a frase dava `outro`.
+    expect(classeAnexada(r)).toBe("fonte");
+  });
+
+  it("id desconhecido é nao_encontrado pelo tipo, mesmo ecoando uma palavra de `contrato`", async () => {
+    seed([]);
+    mockFetch([]);
+    const r = await call("fetch", { id: "invalid" });
+    expect(r.content[0].text).toContain('"invalid"');
+    expect(classeAnexada(r)).toBe("nao_encontrado");
   });
 });
