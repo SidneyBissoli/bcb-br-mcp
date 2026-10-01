@@ -44,6 +44,7 @@ import {
   type SearchReply
 } from "@sbissoli/mcp-search";
 
+import { classeAnexada, classifyThrown } from "./call-shape.js";
 import { CKAN_DATASET_BASE, CKAN_PACKAGE_LIST, nomeDoSlug, obterCatalogo, type SnapshotCatalogo } from "./catalog.js";
 import { provenienciaBcb, resultadoComProveniencia, type Proveniencia } from "./provenance.js";
 import { BCB_SGS_BASE } from "./series.js";
@@ -255,7 +256,11 @@ export function criarDeepResearchTools(deps: DeepResearchDeps): DeepResearchTool
 
       const resultado = await metadados(codigo, timeoutMs, maxRetries);
       if (resultado.isError === true || !resultado.structuredContent) {
-        throw new Error(resultado.content[0]?.text ?? `metadados da série ${codigo} indisponíveis`);
+        // A classe que `bcb_serie_metadados` decidiu pelo TIPO segue na exceção:
+        // o pacote a lê (`error.classe`) em vez de reclassificar a frase.
+        throw Object.assign(new Error(resultado.content[0]?.text ?? `metadados da série ${codigo} indisponíveis`), {
+          classe: classeAnexada(resultado)
+        });
       }
       const { provenance, attribution, ...dados } = resultado.structuredContent;
       const m = dados as unknown as Metadados;
@@ -308,7 +313,8 @@ export function criarDeepResearchTools(deps: DeepResearchDeps): DeepResearchTool
         "Banco Central do Brasil time series (SGS: interest rates, inflation, exchange rates, credit, " +
         "fiscal and external sector — the curated catalog plus the open data portal index)",
       richTools: "the `bcb_*` tools",
-      limit: DEEP_RESEARCH_LIMIT
+      limit: DEEP_RESEARCH_LIMIT,
+      classifyThrown
     });
     const porNome = {} as Record<DeepResearchToolName, RegistroCapturado>;
     for (const name of DEEP_RESEARCH_TOOLS) {

@@ -222,7 +222,10 @@ function ehClasse(x: unknown): x is ErrorClass {
  * que o cliente recebe não muda em nada. O hook (`register.ts`) lê esta chave
  * antes de cair na frase, que continua sendo o caminho do erro sem tipo.
  */
-export const CLASSE_DO_ERRO: unique symbol = Symbol.for("br.com.sidneybissoli.bcb/classe-do-erro");
+// A chave é a da FROTA (era `...bcb/...` até 30/09/2026): o `@sbissoli/mcp-search`
+// 0.8.0 anexa a classe de `search`/`fetch` nesta mesma chave, e `Symbol.for`
+// só devolve o mesmo símbolo para a mesma string.
+export const CLASSE_DO_ERRO: unique symbol = Symbol.for("br.com.sidneybissoli.mcp/classe-do-erro");
 
 /** A classe anexada a um resultado de erro, ou `undefined` quando não há. */
 export function classeAnexada(result: unknown): ErrorClass | undefined {
