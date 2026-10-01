@@ -125,3 +125,103 @@ describe("a classe viaja FORA do fio", () => {
     expect(Object.keys(result).sort()).toEqual(["content", "isError"]);
   });
 });
+
+/**
+ * Recusas e ausências que o handler monta SEM exceção: a classe vem declarada na
+ * chamada de `erroResult` (onda 2, 30/09/2026). Antes, cada uma caía na frase — e
+ * a frase dava `outro` (janela invertida, `data` com intervalo, série que já é o
+ * acumulado, dados insuficientes) ou a classe errada (o Top 5 que a fonte "não
+ * publica" lia `nao_encontrado`, sendo recusa da combinação de parâmetros).
+ */
+describe("recusa local é `contrato` e não toca a rede", () => {
+  function fetchProibido() {
+    const f = vi.fn(async () => {
+      throw new Error("a recusa deveria ter vindo antes da rede");
+    });
+    vi.stubGlobal("fetch", f);
+    return f;
+  }
+
+  it("câmbio: `data` junto com intervalo", async () => {
+    const f = fetchProibido();
+    const { result, erros } = await chamar("bcb_cambio_cotacao", {
+      data: "2025-01-02",
+      dataInicial: "2025-01-01"
+    });
+    expect(JSON.stringify(result.content)).toContain("não os dois");
+    expect(erros.map(e => e.classe)).toEqual(["contrato"]);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("câmbio: janela invertida", async () => {
+    const f = fetchProibido();
+    const { result, erros } = await chamar("bcb_cambio_cotacao", {
+      dataInicial: "2025-03-01",
+      dataFinal: "2025-01-01"
+    });
+    expect(JSON.stringify(result.content)).toContain("A janela está invertida");
+    expect(erros.map(e => e.classe)).toEqual(["contrato"]);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("Focus expectativas: janela invertida", async () => {
+    const f = fetchProibido();
+    const { result, erros } = await chamar("bcb_focus_expectativas", {
+      indicador: "IPCA",
+      horizonte: "anual",
+      referencia: "2026",
+      dataInicial: "2025-03-01",
+      dataFinal: "2025-01-01"
+    });
+    expect(JSON.stringify(result.content)).toContain("A janela está invertida");
+    expect(erros.map(e => e.classe)).toEqual(["contrato"]);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("Focus Selic: janela invertida", async () => {
+    const f = fetchProibido();
+    const { result, erros } = await chamar("bcb_focus_selic", {
+      dataInicial: "2025-03-01",
+      dataFinal: "2025-01-01"
+    });
+    expect(JSON.stringify(result.content)).toContain("A janela está invertida");
+    expect(erros.map(e => e.classe)).toEqual(["contrato"]);
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("variação: a série já é o acumulado em 12 meses (13522)", async () => {
+    const f = fetchProibido();
+    const { result, erros } = await chamar("bcb_variacao", {
+      codigo: 13522,
+      dataInicial: "2025-01-01",
+      dataFinal: "2025-06-30"
+    });
+    expect(JSON.stringify(result.content)).toContain("já é um acumulado");
+    expect(erros.map(e => e.classe)).toEqual(["contrato"]);
+    expect(f).not.toHaveBeenCalled();
+  });
+});
+
+describe("ausência montada pelo handler é `nao_encontrado`", () => {
+  it("variação com menos de dois pontos na janela (a origem respondeu um só)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      new Response(JSON.stringify([{ data: "02/01/2025", valor: "12.25" }]), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    ));
+    const { result, erros } = await chamar("bcb_variacao", JANELA);
+    expect(JSON.stringify(result.content)).toContain("Dados insuficientes para calcular variação");
+    expect(erros.map(e => e.classe)).toEqual(["nao_encontrado"]);
+  });
+});
+
+describe("o que o servidor não alcança também nasce com classe", () => {
+  it("tool fora da tabela de despacho é `defeito` (o SDK só despacha nome registrado)", async () => {
+    const { dispatchTool } = await import("./tools.js");
+    const { classeAnexada } = await import("./call-shape.js");
+    const r = await dispatchTool("bcb_nao_existe", {});
+    expect(r.isError).toBe(true);
+    expect(classeAnexada(r)).toBe("defeito");
+  });
+});

@@ -258,7 +258,8 @@ export async function handleFocusExpectativas(
   if (!recurso) {
     return erroResult(
       `Horizonte inválido: "${args.horizonte}". Use um destes: ${HORIZONTES.join(", ")}. ` +
-        "Para expectativa de Selic por reunião do Copom, use bcb_focus_selic."
+        "Para expectativa de Selic por reunião do Copom, use bcb_focus_selic.",
+      "contrato"
     );
   }
 
@@ -271,32 +272,39 @@ export async function handleFocusExpectativas(
     return erroResult(
       `O horizonte "${args.horizonte}" é rolante (os próximos ${args.horizonte === "inflacao_12m" ? 12 : 24} ` +
         "meses a partir de cada coleta) e não aceita `referencia`. Para expectativa de um mês, trimestre ou ano " +
-        "específico, use horizonte mensal, trimestral ou anual com a `referencia` correspondente."
+        "específico, use horizonte mensal, trimestral ou anual com a `referencia` correspondente.",
+      "contrato"
     );
   }
   if (!rolante && args.referencia === undefined) {
     return erroResult(
       `O horizonte "${args.horizonte}" exige \`referencia\` no formato ${recurso.formatoReferencia}. ` +
-        "Use bcb_focus_referencias para ver as referências disponíveis para o indicador."
+        "Use bcb_focus_referencias para ver as referências disponíveis para o indicador.",
+      "contrato"
     );
   }
   if (!rolante && args.suavizada !== undefined) {
     return erroResult(
       "`suavizada` só existe nos horizontes rolantes (inflacao_12m, inflacao_24m), onde a fonte publica a " +
-        "série suavizada e a não suavizada."
+        "série suavizada e a não suavizada.",
+      "contrato"
     );
   }
 
   if (args.top5 === true && recurso.top5 === null) {
     const comTop5 = HORIZONTES.filter(h => RECURSOS[h].top5 !== null);
+    // Recusa ANTES da rede: é a combinação horizonte + top5 que não existe no
+    // catálogo da fonte (`contrato`), não uma consulta que a origem respondeu
+    // vazia — embora a frase diga "não publica", que a leria `nao_encontrado`.
     return erroResult(
       `A fonte não publica Top 5 para o horizonte "${args.horizonte}". Há Top 5 em: ${comTop5.join(", ")} ` +
-        "(e na Selic, por bcb_focus_selic com top5: true)."
+        "(e na Selic, por bcb_focus_selic com top5: true).",
+      "contrato"
     );
   }
 
   const janela = resolverJanela(args.dataInicial, args.dataFinal);
-  if ("erro" in janela) return erroResult(janela.erro);
+  if ("erro" in janela) return erroResult(janela.erro, "contrato");
 
   // Filtro por construção: sem filtro, a consulta ao Olinda não completa.
   const filtro = [
@@ -379,7 +387,7 @@ export async function handleFocusSelic(
   maxRetries?: number
 ): Promise<ToolResult> {
   const janela = resolverJanela(args.dataInicial, args.dataFinal);
-  if ("erro" in janela) return erroResult(janela.erro);
+  if ("erro" in janela) return erroResult(janela.erro, "contrato");
 
   const filtro = [`Data ge ${odataString(janela.dataInicial)}`, `Data le ${odataString(janela.dataFinal)}`];
   if (args.reuniao !== undefined) filtro.push(`Reuniao eq ${odataString(args.reuniao)}`);
@@ -531,7 +539,7 @@ export async function handleFocusReferencias(
   maxRetries?: number
 ): Promise<ToolResult> {
   if (args.escopo !== undefined && !ESCOPOS.includes(args.escopo)) {
-    return erroResult(`Escopo inválido: "${args.escopo}". Use um destes: ${ESCOPOS.join(", ")}.`);
+    return erroResult(`Escopo inválido: "${args.escopo}". Use um destes: ${ESCOPOS.join(", ")}.`, "contrato");
   }
 
   const escopos = args.escopo !== undefined ? [args.escopo] : ESCOPOS;

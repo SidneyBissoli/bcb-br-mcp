@@ -57,6 +57,7 @@ import {
   RESOURCE_DEFINITIONS,
   PROMPT_DEFINITIONS,
   dispatchTool,
+  erroResult,
   CONFIG,
   type ToolResult
 } from "./tools.js";
@@ -161,10 +162,7 @@ export function registerAll(server: McpServer, options: RegisterOptions = {}): v
           const forma = { params: paramNames(args), classe: classifyThrown(error) };
           record?.("tool_call", tool.name, forma);
           record?.("tool_error", tool.name, forma);
-          return {
-            content: [{ type: "text" as const, text: `Erro ao executar a tool "${tool.name}": ${message}` }],
-            isError: true
-          };
+          return erroResult(`Erro ao executar a tool "${tool.name}": ${message}`, forma.classe);
         }
       }
     );
