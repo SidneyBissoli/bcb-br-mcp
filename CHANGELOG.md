@@ -5,11 +5,25 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.15.2] - 2026-10-02
 
-Telemetria do canal hospedado e uma trava de CI: nenhuma tool, parâmetro, campo
-ou mensagem muda, e a superfície publicada é idêntica à da 1.15.0 — agora isso
-é afirmado por teste, não por disciplina (`surface.lock.json`).
+Bump PATCH, de documentação e empacotamento: a página do pacote no npm exibia o
+README em **português** (`README.pt-BR.md`) no lugar do inglês. O npm empacota
+SEMPRE todo `README*` da raiz, ignorando o campo `files` (a negação
+`!README.pt-BR.md` foi testada e não funciona), e entre os dois o registro
+escolheu o traduzido. Leva junto ao npm a telemetria do canal hospedado e a
+trava de CI que estavam em [Unreleased]: nenhuma tool, parâmetro, campo ou
+mensagem muda, e a superfície publicada é idêntica à da 1.15.0 — agora isso é
+afirmado por teste, não por disciplina (`surface.lock.json`).
+
+### Fixed (empacotamento)
+
+- **O par em português passa a se chamar `LEIA-ME.md`**, fora do padrão
+  `README*`: o tarball leva só o `README.md`. O link do README em inglês e os
+  testes que leem o par (`src/contagem-nos-textos.test.ts`,
+  `src/catalogo-curado.test.ts`) apontam para o nome novo.
+- Teste novo `src/pacote-npm-readme.test.ts`: roda `npm pack --dry-run` e exige
+  exatamente um README no pacote, o `README.md` (falha no layout antigo).
 
 ### Added
 
