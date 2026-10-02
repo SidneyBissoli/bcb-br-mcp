@@ -7,8 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Só telemetria do canal hospedado: nenhuma tool, parâmetro, campo ou mensagem
-muda, e a superfície publicada é idêntica à da 1.15.0.
+Telemetria do canal hospedado e uma trava de CI: nenhuma tool, parâmetro, campo
+ou mensagem muda, e a superfície publicada é idêntica à da 1.15.0 — agora isso
+é afirmado por teste, não por disciplina (`surface.lock.json`).
+
+### Added
+
+- **Impressão digital da superfície: mudou sem subir a versão = build vermelho
+  e deploy recusado.** `surface.lock.json` guarda o sha256 da superfície
+  declarada — `initialize` (instructions, capabilities, identidade sem a
+  versão) + `tools/list` + `resources/list` + `resources/templates/list` +
+  `prompts/list` — e, numa segunda seção, QUAIS MÉTODOS RESPONDEM SEM TOKEN em
+  cada rota MCP, com e sem `API_KEY` (comportamento que nenhuma listagem
+  mostra). Cada seção guarda a versão em que foi travada; divergiu e a versão é
+  a mesma, `src/surface-lock.test.ts` e `worker/tests/surface-lock.test.ts`
+  ficam vermelhos, e `npm run surface:lock` se recusa a regravar. O
+  `deploy-worker.yml` passou a rodar as duas suítes ANTES do wrangler (até aqui
+  só checava tipos) e termina conferindo o endpoint no ar contra a trava
+  (`scripts/surface-lock.mjs --verificar`); o `publish.yml` roda os testes
+  antes do npm. `scripts/replay-surface.mjs` refaz o histórico: cada versão
+  publicada no npm contra a anterior e o ar contra a versão que o `/status`
+  declara (`baselines/replay-*.md`). Proposta de um leitor (dev.to, 3g5m4 e
+  3g607).
 
 ### Fixed
 

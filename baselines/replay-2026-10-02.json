@@ -1,0 +1,1001 @@
+{
+  "gerado": "2026-10-02T12:09:15.950Z",
+  "endpoint": "https://bcb.sidneybissoli.com/mcp",
+  "statusVersion": "1.15.1",
+  "sha256NoAr": "1d31ec423d3614b34c5abe0b222094af6cae031a9327ea1e474975ce8a464eb5",
+  "versoes": [
+    {
+      "versao": "1.0.0",
+      "data": "2026-01-16",
+      "noRegistro": false,
+      "sha256": "430ff674dd62083b08d087533a4a5ff1e7da422c0670be727d571efebaa0742d",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares"
+      ],
+      "resources": [],
+      "prompts": [],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.0.1",
+      "data": "2026-01-16",
+      "noRegistro": true,
+      "sha256": "430ff674dd62083b08d087533a4a5ff1e7da422c0670be727d571efebaa0742d",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares"
+      ],
+      "resources": [],
+      "prompts": [],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.1.0",
+      "data": "2026-01-16",
+      "noRegistro": true,
+      "sha256": "f9fbab58299a21e3c350371852cb1e41feb3c3c65fe6e5593abfddf96c8a89ca",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_comparar",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [],
+      "prompts": [],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.2.0",
+      "data": "2026-03-18",
+      "noRegistro": false,
+      "sha256": "aabb57b88512d4876bcbaa62573dd9cfe423d7cfec64392cc82dc3629114cd16",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_comparar",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.2.1",
+      "data": "2026-03-18",
+      "noRegistro": false,
+      "sha256": "aabb57b88512d4876bcbaa62573dd9cfe423d7cfec64392cc82dc3629114cd16",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_comparar",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.3.0",
+      "data": "2026-06-21",
+      "noRegistro": false,
+      "sha256": "56d7d2da494e383705a2959cee8edddece2b09e8537153c1abad9a4fa9627f5d",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_comparar",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.3.1",
+      "data": "2026-06-21",
+      "noRegistro": false,
+      "sha256": "19cbd219cf8cd5fe3d65553d4a346f781fe5fe33771eaf21fcaac21aeab73b20",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_comparar",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.3.2",
+      "data": "2026-06-21",
+      "noRegistro": true,
+      "sha256": "19cbd219cf8cd5fe3d65553d4a346f781fe5fe33771eaf21fcaac21aeab73b20",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_comparar",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.3.3",
+      "data": "2026-06-22",
+      "noRegistro": true,
+      "sha256": "d4d46a1bf1d757b5b49cddf5e5ada2e74cb7cdd1b9ce7172fcf9a60f6e9f4821",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_comparar",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.3.4",
+      "data": "2026-06-22",
+      "noRegistro": false,
+      "sha256": "d4d46a1bf1d757b5b49cddf5e5ada2e74cb7cdd1b9ce7172fcf9a60f6e9f4821",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_comparar",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.3.5",
+      "data": "2026-06-22",
+      "noRegistro": true,
+      "sha256": "d4d46a1bf1d757b5b49cddf5e5ada2e74cb7cdd1b9ce7172fcf9a60f6e9f4821",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_comparar",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.4.1",
+      "data": "2026-08-11",
+      "noRegistro": true,
+      "sha256": "886233800c1cb28d84d1cd2876ef4df362c4e9b8120aa4338f031c8d6fdfc032",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.5.0",
+      "data": "2026-08-11",
+      "noRegistro": true,
+      "sha256": "99f39ae2ae7ec1af0f296c998c530f290698cd96bef786b57c424e492818bb18",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.6.0",
+      "data": "2026-08-12",
+      "noRegistro": true,
+      "sha256": "ec6230dbd43c81cb3b03dcab5cc4e150bc975ca4488832ae79f8e439ef3eb782",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.6.1",
+      "data": "2026-08-13",
+      "noRegistro": true,
+      "sha256": "ec6230dbd43c81cb3b03dcab5cc4e150bc975ca4488832ae79f8e439ef3eb782",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.7.0",
+      "data": "2026-08-13",
+      "noRegistro": true,
+      "sha256": "f95bc9e708775a77e25037444c782c032fbd615b2f0babdc32bf0a7c7d9e059a",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.8.0",
+      "data": "2026-08-14",
+      "noRegistro": true,
+      "sha256": "e1f1d42946185b816ca4bdac17d26ef915b7d5eb83828b81e7e6bd743da48fd5",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.9.0",
+      "data": "2026-08-15",
+      "noRegistro": true,
+      "sha256": "3a61927fd436265dfa9860a562780c74b8d33542c3e5f57d2bfee8ac2e38e44f",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.9.1",
+      "data": "2026-08-15",
+      "noRegistro": true,
+      "sha256": "2be8a35dcf737e2eab30f6027eaac9ad7d4a044cc7183b9202aaaf4ed6d9d9fc",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.9.2",
+      "data": "2026-08-15",
+      "noRegistro": true,
+      "sha256": "2be8a35dcf737e2eab30f6027eaac9ad7d4a044cc7183b9202aaaf4ed6d9d9fc",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.9.3",
+      "data": "2026-08-28",
+      "noRegistro": true,
+      "sha256": "7be4f7a6b1c019edc65e79176fa42548a24bac7f313b271e1b8c4860e9a7fcc8",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.9.4",
+      "data": "2026-08-29",
+      "noRegistro": true,
+      "sha256": "7be4f7a6b1c019edc65e79176fa42548a24bac7f313b271e1b8c4860e9a7fcc8",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.9.5",
+      "data": "2026-08-29",
+      "noRegistro": true,
+      "sha256": "7be4f7a6b1c019edc65e79176fa42548a24bac7f313b271e1b8c4860e9a7fcc8",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "versao": "1.10.0",
+      "data": "2026-08-30",
+      "noRegistro": true,
+      "sha256": "94f6095aa9a29ec9eb7af0cf05f3873b72604c835ddcd00230ff6a5cebe93522",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "77296178ad1916d49448145c3f17a190ec3eee713667c97b8e71165f5ba2c899"
+    },
+    {
+      "versao": "1.10.1",
+      "data": "2026-08-31",
+      "noRegistro": true,
+      "sha256": "94f6095aa9a29ec9eb7af0cf05f3873b72604c835ddcd00230ff6a5cebe93522",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "77296178ad1916d49448145c3f17a190ec3eee713667c97b8e71165f5ba2c899"
+    },
+    {
+      "versao": "1.11.0",
+      "data": "2026-09-03",
+      "noRegistro": true,
+      "sha256": "b373ed41ac7d218ae8c86aa78d7c4e55fa4a023db30400986f1d4d0c14eee8bb",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao",
+        "fetch",
+        "search"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "77296178ad1916d49448145c3f17a190ec3eee713667c97b8e71165f5ba2c899"
+    },
+    {
+      "versao": "1.12.0",
+      "data": "2026-09-16",
+      "noRegistro": true,
+      "sha256": "65d1bceb2b4a36c7d618142e0d6f410f3d3474d78d56d955feb4d3256f1bec9d",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao",
+        "fetch",
+        "search"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "77296178ad1916d49448145c3f17a190ec3eee713667c97b8e71165f5ba2c899"
+    },
+    {
+      "versao": "1.12.1",
+      "data": "2026-09-16",
+      "noRegistro": true,
+      "sha256": "65d1bceb2b4a36c7d618142e0d6f410f3d3474d78d56d955feb4d3256f1bec9d",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao",
+        "fetch",
+        "search"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "77296178ad1916d49448145c3f17a190ec3eee713667c97b8e71165f5ba2c899"
+    },
+    {
+      "versao": "1.14.1",
+      "data": "2026-09-24",
+      "noRegistro": true,
+      "sha256": "65d1bceb2b4a36c7d618142e0d6f410f3d3474d78d56d955feb4d3256f1bec9d",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao",
+        "fetch",
+        "search"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "77296178ad1916d49448145c3f17a190ec3eee713667c97b8e71165f5ba2c899"
+    },
+    {
+      "versao": "1.14.2",
+      "data": "2026-09-26",
+      "noRegistro": true,
+      "sha256": "65d1bceb2b4a36c7d618142e0d6f410f3d3474d78d56d955feb4d3256f1bec9d",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao",
+        "fetch",
+        "search"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "77296178ad1916d49448145c3f17a190ec3eee713667c97b8e71165f5ba2c899"
+    },
+    {
+      "versao": "1.15.0",
+      "data": "2026-09-27",
+      "noRegistro": true,
+      "sha256": "1d31ec423d3614b34c5abe0b222094af6cae031a9327ea1e474975ce8a464eb5",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao",
+        "fetch",
+        "search"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "77296178ad1916d49448145c3f17a190ec3eee713667c97b8e71165f5ba2c899"
+    },
+    {
+      "versao": "1.15.1",
+      "data": "2026-09-28",
+      "noRegistro": true,
+      "sha256": "1d31ec423d3614b34c5abe0b222094af6cae031a9327ea1e474975ce8a464eb5",
+      "tools": [
+        "bcb_buscar_serie",
+        "bcb_cambio_cotacao",
+        "bcb_cambio_moedas",
+        "bcb_comparar",
+        "bcb_correlacao",
+        "bcb_deflacionar",
+        "bcb_focus_expectativas",
+        "bcb_focus_referencias",
+        "bcb_focus_selic",
+        "bcb_indicadores_atuais",
+        "bcb_serie_metadados",
+        "bcb_serie_ultimos",
+        "bcb_serie_valores",
+        "bcb_series_populares",
+        "bcb_variacao",
+        "fetch",
+        "search"
+      ],
+      "resources": [
+        "bcb://series/categorias",
+        "bcb://series/populares",
+        "bcb://series/principais"
+      ],
+      "prompts": [
+        "comparar_inflacao",
+        "indicadores_atuais",
+        "panorama_economico"
+      ],
+      "instructionsSha256": "77296178ad1916d49448145c3f17a190ec3eee713667c97b8e71165f5ba2c899"
+    }
+  ]
+}

@@ -25,6 +25,7 @@ on:
       - "worker/**"
       - "package.json"
       - "package-lock.json"
+      - "surface.lock.json"
       - ".github/workflows/deploy-worker.yml"
   workflow_dispatch:
 
@@ -65,6 +66,15 @@ jobs:
           npm run typecheck
           npm run build
 
+      # O DEPLOY SE RECUSA A RODAR COM TESTE VERMELHO. Até 02/10/2026 este job
+      # só checava tipos: o push no main publicava mesmo com a suíte quebrada,
+      # porque o ci.yml roda em paralelo e não segura nada. Entre os testes está
+      # a trava da superfície (src/surface-lock.test.ts): superfície mudou sem
+      # subir a versão = vermelho aqui, e o wrangler abaixo não roda.
+      - if: steps.cf.outputs.ok == 'true'
+        name: Testes (raiz) — inclui a trava da superfície declarada
+        run: npm test
+
       - if: steps.cf.outputs.ok == 'true'
         name: Install (worker)
         run: npm ci
@@ -73,6 +83,14 @@ jobs:
       - if: steps.cf.outputs.ok == 'true'
         name: Typecheck (worker)
         run: npm run typecheck
+        working-directory: worker
+
+      # A outra metade da trava: quais métodos respondem sem token
+      # (worker/tests/surface-lock.test.ts) — comportamento que nenhuma
+      # listagem mostra.
+      - if: steps.cf.outputs.ok == 'true'
+        name: Testes (worker) — inclui a trava de quem responde sem token
+        run: npm test
         working-directory: worker
 
       - if: steps.cf.outputs.ok == 'true'
@@ -106,3 +124,11 @@ jobs:
       - if: steps.cf.outputs.ok == 'true'
         name: Smoke em produção
         run: node scripts/smoke-mcp.mjs
+
+      # O que subiu é o que foi travado. Os testes acima provam que o CÓDIGO bate
+      # com o surface.lock.json; isto prova que o ENDPOINT bate — superfície
+      # declarada servida sem credencial e, método a método, quem responde sem
+      # token (produção = API_KEY ausente, acesso aberto).
+      - if: steps.cf.outputs.ok == 'true'
+        name: Superfície no ar = surface.lock.json
+        run: node scripts/surface-lock.mjs --verificar https://bcb.sidneybissoli.com/mcp

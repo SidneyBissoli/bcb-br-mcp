@@ -17,6 +17,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "dump:surface": "node scripts/dump-surface.mjs",
+    "surface:lock": "node scripts/surface-lock.mjs",
     "smoke": "node scripts/smoke-mcp.mjs",
     "manifest:lhm": "node scripts/gen-lhm-manifest.mjs",
     "eval:session:dry": "tsx ../mcp-br-commons/packages/mcp-evals/dist/session/cli.js --server dist/index.js --tasks src/evals/session/tasks.ts --dry",
