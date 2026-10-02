@@ -12,7 +12,7 @@
 [![AllMCPs Verified](https://allmcps.com/api/badge/sidneybissoli-bcb-br-mcp)](https://allmcps.com/mcp/sidneybissoli-bcb-br-mcp)
 [![mcpindex](https://mcpindex.ai/api/v1/badge/io-github-sidneybissoli-bcb-br-mcp)](https://mcpindex.ai/server/io-github-sidneybissoli-bcb-br-mcp)
 
-[Leia em Português](README.pt-BR.md)
+[Leia em Português](LEIA-ME.md)
 
 MCP (Model Context Protocol) server for the **Brazilian Central Bank** (Banco Central do Brasil, **BCB**): **SGS** time series (SGS/BCB), the **Focus** market-expectations survey (served over the **Olinda** OData API) and **PTAX** exchange rates.
 

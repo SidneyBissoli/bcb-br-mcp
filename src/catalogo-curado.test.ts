@@ -195,7 +195,7 @@ describe("o tamanho do catálogo é derivado, não escrito", () => {
     // READMEs apresentam são o total, o recorte `portal` e o recorte `medido`;
     // todos saem do array, nenhum é repetido aqui como literal.
     const esperados = new Set([total, doPortal, total - doPortal]);
-    for (const arquivo of ["README.md", "README.pt-BR.md"]) {
+    for (const arquivo of ["README.md", "LEIA-ME.md"]) {
       const texto = readFileSync(join(raiz, arquivo), "utf8");
       // O lookbehind evita casar o "000" de "18.000 séries" (o tamanho do SGS
       // inteiro, que não é o catálogo).
