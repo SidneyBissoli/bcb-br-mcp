@@ -244,8 +244,9 @@ superfície a subir. `surface.lock.json` guarda duas seções, cada uma com a
 versão em que foi travada e o sha256:
 
 - `declarada` — `initialize` (instructions, capabilities, `serverInfo` sem a
-  versão) + tools + resources + templates + prompts, capturada em memória por
-  `src/surface.ts` (`capturarSuperficie`), conferida por `src/surface-lock.test.ts`;
+  versão) + tools + resources + templates + prompts, capturada em memória
+  (`capturarSuperficie` do `@sbissoli/mcp-surface`), conferida por
+  `src/surface-lock.test.ts`;
 - `semToken` — quais métodos respondem sem credencial nas três rotas MCP
   (`/`, `/mcp`, `/mcp/uso-proprio`), com `API_KEY` ausente (produção) e
   presente, medida na borda por `worker/tests/surface-lock.test.ts`.
@@ -254,9 +255,11 @@ Fluxo de quem muda a superfície: `npm version <nível> --no-git-tag-version` �
 `npm run surface:lock` → commitar o lock junto. O script RECUSA travar
 superfície nova sob a versão antiga; o sha também denuncia edição à mão. O
 `deploy-worker.yml` roda as duas suítes antes do wrangler e, depois do deploy,
-`node scripts/surface-lock.mjs --verificar <endpoint>` prova que o NO AR é o
-travado. `scripts/replay-surface.mjs` refaz o histórico de todas as versões
-publicadas (relatório em `baselines/replay-*.md`). Uma atualização do SDK que
+`npx mcp-surface verificar <endpoint>` prova que o NO AR é o travado, e
+`npx mcp-surface replay --url <endpoint>` refaz o histórico de todas as versões
+publicadas (relatório em `baselines/replay-*.md`). O código mora no pacote
+comum `@sbissoli/mcp-surface` (mcp-br-commons), extraído deste molde; os sete
+servidores usam a mesma regra. Uma atualização do SDK que
 mexa nas capabilities também acende a trava — de propósito: o cliente vê outra
 superfície.
 

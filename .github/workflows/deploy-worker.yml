@@ -131,4 +131,4 @@ jobs:
       # token (produção = API_KEY ausente, acesso aberto).
       - if: steps.cf.outputs.ok == 'true'
         name: Superfície no ar = surface.lock.json
-        run: node scripts/surface-lock.mjs --verificar https://bcb.sidneybissoli.com/mcp
+        run: npx mcp-surface verificar https://bcb.sidneybissoli.com/mcp --tool bcb_series_populares --args '{}'
