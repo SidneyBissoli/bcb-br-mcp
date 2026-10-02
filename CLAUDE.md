@@ -230,7 +230,35 @@ landing page. O contador `legacy_root_post` em `/metrics` mede quem ainda usa.
   ou remover tool quebra aqui na hora, sem rede e sem custo.
 - `src/register.test.ts` — fidelidade registro↔wire pelo cliente v2 sobre
   transporte em memória.
+- `src/surface-lock.test.ts` / `worker/tests/surface-lock.test.ts` — a trava da
+  superfície (próxima seção). Vermelho aqui quase sempre quer dizer "suba a
+  versão e rode `npm run surface:lock`", nunca "regrave a trava".
 - `worker/tests/` — auth, rate limit, agregação de uso, status, superfície.
+
+## Trava da superfície (`surface.lock.json`)
+
+**Mudou a superfície sem subir a versão = build vermelho e deploy recusado.**
+A cópia do MCP Registry só carrega a versão, então ela é a única coisa que um
+cliente consegue comparar com o servidor — e só vale se toda mudança de
+superfície a subir. `surface.lock.json` guarda duas seções, cada uma com a
+versão em que foi travada e o sha256:
+
+- `declarada` — `initialize` (instructions, capabilities, `serverInfo` sem a
+  versão) + tools + resources + templates + prompts, capturada em memória por
+  `src/surface.ts` (`capturarSuperficie`), conferida por `src/surface-lock.test.ts`;
+- `semToken` — quais métodos respondem sem credencial nas três rotas MCP
+  (`/`, `/mcp`, `/mcp/uso-proprio`), com `API_KEY` ausente (produção) e
+  presente, medida na borda por `worker/tests/surface-lock.test.ts`.
+
+Fluxo de quem muda a superfície: `npm version <nível> --no-git-tag-version` →
+`npm run surface:lock` → commitar o lock junto. O script RECUSA travar
+superfície nova sob a versão antiga; o sha também denuncia edição à mão. O
+`deploy-worker.yml` roda as duas suítes antes do wrangler e, depois do deploy,
+`node scripts/surface-lock.mjs --verificar <endpoint>` prova que o NO AR é o
+travado. `scripts/replay-surface.mjs` refaz o histórico de todas as versões
+publicadas (relatório em `baselines/replay-*.md`). Uma atualização do SDK que
+mexa nas capabilities também acende a trava — de propósito: o cliente vê outra
+superfície.
 
 ## Baselines de superfície
 
@@ -239,7 +267,7 @@ Depois de qualquer mudança que possa mexer na superfície:
 
 ```bash
 npm run build && node scripts/dump-surface.mjs --stdio > depois.json
-# baseline vigente: baselines/surface-stdio-1.11.0.json (17 tools) — o smoke deriva a contagem do surface-stdio-<versão>.json mais recente
+# baseline vigente: baselines/surface-stdio-1.15.0.json (17 tools) — o smoke deriva a contagem do surface-stdio-<versão>.json mais recente
 # baseline da fundação: baselines/surface-stdio-after-fundacao.json (8 tools)
 ```
 
@@ -259,9 +287,11 @@ Toda diferença precisa ser deliberada e listada no CHANGELOG.
 - `ci.yml` — pacote (Node 20 e 22: typecheck + testes + build + dump da
   superfície) · worker (build da raiz + typecheck + testes) · npm audit.
 - `deploy-worker.yml` — deploy contínuo em push para `main` nos caminhos do
-  worker, com smoke de produção ao final. Existe porque o deploy manual produziu
+  worker: testes da raiz e do worker ANTES do wrangler (teste vermelho = sem
+  deploy), smoke de produção e conferência do endpoint contra o
+  `surface.lock.json` ao final. Existe porque o deploy manual produziu
   deriva real (npm 1.3.5 × hospedado 1.3.1 por versões).
-- `publish.yml` — npm (com provenance) → MCP Registry (OIDC) → GitHub release.
+- `publish.yml` — testes → npm (com provenance) → MCP Registry (OIDC) → GitHub release.
   Sincroniza `server.json` a partir do `package.json`.
 
 Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.

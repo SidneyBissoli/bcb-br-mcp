@@ -33,6 +33,10 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - run: npm ci
       - run: npm run build
+      # Nada é publicado com teste vermelho — inclusive a trava da superfície
+      # (src/surface-lock.test.ts): superfície mudou sem subir a versão não chega
+      # ao npm nem ao MCP Registry.
+      - run: npm test
       - name: Verify package contents
         run: npm pack --dry-run
 
