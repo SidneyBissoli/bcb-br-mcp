@@ -19,87 +19,65 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import {
+  CABECALHOS_MCP,
+  comHost,
+  conferirSecao,
+  corpoDoPedido,
+  ipDaSonda,
+  medirSemToken,
+  sondaSemToken,
+} from "@sbissoli/mcp-surface";
 import { describe, expect, it } from "vitest";
 
-import { SONDA_SEM_TOKEN, lerCorpoJsonRpc } from "../../dist/surface.js";
-import { conferirSecao } from "../../dist/surface-lock.js";
 import { SELF_ROUTE } from "../src/analytics.js";
 import worker from "../src/index.js";
 import type { Env } from "../src/types.js";
 
 // `.href`: o URL das workers-types não é o do node:url para o compilador.
 const raiz = fileURLToPath(new URL("../../", import.meta.url).href);
+const trava = `${raiz}surface.lock.json`;
 const versao = (JSON.parse(readFileSync(`${raiz}package.json`, "utf8")) as { version: string }).version;
 
-const ctx = { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext;
 const HOST = "bcb.sidneybissoli.com";
+const ctx = { waitUntil: () => {}, passThroughOnException: () => {} } as unknown as ExecutionContext;
+const envs: Record<string, Env> = {
+  apiKeyAusente: {} as Env,
+  apiKeyPresente: { API_KEY: "chave-da-sonda" } as Env,
+};
 
-function comHost(request: Request): Request {
-  const headers = new Headers(request.headers);
-  headers.set("host", HOST);
-  return new Proxy(request, {
-    get(alvo, prop) {
-      if (prop === "headers") return headers;
-      const valor = Reflect.get(alvo, prop, alvo);
-      return typeof valor === "function" ? valor.bind(alvo) : valor;
-    },
-  });
-}
+// Catálogo curado: `tools/call` sem tocar a rede do BCB (a suíte é offline).
+const sonda = sondaSemToken({ name: "bcb_series_populares", arguments: {} });
 
-// Um IP por requisição: a sonda faz dezenas de chamadas e o balde do rate limit
-// (burst 20) responderia 429 no meio — mediria o limitador, não a autenticação.
-let ip = 0;
-
-async function responde(rota: string, env: Env, method: string, params?: unknown): Promise<boolean> {
-  const req = comHost(
-    new Request(`https://${HOST}${rota}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json, text/event-stream",
-        "CF-Connecting-IP": `192.0.2.${++ip % 250}`,
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-    }),
+// Três rotas chegam ao handler MCP: `/mcp`, a rota privada do dono e o
+// `POST /` legado, reescrito para `/mcp` (o README publicou a raiz por versões).
+const medirBorda = () =>
+  medirSemToken(Object.keys(envs), ["POST /", "POST /mcp", `POST ${SELF_ROUTE}`], sonda, (config, rota, pedido) =>
+    worker.fetch(
+      comHost(
+        new Request(`https://${HOST}${rota.slice("POST ".length)}`, {
+          method: "POST",
+          headers: { ...CABECALHOS_MCP, "CF-Connecting-IP": ipDaSonda() },
+          body: corpoDoPedido(pedido),
+        }),
+        HOST,
+      ),
+      envs[config]!,
+      ctx,
+    ),
   );
-  const res = await worker.fetch(req, env, ctx);
-  if (res.status !== 200) return false;
-  return lerCorpoJsonRpc(await res.text())?.result !== undefined;
-}
-
-async function medir(): Promise<Record<string, Record<string, Record<string, boolean>>>> {
-  const configuracoes: Record<string, Env> = {
-    apiKeyAusente: {} as Env,
-    apiKeyPresente: { API_KEY: "chave-da-sonda" } as Env,
-  };
-  const saida: Record<string, Record<string, Record<string, boolean>>> = {};
-  for (const [nome, env] of Object.entries(configuracoes)) {
-    saida[nome] = {};
-    for (const rota of ["/", "/mcp", SELF_ROUTE]) {
-      const porMetodo: Record<string, boolean> = {};
-      for (const { method, params } of SONDA_SEM_TOKEN) porMetodo[method] = await responde(rota, env, method, params);
-      saida[nome][`POST ${rota}`] = porMetodo;
-    }
-  }
-  return saida;
-}
 
 describe("surface.lock.json — quem responde sem token", () => {
   it("bate com a trava, ou a versão subiu junto", async () => {
-    const v = conferirSecao(
-      `${raiz}surface.lock.json`,
-      "semToken",
-      await medir(),
-      versao,
-      process.env.SURFACE_LOCK_ESCREVER === "1",
-    );
+    const m = await medirBorda();
+    // Sanidade ANTES de conferir — e, no modo de escrita, antes de GRAVAR: uma
+    // sonda quebrada (tudo false, ou tudo true) não pode virar trava.
+    const aberta = m["apiKeyAusente"]?.["POST /mcp"];
+    const fechada = m["apiKeyPresente"]?.["POST /mcp"];
+    expect(aberta?.["tools/list"], "sonda quebrada: sem API_KEY, tools/list tem de responder").toBe(true);
+    expect(aberta?.["tools/call"], "sonda quebrada: sem API_KEY, a tool local tem de responder").toBe(true);
+    expect(fechada?.["tools/list"], "sonda quebrada: com API_KEY e sem token, tools/list não pode responder").toBe(false);
+    const v = conferirSecao(trava, "semToken", m, versao);
     expect(v.ok, v.mensagem).toBe(true);
-  }, 30_000);
-
-  it("a sonda distingue as duas configurações (não mede só 200 vazio)", async () => {
-    const m = await medir();
-    expect(m.apiKeyAusente!["POST /mcp"]!["tools/list"]).toBe(true);
-    expect(m.apiKeyAusente!["POST /mcp"]!["tools/call"]).toBe(true);
-    expect(m.apiKeyPresente!["POST /mcp"]!["tools/list"]).toBe(false);
-  }, 30_000);
+  }, 60_000);
 });

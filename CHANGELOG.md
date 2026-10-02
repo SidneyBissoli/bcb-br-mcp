@@ -29,6 +29,11 @@ ou mensagem muda, e a superfície publicada é idêntica à da 1.15.0 — agora 
   publicada no npm contra a anterior e o ar contra a versão que o `/status`
   declara (`baselines/replay-*.md`). Proposta de um leitor (dev.to, 3g5m4 e
   3g607).
+- **A trava passou a morar no pacote comum `@sbissoli/mcp-surface`**, extraído
+  deste molde para os sete servidores (`src/surface.ts`, `src/surface-lock.ts`
+  e os dois scripts saíram; `npm run surface:lock` e o passo final do deploy
+  usam a CLI `mcp-surface`). A normalização é a mesma byte a byte: o
+  `surface.lock.json` travado antes da migração confere sem ser regravado.
 
 ### Fixed
 

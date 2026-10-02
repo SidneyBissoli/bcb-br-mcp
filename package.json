@@ -17,7 +17,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "dump:surface": "node scripts/dump-surface.mjs",
-    "surface:lock": "node scripts/surface-lock.mjs",
+    "surface:lock": "npm run build && mcp-surface travar --cmd \"vitest run src/surface-lock.test.ts\" --cmd \"cd worker && npx vitest run tests/surface-lock.test.ts\"",
     "smoke": "node scripts/smoke-mcp.mjs",
     "manifest:lhm": "node scripts/gen-lhm-manifest.mjs",
     "eval:session:dry": "tsx ../mcp-br-commons/packages/mcp-evals/dist/session/cli.js --server dist/index.js --tasks src/evals/session/tasks.ts --dry",
@@ -79,6 +79,7 @@
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.1.0",
     "@sbissoli/mcp-evals": "^0.2.0",
+    "@sbissoli/mcp-surface": "^0.1.1",
     "@types/node": "^26.6.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
