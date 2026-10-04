@@ -5,6 +5,26 @@ All notable changes to the BCB MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Testes
+
+- **O contrato de saída tem forma de cliente** (ideia de leitor,
+  https://dev.to/arhancanli/comment/3g4i4). `src/output-contract.test.ts` não valida
+  mais contra `TOOL_DEFINITIONS` com um validador escolhido por nós. Agora o servidor de
+  verdade (`createServer`) é interrogado pelo `Client` do SDK, que faz `tools/list` e
+  `tools/call` e reprova o resultado contra o schema **listado**, como a sessão do
+  usuário reprovaria. Aqui isso pesa mais que nos irmãos: a validação de saída do
+  servidor é permissiva de propósito, então só o cliente pega um schema desonesto.
+  Quem faz o circuito é o `@sbissoli/mcp-surface/cliente` 0.2.0, comum aos sete
+  servidores.
+- Entram controles negativos (resultado quebrado no fio tem de reprovar) e uma
+  asserção de cobertura (toda tool publicada com ao menos um caso). Para provar que o
+  portão pode falhar, anunciar `tipoBoletim` só como `string` faz o próprio `Client`
+  recusar a cotação em USD.
+
+Sem mudança de superfície nem de versão: só testes e dependência de desenvolvimento.
+
 ## [1.15.2] - 2026-10-02
 
 Bump PATCH, de documentação e empacotamento: a página do pacote no npm exibia o

@@ -14,17 +14,36 @@
  * cinco tools de D3 nasceram com nove violações, todas invisíveis para os testes
  * comuns e para os gates do SDK.
  *
- * Este teste usa o MESMO validador que o servidor aplica na entrada
- * (`CfWorkerJsonSchemaValidator`, o que roda nos dois runtimes) e cobre de
- * propósito os caminhos que produzem nulo: parâmetro opcional ausente, recurso
- * que não publica um campo, e resposta vazia. Rede nunca é tocada.
+ * Desde 04/10/2026 o teste tem FORMA DE CLIENTE (ideia de leitor,
+ * https://dev.to/arhancanli/comment/3g4i4): o servidor de verdade
+ * (`createServer`) é interrogado pelo `Client` do SDK, que faz `tools/list` e
+ * `tools/call` e reprova o resultado contra o schema LISTADO — não contra
+ * `TOOL_DEFINITIONS`, e sem validador escolhido por nós. O teste falha como a
+ * sessão do usuário falharia. O circuito é o `@sbissoli/mcp-surface/cliente`,
+ * comum aos sete servidores; ele passa cada mensagem por JSON, como a rede.
+ *
+ * Os casos cobrem de propósito os caminhos que produzem nulo: parâmetro
+ * opcional ausente, recurso que não publica um campo, e resposta vazia. Rede
+ * nunca é tocada.
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/server/validators/cf-worker";
-import { TOOL_DEFINITIONS, dispatchTool } from "./tools.js";
+import type { Client } from "@modelcontextprotocol/client";
+import { chamarComoCliente, conectarComoCliente, controlesNegativos } from "@sbissoli/mcp-surface/cliente";
+import { createServer } from "./register.js";
+import { TOOL_DEFINITIONS } from "./tools.js";
 
-const validador = new CfWorkerJsonSchemaValidator();
+/** Uma chamada no percurso do cliente, numa conexão própria. */
+async function chamar(nome: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const client: Client = await conectarComoCliente(createServer("test"));
+  try {
+    const r = await chamarComoCliente(client, nome, args);
+    expect(r.structuredContent, `${nome} sem structuredContent`).toBeDefined();
+    return r.structuredContent as Record<string, unknown>;
+  } finally {
+    await client.close();
+  }
+}
 
 /** Payloads por URL, imitando o formato de cada uma das três APIs. */
 function mockFontes(): void {
@@ -192,18 +211,13 @@ const CASOS: Array<[string, string, Record<string, unknown>]> = [
 describe("structuredContent obedece ao outputSchema anunciado", () => {
   it.each(CASOS)("%s — %s", async (nome, _caminho, args) => {
     mockFontes();
+    await chamar(nome, args);
+  });
 
-    const definicao = TOOL_DEFINITIONS.find(t => t.name === nome);
-    expect(definicao?.outputSchema, `tool ${nome} sem outputSchema`).toBeDefined();
-
-    const resultado = await dispatchTool(nome, args, 5000, 1);
-    expect(resultado.isError, `${nome} devolveu erro: ${resultado.content?.[0]?.text}`).toBeUndefined();
-    expect(resultado.structuredContent).toBeDefined();
-
-    const validar = validador.getValidator(definicao!.outputSchema as never);
-    const veredicto = validar(resultado.structuredContent);
-
-    expect(veredicto.valid, `${nome}: ${veredicto.errorMessage}`).toBe(true);
+  it("toda tool publicada tem ao menos um caso", () => {
+    const cobertas = new Set(CASOS.map(([nome]) => nome));
+    const semCaso = TOOL_DEFINITIONS.map(t => t.name).filter(n => !cobertas.has(n));
+    expect(semCaso, `tools sem caso de contrato: ${semCaso.join(", ")}`).toEqual([]);
   });
 
   it("toda tool declara outputSchema — a regra dura do SDK v2 vale para as 17", () => {
@@ -253,17 +267,7 @@ function mockRotas(rotas: Array<[string, unknown]>): void {
   }) as unknown as typeof fetch;
 }
 
-async function validar(nome: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const definicao = TOOL_DEFINITIONS.find(t => t.name === nome);
-  const resultado = await dispatchTool(nome, args, 5000, 1);
-
-  expect(resultado.isError, `${nome} devolveu erro: ${resultado.content?.[0]?.text}`).toBeUndefined();
-
-  const veredicto = validador.getValidator(definicao!.outputSchema as never)(resultado.structuredContent);
-  expect(veredicto.valid, `${nome}: ${veredicto.errorMessage}`).toBe(true);
-
-  return resultado.structuredContent as Record<string, unknown>;
-}
+const validar = chamar;
 
 describe("campos acrescentados pelo D1/D2 obedecem ao schema", () => {
   it("bcb_serie_valores harmonizada: itens de `dados` com `observacoes` + bloco `harmonizacao`", async () => {
@@ -482,5 +486,31 @@ describe("campos da correlação e da deflação obedecem ao schema", () => {
 
     expect((out.base as Record<string, unknown>).mes).toBe("12/2024");
     expect((out.avisos as string[]).some(a => a.includes("1999-01"))).toBe(true);
+  });
+});
+
+// ==================== controle negativo, no percurso do cliente ====================
+//
+// Um teste que não pode falhar não vale nada. Aqui o servidor responde certo e o
+// resultado é quebrado NO FIO, entre servidor e cliente — como chegaria de um
+// servidor com defeito. Cada quebra tem de fazer a chamada falhar. As quebras
+// saem do schema listado (structuredContent ausente, cada obrigatório ausente,
+// tipo trocado); a do campo a mais é deste servidor, que sela todo objeto
+// (`sealDeep`). O último veredito é a armadilha: sem `tools/list` antes, o
+// Client não valida — se o SDK mudar isso, o veredito acusa.
+
+describe("o validador do cliente reprova resultado quebrado no fio", () => {
+  it("bcb_serie_ultimos: toda quebra reprova, e a armadilha se confirma", async () => {
+    mockFontes();
+    const vs = await controlesNegativos(() => createServer("test"), "bcb_serie_ultimos", { codigo: 432, quantidade: 3 }, [
+      {
+        descricao: "campo que o schema selado proíbe (intruso)",
+        adulterar: r => {
+          if (r.structuredContent) r.structuredContent.intruso = 1;
+        }
+      }
+    ]);
+    expect(vs.length).toBeGreaterThanOrEqual(4);
+    for (const v of vs) expect(v.obtido, `${v.descricao}: ${v.mensagem ?? ""}`).toBe(v.esperado);
   });
 });
