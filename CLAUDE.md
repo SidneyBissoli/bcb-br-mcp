@@ -211,7 +211,8 @@ landing page. O contador `legacy_root_post` em `/metrics` mede quem ainda usa.
   grade decidida pela periodicidade medida e não pelo rótulo do catálogo, a
   diferença entre correlacionar nível e movimento, e a comparação nominal × real.
 - `src/output-contract.test.ts` — valida o `structuredContent` de TODA tool contra
-  o `outputSchema` anunciado, com o mesmo validador que o servidor usa na entrada.
+  o `outputSchema` LISTADO, pelo `Client` do SDK (`@sbissoli/mcp-surface/cliente`:
+  `tools/list` antes do `tools/call`, JSON no fio, controles negativos).
   Existe porque a validação de saída em runtime é permissiva de propósito
   (`register.ts`), então nada mais pega um schema desonesto — e a spec do MCP exige
   a conformidade: cliente que valida (o Inspector valida) rejeita a resposta
