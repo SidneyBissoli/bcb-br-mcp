@@ -7,12 +7,13 @@
  * MCP SDK v2 + agents 0.20+).
  */
 
+import { autenticacaoDaTrava, capturarCard, cardEmCache } from "@sbissoli/mcp-surface/card";
 import { createMcpHandler } from "agents/mcp/server";
 
+import trava from "../../surface.lock.json";
 import { SELF_ROUTE, recordProtocolMethods, tagRequest, withAnalytics, sessionFromRequest, withSessionHeader } from "./analytics.js";
 import { desfechosDoCorpo, teeResposta, type Desfecho } from "./envelope.js";
 import { checkAuth } from "./auth.js";
-import { getServerCard } from "./card.js";
 import { ICON_PNG_BASE64 } from "./icon.js";
 import { SERVER_CONFIG } from "./config.js";
 import { landingResponse } from "./landing.js";
@@ -27,6 +28,14 @@ import { createUsageRecorder, usageSnapshot, UsageTracker } from "./usage.js";
 
 // Decodificado uma vez por isolate, nao por request.
 const ICON_PNG = Uint8Array.from(atob(ICON_PNG_BASE64), (c) => c.charCodeAt(0));
+
+// Server card gerado pelo pacote comum (@sbissoli/mcp-surface/card) a partir do
+// initialize + listas REAIS da mesma fábrica do /mcp; `authentication` vem da
+// seção `semToken` da trava (o que a borda mediu). Montado uma vez por isolate;
+// falha não fica em cache.
+const serverCard = cardEmCache(() =>
+  capturarCard(buildServer(), { authentication: autenticacaoDaTrava(trava) }),
+);
 
 // O runtime instancia o Durable Object a partir do export do entrypoint.
 export { UsageTracker };
@@ -87,7 +96,7 @@ export default {
     // MCP server card para scanners de registry que o leem em vez do /mcp.
     if (url.pathname === "/.well-known/mcp/server-card.json") {
       try {
-        return new Response(await getServerCard(), {
+        return new Response(await serverCard(), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });

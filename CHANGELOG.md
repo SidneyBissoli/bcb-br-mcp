@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (hospedado)
+
+- **O server card (`/.well-known/mcp/server-card.json`) agora sai do gerador comum
+  `@sbissoli/mcp-surface/card`** (0.3.0), no lugar do `worker/src/card.ts` copiado
+  entre os servidores. Ganha `serverInfo: { name, version }` (a forma documentada pela
+  Smithery; antes `name`/`version` iam soltos na raiz) e `authentication`, derivado da
+  seção `semToken` do `surface.lock.json` (`required: false` — o que a borda mediu).
+  `worker/tests/server-card.test.ts` prova que o card normalizado tem o mesmo sha256
+  da seção `declarada` da trava.
+
 ### Testes
 
 - **O contrato de saída tem forma de cliente** (ideia de leitor,
@@ -23,7 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   portão pode falhar, anunciar `tipoBoletim` só como `string` faz o próprio `Client`
   recusar a cotação em USD.
 
-Sem mudança de superfície nem de versão: só testes e dependência de desenvolvimento.
+Sem mudança de superfície MCP nem de versão: testes, dependência de desenvolvimento e o
+server card do canal hospedado.
 
 ## [1.15.2] - 2026-10-02
 
