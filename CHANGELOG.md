@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0] - 2026-10-05
+
+Bump MINOR: a superfície publicada muda — o `outputSchema` das 17 tools passa a
+declarar a chave opcional `field_sources` no bloco de proveniência (contrato
+v1.2). **Nenhuma resposta muda**: este é o tempo 1 do rollout em dois tempos do
+contrato, e o servidor continua EMITINDO a 1.1, byte a byte o que emitia. Ligar a
+1.2 é o tempo 2. Leva junto ao npm o server card e o contrato de saída com forma de
+cliente, que estavam em [Unreleased].
+
+### Changed
+
+- **`@sbissoli/mcp-provenance` 0.2.0 → 0.3.0 (contrato v1.2), no tempo 1.** A 0.3.0
+  emite a versão 1.1 por padrão (`contractVersion` não é passado ao contexto) e
+  só passa a ACEITAR a 1.2 nos schemas publicados: `field_sources` declarada e não
+  exigida no bloco concise, e `served_from_cache` declarada e não exigida em cada
+  item. Como o schema do bloco é importado do pacote (`CONCISE_BLOCK_JSON_SCHEMA`),
+  a mudança chega às 17 tools sozinha; o que muda no `surface.lock.json` e em
+  `baselines/surface-stdio-1.16.0.json` é só isso, mais as descrições do bloco e
+  do `retrieved_at` (que agora citam a v1.2 e a regra do instante mais antigo). O
+  motivo de separar em dois tempos: o conector também guarda o `outputSchema` e
+  recusa chave desconhecida, então o schema que aceita a chave nova tem de chegar
+  antes da primeira resposta que a carrega. Os `field_sources` do bcb continuam
+  calculados como antes.
+- **`@sbissoli/mcp-upstream` 0.2.0 → 0.4.0.** Só aditivo para o bcb: a 0.3.0
+  acrescentou `retries`/`backoff`/`retryOn` por pedido e `cause` em
+  `RetryContext`; a 0.4.0 acrescentou `call.fieldSource(...)` e passou a aceitar
+  `@sbissoli/mcp-provenance` `^0.2.0 || ^0.3.0`, o que mantém uma cópia ÚNICA da
+  proveniência na árvore (`npm ls`: a do upstream sai `deduped`). Nenhum dos
+  recursos novos é usado ainda; a política de rede do servidor não muda.
+
+### Fixed (ferramental)
+
+- **`scripts/dump-surface.mjs --stdio` corrompia caractere acentuado na emenda
+  de dois pedaços do stdout.** Decodificava cada pedaço com `chunk.toString()`,
+  e um caractere UTF-8 de dois bytes partido entre pedaços virava dois U+FFFD.
+  Latente até aqui: com o schema da v1.2 a linha do `tools/list` cresceu e um "ç"
+  da descrição de `metodo` em `bcb_comparar` caiu na emenda, corrompendo o
+  baseline novo e o `lhm.plugin.json` (gerado a partir do dump).
+  `src/lhm-manifest.test.ts` pegou. Agora o stdout é decodificado como fluxo
+  (`setEncoding("utf8")`). A superfície servida nunca foi afetada; os baselines
+  já commitados foram conferidos e não têm U+FFFD.
+
 ### Changed (hospedado)
 
 - **O server card (`/.well-known/mcp/server-card.json`) agora sai do gerador comum
@@ -33,8 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   portão pode falhar, anunciar `tipoBoletim` só como `string` faz o próprio `Client`
   recusar a cotação em USD.
 
-Sem mudança de superfície MCP nem de versão: testes, dependência de desenvolvimento e o
-server card do canal hospedado.
+Estes dois itens não mexem na superfície MCP: são testes, dependência de
+desenvolvimento e o server card do canal hospedado.
 
 ## [1.15.2] - 2026-10-02
 

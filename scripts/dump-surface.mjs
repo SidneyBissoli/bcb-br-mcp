@@ -62,8 +62,14 @@ async function captureStdio(entry) {
   let buffer = "";
   const pending = new Map();
 
+  // Decode as a stream: `chunk.toString()` per chunk splits a multibyte UTF-8
+  // character that straddles two chunks into two U+FFFD. Measured 05/10/2026:
+  // with the v1.2 provenance schema the tools/list line grew and a "ç" of
+  // bcb_comparar landed on a chunk boundary, corrupting the baseline and the
+  // LobeHub manifest (src/lhm-manifest.test.ts caught it).
+  child.stdout.setEncoding("utf8");
   child.stdout.on("data", chunk => {
-    buffer += chunk.toString();
+    buffer += chunk;
     let nl;
     while ((nl = buffer.indexOf("\n")) >= 0) {
       const line = buffer.slice(0, nl).trim();
