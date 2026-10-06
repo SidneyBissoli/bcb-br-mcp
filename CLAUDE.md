@@ -271,7 +271,7 @@ Depois de qualquer mudança que possa mexer na superfície:
 
 ```bash
 npm run build && node scripts/dump-surface.mjs --stdio > depois.json
-# baseline vigente: baselines/surface-stdio-1.15.0.json (17 tools) — o smoke deriva a contagem do surface-stdio-<versão>.json mais recente
+# baseline vigente: baselines/surface-stdio-1.16.0.json (17 tools) — o smoke deriva a contagem do surface-stdio-<versão>.json mais recente
 # baseline da fundação: baselines/surface-stdio-after-fundacao.json (8 tools)
 ```
 
