@@ -3,7 +3,7 @@
   "name": "Banco Central do Brasil - MCP",
   "version": "1.16.1",
   "description": "MCP server for the Brazilian Central Bank (Banco Central do Brasil, BCB): SGS time series (Selic, IPCA, exchange rates, GDP and other verified indicators), Focus market expectations (Olinda API) and PTAX exchange rates, with statistics (variation, correlation, deflation) and a provenance block on every response.",
-  "author": "Sidney Bissoli",
+  "author": "Sidney da Silva Pereira Bissoli",
   "authorUrl": "https://github.com/SidneyBissoli",
   "homepage": "https://github.com/SidneyBissoli/bcb-br-mcp",
   "icon": "🏦",
