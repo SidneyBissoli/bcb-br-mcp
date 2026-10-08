@@ -8,20 +8,22 @@
     {
       "src": "https://bcb.sidneybissoli.com/icon.png",
       "mimeType": "image/png",
-      "sizes": ["256x256"]
+      "sizes": [
+        "256x256"
+      ]
     }
   ],
   "repository": {
     "url": "https://github.com/SidneyBissoli/bcb-br-mcp",
     "source": "github"
   },
-  "version": "1.16.1",
+  "version": "1.16.2",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "bcb-br-mcp",
-      "version": "1.16.1",
+      "version": "1.16.2",
       "transport": {
         "type": "stdio"
       }
@@ -32,5 +34,34 @@
       "type": "streamable-http",
       "url": "https://bcb.sidneybissoli.com/mcp"
     }
-  ]
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "io.github.sidneybissoli/mcp-surface": {
+        "form": "mcp-surface/1",
+        "spec": "https://github.com/SidneyBissoli/mcp-br-commons/blob/main/packages/mcp-surface/SPEC.md",
+        "endpoint": "https://bcb.sidneybissoli.com/mcp",
+        "declared": {
+          "sha256": "ff0973f9157351f93a3db933c7aa758fa359532dd266034b17d3977d39d161f6",
+          "lockedAt": "1.16.0"
+        },
+        "anonymous": {
+          "sha256": "ade1bd429bdfc63453a924614520010bb782ffd8d24fdd6483aa17d5b36b61a4",
+          "answers": {
+            "initialize": true,
+            "ping": true,
+            "tools/list": true,
+            "resources/list": true,
+            "resources/templates/list": true,
+            "prompts/list": true,
+            "tools/call": true
+          },
+          "call": {
+            "name": "bcb_series_populares",
+            "arguments": {}
+          }
+        }
+      }
+    }
+  }
 }

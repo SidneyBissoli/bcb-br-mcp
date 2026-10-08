@@ -518,6 +518,20 @@ Dois detalhes fáceis de errar, e que aqui estão tratados:
 
 ## Desenvolvimento
 
+### Impressão digital da superfície, conferível pelo registro
+
+Cada release publica, na sua entrada do [MCP Registry](https://registry.modelcontextprotocol.io),
+o sha256 da superfície que esta versão serve (`initialize`, tools, resources, prompts) e quais
+métodos respondem sem credencial. Mudar a superfície sem subir a versão reprova o build; a
+impressão digital no registro deixa o cliente conferir o mesmo do lado dele. Forma canônica e
+procedimento: [SPEC.md do `@sbissoli/mcp-surface`](https://github.com/SidneyBissoli/mcp-br-commons/blob/main/packages/mcp-surface/SPEC.md)
+(em inglês). Para conferir por conta própria (Node 18+, sem dependência):
+
+```sh
+curl -sO https://raw.githubusercontent.com/SidneyBissoli/mcp-br-commons/main/packages/mcp-surface/exemplos/verify.mjs
+node verify.mjs io.github.SidneyBissoli/bcb-br-mcp
+```
+
 ### Requisitos
 
 - Node.js >= 18.0.0
