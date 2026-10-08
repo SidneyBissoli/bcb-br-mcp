@@ -111,8 +111,16 @@ sem `additionalProperties`; resources publicados com nomes diferentes;
 descrições de tool 12× menores em produção). A medição está em
 `baselines/README.md` — leia antes de mexer na superfície.
 
-**Proveniência (contrato v1.1 do portfólio, desde o D4; `retrieval` desde a
-1.15.0).** Toda resposta de sucesso carrega `provenance` + `attribution` em
+**Proveniência (contrato do portfólio, desde o D4; `retrieval` desde a
+1.15.0).** A versão EMITIDA é a do `contractVersion` do contexto em
+`src/provenance.ts` (leia `provenanceContext.contractVersion`, nunca escreva o
+número em texto); o schema importado do pacote aceita as versões que a lib
+conhece, e cada subida segue o rollout em dois tempos do contrato (§8 do
+`contrato-proveniencia-v1.md`). Com `field_sources` no fio, o `retrieved_at` do
+topo é o mais antigo entre as sub-fontes por construção (`provenienciaBcb`), e
+cada sub-fonte lê o próprio instante do coletor pelo filtro dela. `revision` é
+fixa por procedência (`FONTES_BCB[*].revisao`: `current` em todas).
+Toda resposta de sucesso carrega `provenance` + `attribution` em
 `structuredContent`, com espelho em `_meta` sob `br.com.sidneybissoli.bcb/*`.
 Três coisas aqui não são iguais às dos servidores irmãos, e cada uma tem um
 fato por trás (medições em `bcb/docs/07`):
@@ -136,7 +144,7 @@ fato por trás (medições em `bcb/docs/07`):
   afirmar uma extração que não aconteceu. Regra de agregação: instante mais
   ANTIGO entre os acessos; `served_from_cache` só quando TUDO veio de cache. A
   serialização do contrato trunca no segundo.
-- **`retrieval` é medição REAL, nunca inventada** (v1.1): o mesmo coletor conta
+- **`retrieval` é medição REAL, nunca inventada**: o mesmo coletor conta
   idas, tentativas e anomalias da chamada — TODA tentativa falha conta, superada
   ou final (o 406 que dispara o fatiamento também) — e a lib deriva `unstable`.
   Sai `null` onde não há o que medir: catálogo curado (dado do servidor),
@@ -371,6 +379,10 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   declarado no contrato. A 13522 (acumulado em 12 meses) é recusada: nem nível
   nem encadeamento têm sentido nela. `bcb_comparar` usa a mesma decisão,
   encadeando sobre as observações ORIGINAIS, antes de qualquer harmonização.
+  O RÓTULO publicado é outra coisa: `naturezaDaSerie` (campo `natureza` do bloco
+  `serie`, declarado no schema desde a 1.18.0 e emitido só quando
+  `EMITIR_NATUREZA` for ligada) dá `null` fora do catálogo e onde o catálogo
+  não afirma o que a série mede — a conta supõe nível, o rótulo não.
 - **A poupança (25, 195) publica UMA TAXA MENSAL POR DIA.** Medido em
   15/08/2026: janeiro de 2024 tem 28 observações, cada uma o rendimento do
   depósito daquele dia até o aniversário seguinte (`data` → `dataFim`, 30 dias).

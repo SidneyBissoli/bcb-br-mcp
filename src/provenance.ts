@@ -1,5 +1,5 @@
 /**
- * Bloco de proveniência (contrato v1.1 do portfólio) — adaptador pt-BR sobre
+ * Bloco de proveniência (contrato do portfólio) — adaptador pt-BR sobre
  * `@sbissoli/mcp-provenance`. O modelo canônico, as projeções
  * `concise`/`detailed`, o determinismo da serialização, o fuso e o texto do
  * rodapé moram no pacote; este módulo o amarra ao servidor do BCB:
@@ -47,7 +47,8 @@ import {
   createProvenanceContext,
   renderConcise,
   type CanonicalProvenance,
-  type ConciseBlock
+  type ConciseBlock,
+  type Revision
 } from "@sbissoli/mcp-provenance";
 import { currentCall } from "@sbissoli/mcp-upstream/als";
 import {
@@ -57,12 +58,23 @@ import {
   type ToolResult
 } from "./shared.js";
 
-/** Contexto único do servidor: namespace de `_meta`, idioma, fuso e modo. */
+/**
+ * Contexto único do servidor: namespace de `_meta`, idioma, fuso, modo e a
+ * versão do contrato que o servidor EMITE.
+ *
+ * `contractVersion: "1.2"` desde a 1.18.0 (tempo 2 da 1.2): o `field_sources`
+ * passa a sair no `concise` das respostas que fundem sub-fontes, e a lib cobra
+ * que o `retrieved_at` do topo seja o mais antigo entre elas (`provenienciaBcb`
+ * o deriva assim, por construção). A 1.3 já é ACEITA pelo schema importado
+ * (tempo 1 da 1.3); ligá-la é a sessão seguinte. Quem precisar mostrar a versão
+ * lê `provenanceContext.contractVersion`, nunca um literal.
+ */
 export const provenanceContext = createProvenanceContext({
   metaNamespace: "br.com.sidneybissoli.bcb",
   locale: "pt-BR",
   timezone: { offset: "-03:00", label: "horário de Brasília" },
-  defaultMode: "concise"
+  defaultMode: "concise",
+  contractVersion: "1.2"
 });
 
 /** Envelope canônico v1.0 (pós-validação). */
@@ -125,7 +137,26 @@ interface FonteBcb {
   citation: (data: string, detalhe?: string) => string;
   /** Prefixo de URL que identifica os acessos desta fonte no coletor. */
   prefixoUrl: string | null;
+  /**
+   * Situação de revisão do dado (contrato v1.3), fixa por procedência. Vai ao
+   * bloco canônico sempre; no fio só sai quando o servidor emitir a 1.3.
+   */
+  revisao: Revision;
 }
+
+/**
+ * Revisão das fontes do BCB — `current` em todas (decisão do decisor, 08/10/2026):
+ * o que sai é a versão vigente no instante da extração, e a fonte pode revisá-la
+ * depois. `final` exigiria prova da fonte, valor a valor, e nenhuma das APIs a dá.
+ * A nota do SGS é a versão curta do que as `instructions` já dizem
+ * (`identity.ts`); as demais fontes não têm texto publicado sobre revisão, e a
+ * nota fica `null` em vez de inventar uma afirmação sobre elas.
+ */
+export const REVISAO_SGS: Revision = {
+  status: "current",
+  note: "O BCB revisa séries como PIB e IBC-Br, e o SGS não guarda a primeira divulgação."
+};
+export const REVISAO_VIGENTE: Revision = { status: "current", note: null };
 
 /**
  * Registro de fontes — uma entrada por PROCEDÊNCIA (ver o cabeçalho).
@@ -142,7 +173,8 @@ export const FONTES_BCB = {
     citation: (data, detalhe) =>
       `Fonte: Banco Central do Brasil — SGS${detalhe ? `, ${detalhe}` : ""}. ` +
       `Dados sob ODbL v1.0. Extraído em ${data}.`,
-    prefixoUrl: "https://api.bcb.gov.br"
+    prefixoUrl: "https://api.bcb.gov.br",
+    revisao: REVISAO_SGS
   },
   FOCUS: {
     name: "Banco Central do Brasil — Expectativas de Mercado (Focus), via Olinda OData",
@@ -154,7 +186,8 @@ export const FONTES_BCB = {
     citation: (data, detalhe) =>
       `Fonte: Banco Central do Brasil — Expectativas de Mercado (Focus)${detalhe ? `, ${detalhe}` : ""}. ` +
       `Dados sob ODbL v1.0. Extraído em ${data}.`,
-    prefixoUrl: "https://olinda.bcb.gov.br/olinda/servico/Expectativas"
+    prefixoUrl: "https://olinda.bcb.gov.br/olinda/servico/Expectativas",
+    revisao: REVISAO_VIGENTE
   },
   PTAX: {
     name: "Banco Central do Brasil — PTAX / Cotações e boletins de câmbio, via Olinda OData",
@@ -166,7 +199,8 @@ export const FONTES_BCB = {
     citation: (data, detalhe) =>
       `Fonte: Banco Central do Brasil — PTAX${detalhe ? `, ${detalhe}` : ""}. ` +
       `Dados sob ODbL v1.0. Extraído em ${data}.`,
-    prefixoUrl: "https://olinda.bcb.gov.br/olinda/servico/PTAX"
+    prefixoUrl: "https://olinda.bcb.gov.br/olinda/servico/PTAX",
+    revisao: REVISAO_VIGENTE
   },
   PARIDADE_REFINITIV: {
     name: "Paridades não-USD do boletim do BCB — apuradas por agência de informação (Refinitiv)",
@@ -178,7 +212,8 @@ export const FONTES_BCB = {
     citation: data =>
       "Fonte: paridade obtida junto a agência de informação (Refinitiv) e redistribuída pelo " +
       `Banco Central do Brasil no boletim de câmbio, sob ODbL v1.0. Extraído em ${data}.`,
-    prefixoUrl: "https://olinda.bcb.gov.br/olinda/servico/PTAX"
+    prefixoUrl: "https://olinda.bcb.gov.br/olinda/servico/PTAX",
+    revisao: REVISAO_VIGENTE
   },
   PORTAL: {
     name: "Banco Central do Brasil — Portal de Dados Abertos (índice CKAN)",
@@ -190,7 +225,8 @@ export const FONTES_BCB = {
     citation: (data, detalhe) =>
       `Fonte: Banco Central do Brasil — Portal de Dados Abertos${detalhe ? `, ${detalhe}` : ""}. ` +
       `Só metadados (código e nome), sob ODbL v1.0. Obtido em ${data}.`,
-    prefixoUrl: "https://dadosabertos.bcb.gov.br"
+    prefixoUrl: "https://dadosabertos.bcb.gov.br",
+    revisao: REVISAO_VIGENTE
   },
   CATALOGO_CURADO: {
     // Sem contagem no nome de propósito: número fixo aqui fossiliza (o "139"
@@ -210,7 +246,8 @@ export const FONTES_BCB = {
     citation: data =>
       "Fonte: bcb-br-mcp — catálogo curado do servidor, verificado série a série contra a " +
       `origem; nomes transcritos do Portal de Dados Abertos do BCB (ODbL v1.0). Consultado em ${data}.`,
-    prefixoUrl: null
+    prefixoUrl: null,
+    revisao: REVISAO_VIGENTE
   }
 } satisfies Record<string, FonteBcb>;
 
@@ -255,6 +292,12 @@ export interface OpcoesProveniencia {
     source_url: string;
     dataset_id?: string | null;
     data_vintage?: string | null;
+    /**
+     * Quais acessos do coletor pertencem a esta sub-fonte. Padrão: URL igual a
+     * `source_url`. O SGS precisa de filtro próprio: a URL canônica da série não
+     * é a que foi buscada quando a janela é fatiada ou vem de `ultimos/N`.
+     */
+    filtro?: (url: string) => boolean;
   }>;
 }
 
@@ -279,8 +322,37 @@ export function provenienciaBcb(opts: OpcoesProveniencia): Proveniencia {
   const prefixo = fonte.prefixoUrl;
   const call = currentCall();
   const daFonte = prefixo ? (url: string) => url.startsWith(prefixo) : () => false;
+  const instanteDaFonte = call ? call.retrievedAt(daFonte) : new Date();
+
+  // Cada sub-fonte com o instante e o cache DELA, lidos do coletor pelos acessos
+  // que casam com o filtro (`call.fieldSource`). Sem acesso que case, o instante
+  // sai `null`: a sub-fonte não foi lida nesta chamada, e "agora" seria inventar.
+  // Sem coletor (chamada direta em teste) não há o que separar: herda o do bloco.
+  const subFontes = opts.fontesPorCampo?.map(f => {
+    const item = {
+      fields: f.fields,
+      source_url: f.source_url,
+      dataset_id: f.dataset_id ?? null,
+      data_vintage: f.data_vintage ?? null
+    };
+    if (!call) return { ...item, retrieved_at: instanteDaFonte.toISOString(), served_from_cache: null };
+    const lida = call.fieldSource({ ...item, filter: f.filtro ?? ((url: string) => url === f.source_url) });
+    return { ...item, retrieved_at: lida.retrieved_at, served_from_cache: lida.served_from_cache };
+  });
+
+  // O topo é o MAIS ANTIGO entre o bloco e todas as sub-fontes — por construção,
+  // não por coincidência (contrato §3). Da 1.2 em diante a lib lança
+  // `ProvenanceContractError` se o topo for mais novo que alguma sub-fonte, e
+  // isso derruba a tool; um filtro de sub-fonte mais largo que o do bloco bastaria
+  // para quebrar a regra se o topo não fosse este mínimo explícito.
+  const retrievedAt = new Date(
+    Math.min(
+      instanteDaFonte.getTime(),
+      ...(subFontes ?? []).flatMap(f => (f.retrieved_at ? [Date.parse(f.retrieved_at)] : []))
+    )
+  );
   const extracao = {
-    retrievedAt: call ? call.retrievedAt(daFonte) : new Date(),
+    retrievedAt,
     servedFromCache: call ? call.servedFromCache(daFonte) : null,
     retrieval: call && prefixo ? call.retrieval() : null
   };
@@ -312,17 +384,8 @@ export function provenienciaBcb(opts: OpcoesProveniencia): Proveniencia {
     ...(opts.derivado !== undefined ? { derivation_note: opts.derivado.nota } : {}),
     served_from_cache: extracao.servedFromCache,
     retrieval: extracao.retrieval,
-    ...(opts.fontesPorCampo !== undefined
-      ? {
-          field_sources: opts.fontesPorCampo.map(f => ({
-            fields: f.fields,
-            source_url: f.source_url,
-            dataset_id: f.dataset_id ?? null,
-            data_vintage: f.data_vintage ?? null,
-            retrieved_at: extracao.retrievedAt.toISOString()
-          }))
-        }
-      : {})
+    ...(subFontes !== undefined ? { field_sources: subFontes } : {}),
+    revision: fonte.revisao
   });
 }
 
@@ -428,7 +491,7 @@ export function comProvenienciaMulti(schema: SchemaObjeto): SchemaObjeto {
   return estender(schema, {
     type: "array" as const,
     description:
-      "Um bloco por procedência que contribuiu com esta resposta (contrato v1.1; licenças nunca se fundem)",
+      "Um bloco por procedência que contribuiu com esta resposta (bloco de proveniência do portfólio; licenças nunca se fundem)",
     items: PROVENANCE_BLOCK_SCHEMA
   });
 }
