@@ -37,9 +37,11 @@ import {
   chaveMes,
   construirDeflator,
   deflacionar,
+  formatarDataSgs,
   harmonizar,
   hojeSgs,
   inferirPeriodicidade,
+  parseDataSgs,
   urlSerie,
   type Agregacao,
   type FrequenciaAlvo,
@@ -433,12 +435,24 @@ function refSerie(codigo: number, periodicidade: Periodicidade | null): Record<s
  * O SGS não publica versão do dado e **não tem endpoint de metadados**
  * (`bcb/docs/04`), então a competência sai do que já veio na resposta — zero
  * requisição a mais. As datas saem no formato da própria fonte.
+ *
+ * Primeira e última são o MÍNIMO e o MÁXIMO pela data lida, não as pontas da
+ * lista: até 08/10/2026 a função pegava `[0]` e `[length − 1]` e só acertava
+ * porque toda leitura passava antes por `ordenarPorData`. Ordenar por texto
+ * dd/MM/yyyy ordena pelo dia — o defeito que o ibge tinha com rótulos por
+ * extenso. Data que não se lê não entra no intervalo.
  */
-function vintageDeObservacoes(observacoes: Array<{ data: string }>): string | null {
-  if (observacoes.length === 0) return null;
-  const primeira = observacoes[0].data;
-  const ultima = observacoes[observacoes.length - 1].data;
-  return primeira === ultima ? primeira : `${primeira}–${ultima}`;
+export function vintageDeObservacoes(observacoes: Array<{ data: string }>): string | null {
+  let min: number | null = null;
+  let max: number | null = null;
+  for (const { data } of observacoes) {
+    const t = parseDataSgs(data);
+    if (t === null) continue;
+    if (min === null || t < min) min = t;
+    if (max === null || t > max) max = t;
+  }
+  if (min === null || max === null) return null;
+  return min === max ? formatarDataSgs(min) : `${formatarDataSgs(min)}–${formatarDataSgs(max)}`;
 }
 
 /**
@@ -486,10 +500,18 @@ function provSerieSgs(
  *
  * O `source_url` não pode ser o de uma série só — escolher uma entre cinco
  * mentiria por omissão sobre as outras quatro. Vai o endpoint-base, e cada série
- * entra em `field_sources` com a própria URL.
+ * entra em `field_sources` com a própria URL e a própria competência.
+ *
+ * A competência sai das observações de cada série (as ORIGINAIS da fonte, antes
+ * de qualquer harmonização); a do topo cobre todas — da data mais antiga à mais
+ * nova entre as séries. Até 08/10/2026 nenhum chamador passava a competência, e
+ * as quatro tools que calculam sobre um período (`bcb_indicadores_atuais`,
+ * `bcb_comparar`, `bcb_correlacao`, `bcb_deflacionar`) saíam com
+ * `data_vintage: null` no topo e em toda sub-fonte. Série que falhou não tem
+ * observação e sai com `null` — "não há dado", que é o que aconteceu.
  */
 function provMultiSerieSgs(
-  series: Array<{ codigo: number; campo: string; inicio?: string; fim?: string; vintage?: string | null }>,
+  series: Array<{ codigo: number; campo: string; inicio?: string; fim?: string; observacoes?: Array<{ data: string }> }>,
   detalhe: string,
   derivado?: { nota: string }
 ): Proveniencia {
@@ -501,13 +523,13 @@ function provMultiSerieSgs(
       name: detalhe,
       version: null
     },
-    dataVintage: series.map(s => s.vintage).find(v => v != null) ?? null,
+    dataVintage: vintageDeObservacoes(series.flatMap(s => s.observacoes ?? [])),
     detalheCitacao: `${detalhe} (séries ${series.map(s => s.codigo).join(", ")})`,
     fontesPorCampo: series.map(s => ({
       fields: [s.campo],
       source_url: urlSerie(s.codigo, s.inicio, s.fim),
       dataset_id: `bcdata.sgs.${s.codigo}`,
-      data_vintage: s.vintage ?? null
+      data_vintage: vintageDeObservacoes(s.observacoes ?? [])
     })),
     ...(derivado ? { derivado } : {})
   });
@@ -861,7 +883,10 @@ export async function handleIndicadoresAtuais(
     return resultadoComProveniencia(
       { consultadoEm: new Date().toISOString(), indicadores: resultados },
       provMultiSerieSgs(
-        indicadores.map(i => ({ codigo: i.codigo, campo: i.nome })),
+        indicadores.map((i, k) => {
+          const r = resultados[k];
+          return { codigo: i.codigo, campo: i.nome, observacoes: "data" in r && r.data ? [{ data: r.data }] : [] };
+        }),
         "painel de indicadores atuais"
       )
     );
@@ -963,6 +988,8 @@ export async function handleComparar(
 ): Promise<ToolResult> {
   try {
     const periodicidades = new Map<number, string>();
+    // Observações ORIGINAIS de cada série, para a competência da proveniência.
+    const originais = new Map<number, Array<{ data: string }>>();
     let harmonizacao: Record<string, unknown> | undefined;
 
     const resultados = await Promise.all(
@@ -995,6 +1022,7 @@ export async function handleComparar(
             return { codigo, nome: serieInfo?.nome || `Série ${codigo}`, erro: "Sem dados no período" };
           }
 
+          originais.set(codigo, data);
           const ref = refSerie(codigo, resultado.periodicidade);
           // O aviso de periodicidade decide pela periodicidade MEDIDA, não pelo
           // rótulo do catálogo — mesma regra do `bcb_correlacao`. A série 11 está
@@ -1105,7 +1133,8 @@ export async function handleComparar(
           codigo,
           campo: `ranking[codigo=${codigo}]`,
           inicio: formatDateForApi(args.dataInicial),
-          fim: formatDateForApi(args.dataFinal)
+          fim: formatDateForApi(args.dataFinal),
+          observacoes: originais.get(codigo)
         })),
         "comparação entre séries",
         { nota: haEncadeada ? NOTA_DERIVACAO_ENCADEAMENTO : NOTA_DERIVACAO_ESTATISTICA }
@@ -1310,7 +1339,8 @@ export async function handleCorrelacao(
           codigo: s.codigo,
           campo: `series[codigo=${s.codigo}]`,
           inicio: formatDateForApi(args.dataInicial),
-          fim: formatDateForApi(args.dataFinal)
+          fim: formatDateForApi(args.dataFinal),
+          observacoes: s.observacoes
         })),
         "correlação entre séries",
         { nota: NOTA_DERIVACAO_ESTATISTICA }
@@ -1448,8 +1478,8 @@ export async function handleDeflacionar(
     },
     provMultiSerieSgs(
       [
-        { codigo: args.codigo, campo: "dados[].valorNominal", inicio, fim },
-        { codigo: deflatorInfo.codigo, campo: "dados[].fator", inicio }
+        { codigo: args.codigo, campo: "dados[].valorNominal", inicio, fim, observacoes: serie.observacoes },
+        { codigo: deflatorInfo.codigo, campo: "dados[].fator", inicio, observacoes: indice.observacoes }
       ],
       `deflação por ${chaveIndice.toUpperCase()}`,
       { nota: NOTA_DERIVACAO_DEFLACAO }
@@ -1524,7 +1554,12 @@ const SERIE_REF_CONSULTADA_SCHEMA = {
 const OBSERVACAO_SCHEMA = {
   type: "object" as const,
   properties: {
-    data: { type: "string" as const, description: "Data da observação (dd/MM/yyyy)" },
+    data: {
+      type: "string" as const,
+      description:
+        "Data de referência da observação (dd/MM/yyyy), na convenção do SGS: em série mensal, trimestral ou " +
+        "anual é o PRIMEIRO dia do período (01/03/2026 = março de 2026); em série diária, o próprio dia"
+    },
     valor: { type: "number" as const, description: "Valor numérico da observação" }
   },
   required: ["data", "valor"]
@@ -1662,6 +1697,28 @@ const BEHAVIOR_NOTE =
 const TOTAL_CURADAS = SERIES_POPULARES.length;
 const CURADAS_DO_PORTAL = SERIES_POPULARES.filter(s => s.fonteNome === "portal").length;
 
+/**
+ * O que cada número do SGS é — período, acumulação e revisão. Nada disso está no
+ * dado: o SGS devolve só `{data, valor}`, a acumulação só aparece no NOME da série
+ * e a fonte não guarda a versão originalmente divulgada (achado de leitor no
+ * dev.to, 08/10/2026: o mesmo par de armadilhas dos dados XBRL da SEC). Os códigos
+ * citados são os acumulados do catálogo curado; o teste confere que cada um está
+ * lá com "acumulad" no nome, para a frase não envelhecer calada.
+ */
+export const ACUMULADOS_NO_ANO = [4381, 4386] as const;
+export const ACUMULADOS_EM_12_MESES = [13522, 4382, 5793] as const;
+
+const NOTA_O_QUE_E_CADA_NUMERO =
+  "O que cada número é: `data` é a data de referência na convenção do SGS — em série mensal, trimestral ou " +
+  "anual, o PRIMEIRO dia do período (01/03/2026 = março de 2026). Algumas séries já chegam ACUMULADAS da " +
+  "origem e só o nome diz isso: acumulado no ano (PIB " + ACUMULADOS_NO_ANO.join(", ") + ") e acumulado em " +
+  "12 meses (" + ACUMULADOS_EM_12_MESES.join(", ") + ") — o valor numa data é o acumulado até aquele " +
+  "período, então não some esses valores nem subtraia um do outro; para o valor de um mês, use a série mensal. " +
+  "Revisões: o valor é o que o SGS publica no instante da extração (`retrieved_at` na proveniência). O BCB " +
+  "revisa séries como PIB, IBC-Br, balanço de pagamentos e crédito, e o SGS não guarda a versão originalmente " +
+  "divulgada — um ponto passado pode mudar entre duas consultas, e este servidor não tem como devolver o " +
+  "número da primeira divulgação. ";
+
 export const TOOL_DESCRIPTIONS: Record<string, string> = {
   bcb_serie_valores:
     "Consulta o histórico de valores de UMA série temporal do BCB pelo código SGS, opcionalmente " +
@@ -1679,6 +1736,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "se o período pedido estava aberto numa série diária, `janelaAplicada` diz qual janela foi usada e por quê. " +
     "Harmonização: `frequencia` (mensal|trimestral|anual) reamostra a série antes de responder, com a " +
     "convenção escolhida em `agregacao`; a resposta traz `harmonizacao` com `derived: true` e a nota do cálculo. " +
+    NOTA_O_QUE_E_CADA_NUMERO +
     BEHAVIOR_NOTE,
 
   bcb_serie_ultimos:
@@ -1691,6 +1749,7 @@ export const TOOL_DESCRIPTIONS: Record<string, string> = {
     "`totalRegistros` = 0 com `observacao`. " +
     "Acima de 20: o endpoint nativo do BCB rejeita N > 20 em qualquer periodicidade, então o servidor " +
     "descobre a periodicidade da série e busca por janela de datas, devolvendo os N últimos pontos. " +
+    NOTA_O_QUE_E_CADA_NUMERO +
     BEHAVIOR_NOTE,
 
   bcb_serie_metadados:

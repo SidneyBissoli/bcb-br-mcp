@@ -507,7 +507,7 @@ Toda resposta bem-sucedida carrega um bloco de proveniência (contrato do portf�
 `br.com.sidneybissoli.bcb/*` (fora de banda, custo zero em tokens). Cada bloco nomeia a fonte, a URL canônica
 que reproduz a consulta, a vintage do dado, o instante **real** da extração na origem e a licença.
 
-Dois detalhes fáceis de errar, e que aqui estão tratados:
+Três detalhes fáceis de errar, e que aqui estão tratados:
 
 - **`retrieved_at` é o instante real da extração, não "agora".** O índice do portal é servido de um cache de
   24 horas, então busca respondida do cache informa o instante em que o índice foi de fato buscado — que pode
@@ -515,6 +515,13 @@ Dois detalhes fáceis de errar, e que aqui estão tratados:
 - **Um bloco por proveniência, nunca fundidos.** `bcb_buscar_serie` separa o índice do portal do BCB do
   catálogo curado do próprio servidor; `bcb_serie_metadados` separa a leitura ao vivo do SGS do catálogo;
   `bcb_cambio_cotacao` separa as cotações de dólar apuradas pelo BCB das paridades vindas de agência.
+- **O que cada número é, e em que versão.** Uma observação do SGS é só `{data, valor}`: em série mensal,
+  trimestral ou anual a data é o *primeiro dia* do período de referência, e algumas séries já chegam
+  acumuladas (PIB acumulado no ano 4381/4386; em 12 meses: IPCA 13522, PIB 4382, resultado primário 5793),
+  o que só o nome diz. As descrições das tools dizem isso, e o `data_vintage` é o intervalo de fato coberto —
+  inclusive nas quatro tools que calculam sobre várias séries. Todo valor é a versão que o SGS publica no
+  `retrieved_at`: o BCB revisa séries como PIB e IBC-Br e o SGS não guarda a primeira divulgação, então este
+  servidor não tem como devolvê-la.
 
 ## Desenvolvimento
 

@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { describe, it, expect } from "vitest";
-import { SERIES_POPULARES, TOOL_DESCRIPTIONS, RESOURCE_DEFINITIONS, metodoVariacaoDaSerie, seriesEncadeadas } from "./tools.js";
+import { SERIES_POPULARES, TOOL_DESCRIPTIONS, RESOURCE_DEFINITIONS, ACUMULADOS_NO_ANO, ACUMULADOS_EM_12_MESES, metodoVariacaoDaSerie, seriesEncadeadas } from "./tools.js";
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -211,5 +211,31 @@ describe("o tamanho do catálogo é derivado, não escrito", () => {
       }
       expect(citados, `${arquivo} deixou de citar o total`).toContain(total);
     }
+  });
+});
+
+describe("acumulados citados nas descrições existem no catálogo, com o nome dizendo", () => {
+  // A nota "o que cada número é" (bcb_serie_valores/ultimos) cita estes códigos.
+  // Se um sair do catálogo ou o nome deixar de dizer "acumulad", a frase passaria
+  // a afirmar sobre série que não é mais o que ela diz.
+  it.each([
+    ...ACUMULADOS_NO_ANO.map(c => [c, /acumulad[oa] no ano/i] as const),
+    ...ACUMULADOS_EM_12_MESES.map(c => [c, /acumulad[oa] (em|dos últimos) 12 meses/i] as const)
+  ])("série %i", (codigo, padrao) => {
+    const s = SERIES_POPULARES.find(x => x.codigo === codigo);
+    expect(s, `série ${codigo} fora do catálogo`).toBeDefined();
+    expect(s!.nome).toMatch(padrao);
+  });
+
+  it("nenhum outro acumulado do catálogo ficou de fora da nota", () => {
+    const citados = new Set<number>([...ACUMULADOS_NO_ANO, ...ACUMULADOS_EM_12_MESES]);
+    const fora = SERIES_POPULARES.filter(
+      // 29037/29038 são RAZÃO (endividamento / renda acumulada em 12 meses): só o
+      // denominador é acumulado, o valor não — não entram na nota.
+      s => /acumulad[oa] (no ano|em 12 meses|dos últimos 12 meses)/i.test(s.nome) &&
+        !/renda acumulada/i.test(s.nome) &&
+        !citados.has(s.codigo)
+    );
+    expect(fora.map(s => s.codigo)).toEqual([]);
   });
 });

@@ -17,13 +17,13 @@
     "url": "https://github.com/SidneyBissoli/bcb-br-mcp",
     "source": "github"
   },
-  "version": "1.16.2",
+  "version": "1.17.0",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "bcb-br-mcp",
-      "version": "1.16.2",
+      "version": "1.17.0",
       "transport": {
         "type": "stdio"
       }
@@ -42,8 +42,8 @@
         "spec": "https://github.com/SidneyBissoli/mcp-br-commons/blob/main/packages/mcp-surface/SPEC.md",
         "endpoint": "https://bcb.sidneybissoli.com/mcp",
         "declared": {
-          "sha256": "ff0973f9157351f93a3db933c7aa758fa359532dd266034b17d3977d39d161f6",
-          "lockedAt": "1.16.0"
+          "sha256": "517e02247659d74669e245dc7bf519ed483424999848e192e43d94d818d9629c",
+          "lockedAt": "1.17.0"
         },
         "anonymous": {
           "sha256": "ade1bd429bdfc63453a924614520010bb782ffd8d24fdd6483aa17d5b36b61a4",

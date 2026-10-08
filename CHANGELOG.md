@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-10-08
+
+O que cada número é, e em que versão. Duas lacunas apontadas por um leitor do artigo
+"Building an MCP server for financial data" (Daniel Oliveira, dev.to, 08/10/2026), que
+viu as mesmas armadilhas nos dados XBRL da SEC: o período e a acumulação de cada número
+precisam vir com ele, e o servidor tem de dizer se o número é a versão revista ou a
+originalmente divulgada.
+
+### Fixed
+
+- **`data_vintage` nulo nas quatro tools que calculam sobre várias séries.**
+  `bcb_indicadores_atuais`, `bcb_comparar`, `bcb_correlacao` e `bcb_deflacionar` saíam
+  com `data_vintage: null` no topo e em toda sub-fonte: a competência de cada série
+  existia, e nenhum chamador a passava ao bloco. Agora o topo cobre da data mais antiga à
+  mais nova entre as séries (na deflação, inclui a cobertura do índice de preços), e
+  cada sub-fonte traz a da própria série, sempre das observações ORIGINAIS da fonte.
+- **O intervalo do `data_vintage` deixa de depender da ordem da lista.** Era a primeira
+  e a última observação, e só acertava porque a leitura ordenava antes; agora é o mínimo
+  e o máximo pela data lida. Ordenar dd/MM/yyyy como texto ordena pelo dia.
+
+### Changed
+
+- `bcb_serie_valores` e `bcb_serie_ultimos` dizem o que cada número é: a data de uma
+  série mensal, trimestral ou anual é o primeiro dia do período de referência; as séries
+  acumuladas do catálogo (no ano: 4381, 4386; em 12 meses: 13522, 4382, 5793) dão em
+  cada data o acumulado até ali e não se somam nem se subtraem; e todo valor é a versão
+  vigente no `retrieved_at` — o BCB revisa séries como PIB e IBC-Br e o SGS não guarda a
+  primeira divulgação. A descrição do campo `data` das observações e as `instructions`
+  dizem o mesmo. Um teste confere que os códigos citados estão no catálogo com
+  "acumulado" no nome e que nenhum acumulado ficou de fora (29037/29038 são razão sobre
+  renda acumulada, não acumulado, e não entram).
+- Superfície declarada nova (as descrições mudaram): trava e `server.json` regravados.
+
 ## [1.16.2] - 2026-10-07
 
 A impressão digital da superfície passa a ir **na entrada do MCP Registry**, para o
