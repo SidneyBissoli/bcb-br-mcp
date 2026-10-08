@@ -19,9 +19,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { dispatchTool, TOOL_DEFINITIONS, vintageDeObservacoes, type ToolResult } from "./tools.js";
 import { _resetCatalogo, _seedCatalogo, CATALOGO_TTL_MS } from "./catalog.js";
 import { _resetDeepResearch } from "./deep-research.js";
-import { CONCISE_BLOCK_JSON_SCHEMA } from "@sbissoli/mcp-provenance";
-import { FONTES_BCB, LICENCA_ODBL, comProveniencia } from "./provenance.js";
-import { DISCLAIMER_PTAX, QUALIFICACAO_PARIDADE } from "./shared.js";
+import { CONCISE_BLOCK_JSON_SCHEMA, createProvenanceContext, renderConcise } from "@sbissoli/mcp-provenance";
+import { withCall } from "@sbissoli/mcp-upstream/als";
+import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/server/validators/cf-worker";
+import { conectarComoCliente } from "@sbissoli/mcp-surface/cliente";
+import {
+  FONTES_BCB,
+  LICENCA_ODBL,
+  REVISAO_SGS,
+  comProveniencia,
+  provenanceContext,
+  provenienciaBcb
+} from "./provenance.js";
+import { DISCLAIMER_PTAX, QUALIFICACAO_PARIDADE, upstreamBcb } from "./shared.js";
+import { SERVER_INSTRUCTIONS } from "./identity.js";
+import { createServer } from "./register.js";
 
 // ==================== fixtures ====================
 
@@ -526,5 +538,143 @@ describe("o schema do bloco vem do pacote — importado, não transcrito", () =>
     mockFetch([["bcdata.sgs.433", OBS_MENSAL]]);
     const r = await call("bcb_serie_valores", { codigo: 433 });
     expect(Object.keys(bloco(r))).toEqual(CONCISE_BLOCK_JSON_SCHEMA.required);
+  });
+});
+
+// ==================== contrato 1.2 no fio, 1.3 no esquema ====================
+
+describe("field_sources (contrato 1.2): o topo é o MAIS ANTIGO das sub-fontes", () => {
+  const SGS = "https://api.bcb.gov.br/dados/serie/bcdata.sgs";
+  const NOVO = new Date("2026-10-08T15:00:00Z");
+  const VELHO = new Date("2026-10-07T09:30:00Z");
+
+  it("o servidor emite a 1.2 (tempo 2), lida do contexto e não de literal", () => {
+    expect(provenanceContext.contractVersion).toBe("1.2");
+  });
+
+  it("cada sub-fonte traz o instante DELA, e o topo é o mais antigo", () => {
+    const p = withCall(upstreamBcb(), call => {
+      call.recordCache(`${SGS}.433/dados?formato=json&dataInicial=01/01/2026`, NOVO);
+      call.recordCache(`${SGS}.189/dados/ultimos/20?formato=json`, VELHO);
+      return provenienciaBcb({
+        fonte: "SGS",
+        url: "https://api.bcb.gov.br/dados/serie",
+        fontesPorCampo: [433, 189].map(codigo => ({
+          fields: [`s${codigo}`],
+          source_url: `${SGS}.${codigo}/dados?formato=json`,
+          filtro: (url: string) => url.startsWith(`${SGS}.${codigo}/`)
+        }))
+      });
+    });
+    expect(p.retrieved_at).toBe("2026-10-07T06:30:00-03:00");
+    const porCampo = Object.fromEntries(p.field_sources!.map(f => [f.fields[0], f]));
+    expect(porCampo.s433.retrieved_at).toBe("2026-10-08T12:00:00-03:00");
+    expect(porCampo.s189.retrieved_at).toBe("2026-10-07T06:30:00-03:00");
+    expect(porCampo.s433.served_from_cache).toBe(true);
+  });
+
+  it("sub-fonte com filtro mais largo que o da fonte não derruba a tool: o topo desce até ela", () => {
+    // Sem o mínimo explícito, o topo seria o instante dos acessos da FONTE
+    // (prefixo do SGS) e a lib lançaria ProvenanceContractError: um acesso mais
+    // velho, fora do prefixo, entrou na sub-fonte.
+    const p = withCall(upstreamBcb(), call => {
+      call.recordCache(`${SGS}.433/dados?formato=json`, NOVO);
+      call.recordCache("https://espelho.example/433", VELHO);
+      return provenienciaBcb({
+        fonte: "SGS",
+        url: "https://api.bcb.gov.br/dados/serie",
+        fontesPorCampo: [{ fields: ["s433"], source_url: `${SGS}.433/dados?formato=json`, filtro: () => true }]
+      });
+    });
+    expect(p.retrieved_at).toBe("2026-10-07T06:30:00-03:00");
+  });
+
+  it("sub-fonte sem acesso nesta chamada sai com instante null, nunca 'agora'", () => {
+    const p = withCall(upstreamBcb(), call => {
+      call.recordCache(`${SGS}.433/dados?formato=json`, VELHO);
+      return provenienciaBcb({
+        fonte: "SGS",
+        url: "https://api.bcb.gov.br/dados/serie",
+        fontesPorCampo: [
+          { fields: ["s433"], source_url: `${SGS}.433/dados?formato=json` },
+          { fields: ["s189"], source_url: `${SGS}.189/dados?formato=json` }
+        ]
+      });
+    });
+    expect(p.field_sources![1].retrieved_at).toBeNull();
+    expect(p.field_sources![1].served_from_cache).toBeNull();
+    expect(p.retrieved_at).toBe("2026-10-07T06:30:00-03:00");
+  });
+
+  it("bcb_comparar emite field_sources no concise, uma por série, buscadas agora", async () => {
+    mockFetch([["bcdata.sgs.", OBS_MENSAL]]);
+    const r = await call("bcb_comparar", { codigos: [433, 189], dataInicial: "2026-01-01", dataFinal: "2026-03-31" });
+    const b = bloco(r);
+    const fs = b.field_sources as Array<Record<string, unknown>>;
+    expect(fs.map(f => f.dataset_id)).toEqual(["bcdata.sgs.433", "bcdata.sgs.189"]);
+    for (const f of fs) {
+      expect(f.served_from_cache).toBe(false);
+      expect(Date.parse(String(b.retrieved_at))).toBeLessThanOrEqual(Date.parse(String(f.retrieved_at)));
+    }
+    expect(Object.keys(b)).toEqual([...CONCISE_BLOCK_JSON_SCHEMA.required, "field_sources"]);
+  });
+
+  it("bcb_focus_referencias: cada escopo casa com a URL que ele mesmo buscou", async () => {
+    mockFetch([["Expectativa", { value: [{ Indicador: "IPCA", DataReferencia: "2027" }] }]]);
+    const r = await call("bcb_focus_referencias", {});
+    const fs = bloco(r).field_sources as Array<Record<string, unknown>>;
+    expect(fs.length).toBeGreaterThan(1);
+    for (const f of fs) expect(typeof f.retrieved_at).toBe("string");
+  });
+});
+
+describe("revision (contrato 1.3): informada pelos builders, fora do fio enquanto emitimos 1.2", () => {
+  it("toda fonte do BCB é `current`; só o SGS tem nota, a das instructions", () => {
+    for (const [chave, fonte] of Object.entries(FONTES_BCB)) {
+      expect(fonte.revisao.status, chave).toBe("current");
+      expect(fonte.revisao.note, chave).toBe(chave === "SGS" ? REVISAO_SGS.note : null);
+    }
+    expect(SERVER_INSTRUCTIONS).toContain("o BCB revisa séries como PIB e IBC-Br e não guarda a primeira divulgação");
+  });
+
+  it("o canônico carrega a revisão; o concise 1.2 não a emite", async () => {
+    const p = provenienciaBcb({ fonte: "SGS", url: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json" });
+    expect(p.revision).toEqual(REVISAO_SGS);
+    const f = provenienciaBcb({ fonte: "FOCUS", url: "https://olinda.bcb.gov.br/x" });
+    expect(f.revision).toEqual({ status: "current", note: null });
+
+    mockFetch([["bcdata.sgs.433", OBS_MENSAL]]);
+    const r = await call("bcb_serie_valores", { codigo: 433 });
+    expect(bloco(r)).not.toHaveProperty("revision");
+  });
+
+  it("o esquema LISTADO aceita um bloco 1.3 completo (as quatro chaves novas)", async () => {
+    mockFetch([["bcdata.sgs.433", OBS_MENSAL]]);
+    const ctx13 = createProvenanceContext({ metaNamespace: "teste", locale: "pt-BR", contractVersion: "1.3" });
+    const canonico = ctx13.build({
+      source: "Banco Central do Brasil — SGS",
+      source_url: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json",
+      citation: "Fonte: Banco Central do Brasil — SGS.",
+      license: LICENCA_ODBL,
+      notices: ["aviso da fonte"],
+      derived: true,
+      derivation_note: "calculado pelo servidor",
+      revision: REVISAO_SGS
+    });
+    const bloco13 = renderConcise(canonico);
+    expect(Object.keys(bloco13)).toEqual(expect.arrayContaining(["notices", "derived", "derivation_note", "revision"]));
+
+    const client = await conectarComoCliente(createServer("test"));
+    try {
+      const { tools } = await client.listTools();
+      const listada = tools.find(t => t.name === "bcb_serie_valores")!;
+      const r = await call("bcb_serie_valores", { codigo: 433 });
+      const valida = new CfWorkerJsonSchemaValidator().getValidator(listada.outputSchema as never);
+      expect(valida({ ...payload(r), provenance: bloco13 }).valid).toBe(true);
+      // Controle negativo: o esquema continua fechado para chave desconhecida.
+      expect(valida({ ...payload(r), provenance: { ...bloco13, intrusa: 1 } }).valid).toBe(false);
+    } finally {
+      await client.close();
+    }
   });
 });

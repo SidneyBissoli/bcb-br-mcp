@@ -29,6 +29,7 @@ import {
   type MetodoCorrelacao
 } from "./stats.js";
 import {
+  BCB_SGS_BASE,
   ROTULO_PERIODICIDADE,
   TETO_ULTIMOS,
   alinharSeries,
@@ -403,6 +404,112 @@ export function mensagemRecusaAcumulado(codigo: number, nome: string): string {
 }
 
 
+// ==================== NATUREZA DA SÉRIE ====================
+
+/**
+ * O que o valor de uma série É numa data — rótulo publicado no bloco `serie`.
+ *
+ * - `nivel`: o valor da grandeza no período (saldo, fluxo do período, preço,
+ *   taxa vigente, razão, número-índice), nem variação nem acumulado;
+ * - `variacao_no_periodo`: a variação (ou rendimento) do próprio período — IPCA
+ *   433, Selic acumulada no mês 4390;
+ * - `acumulado_no_ano` / `acumulado_12_meses`: o acumulado até aquela data.
+ */
+export type NaturezaSerie = "nivel" | "variacao_no_periodo" | "acumulado_no_ano" | "acumulado_12_meses";
+
+export const NATUREZAS_SERIE: readonly NaturezaSerie[] = [
+  "nivel",
+  "variacao_no_periodo",
+  "acumulado_no_ano",
+  "acumulado_12_meses"
+];
+
+/**
+ * Emissão do campo `natureza` no bloco `serie` — DESLIGADA no tempo 1.
+ *
+ * Mesmo rollout em dois tempos do contrato de proveniência: nesta versão o
+ * `outputSchema` passa a DECLARAR o campo (opcional), e nenhuma resposta muda;
+ * um conector que guardou o schema antigo, fechado por `additionalProperties:
+ * false`, recusaria a resposta inteira se o campo saísse já. A sessão de ~7 dias
+ * depois liga a constante (um patch, sem mexer em schema).
+ */
+export const EMITIR_NATUREZA = false;
+
+/**
+ * Unidades do portal que dizem, por si, que o valor é NÍVEL: montante em moeda,
+ * número-índice, preço (câmbio), razão ou participação ("Percentual", "Pontos
+ * percentuais") e taxa vigente expressa ao ano ("Percentual ao ano" — a meta
+ * Selic, o juro médio cobrado). De fora, de propósito: "Percentual ao dia" e
+ * "Percentual ao mês", que no SGS tanto podem ser a taxa cobrada (nível) quanto o
+ * rendimento do período (variação) — 4390 e a poupança são as segundas, e são
+ * reconhecidas por `metodoVariacaoDaSerie`; o resto fica sem rótulo.
+ */
+const UNIDADES_DE_NIVEL: ReadonlySet<string> = new Set([
+  "Milhões de reais",
+  "Milhões de dólares americanos",
+  "Unidades monetárias correntes",
+  "Milhares de unidades monetárias correntes",
+  "Índice",
+  "Taxa unidade monetária corrente/dólar americano",
+  "Percentual",
+  "Pontos percentuais",
+  "Percentual ao ano"
+]);
+
+/**
+ * Nomes que dizem nível nas séries SEM unidade (fonteNome `medido`): o montante
+ * em moeda escrito no nome (PIB em R$ milhões ou US$ milhões) e a taxa de câmbio,
+ * que é preço. Nenhum outro nome do catálogo é afirmativo o bastante.
+ */
+const NOME_DE_NIVEL = /Valores correntes \(R\$ milhões\)|em US\$ \(milhões\)|^Taxa de câmbio - /;
+
+/**
+ * Natureza de uma série pelo código, ou `null` = "tipo não identificado".
+ *
+ * Deriva SÓ do que o servidor já sabe, nesta ordem:
+ *  1. as listas de acumulados (`ACUMULADOS_NO_ANO`, `ACUMULADOS_EM_12_MESES`),
+ *     as mesmas que a descrição das tools cita;
+ *  2. a decisão de encadeamento (`metodoVariacaoDaSerie` = `encadeamento`: unidade
+ *     "Variação percentual mensal", nome em "Variação mensal" e
+ *     `TAXAS_POR_PERIODO`) — o que a conta já trata como variação do período;
+ *  3. para o resto do CATÁLOGO, o que ele MEDE: `nivel` só quando a unidade do
+ *     portal (`UNIDADES_DE_NIVEL`) ou o nome (`NOME_DE_NIVEL`) o afirma, e nunca
+ *     para nome que diga "acumulada no mês" fora das listas acima (4189: o
+ *     rendimento do mês anualizado não é nível nem cabe no vocabulário).
+ *     Sem afirmação, `null`.
+ *
+ * Fora do catálogo é SEMPRE `null` (decisão do decisor, 08/10/2026): a conta da
+ * `bcb_variacao` supõe nível para poder calcular, mas o rótulo publicado não
+ * repete o palpite — afirmar "nível" sobre uma série que pode ser variação é o
+ * defeito que publicou +23,81% para o IPCA de 2024.
+ *
+ * As RAZÕES 29037/29038 (endividamento sobre renda acumulada em 12 meses) são
+ * `nivel`: só o denominador é acumulado, o valor é a razão naquela data.
+ */
+export function naturezaDaSerie(codigo: number): NaturezaSerie | null {
+  const info = SERIES_POPULARES.find(s => s.codigo === codigo);
+  if (!info) return null;
+  if ((ACUMULADOS_NO_ANO as readonly number[]).includes(codigo)) return "acumulado_no_ano";
+  if ((ACUMULADOS_EM_12_MESES as readonly number[]).includes(codigo)) return "acumulado_12_meses";
+  if (metodoVariacaoDaSerie(codigo) === "encadeamento") return "variacao_no_periodo";
+  if (/acumulad[ao] no mês/i.test(info.nome)) return null;
+  if (info.unidade !== undefined && UNIDADES_DE_NIVEL.has(info.unidade)) return "nivel";
+  if (NOME_DE_NIVEL.test(info.nome)) return "nivel";
+  return null;
+}
+
+/** Fragmento do `outputSchema` do campo — declarado opcional, aceito desde o tempo 1. */
+const NATUREZA_SCHEMA = {
+  type: ["string", "null"] as const,
+  enum: [...NATUREZAS_SERIE, null],
+  description:
+    "O que o valor da série é em cada data: 'nivel' (o valor da grandeza no período — saldo, fluxo, preço, " +
+    "taxa vigente, razão ou índice), 'variacao_no_periodo' (a variação ou rendimento do próprio período, como " +
+    "o IPCA mensal), 'acumulado_no_ano' ou 'acumulado_12_meses' (o acumulado até aquela data: não some nem " +
+    "subtraia esses valores). null = tipo não identificado: a série está fora do catálogo curado ou o catálogo " +
+    "não diz o que ela mede."
+};
+
 // ==================== TOOL HANDLERS ====================
 
 /**
@@ -424,7 +531,8 @@ function refSerie(codigo: number, periodicidade: Periodicidade | null): Record<s
     nome: info?.nome || `Série ${codigo}`,
     categoria: info?.categoria || "Desconhecida",
     periodicidade: info?.periodicidade || (periodicidade ? ROTULO_PERIODICIDADE[periodicidade] : "Desconhecida"),
-    ...(inferida ? { periodicidadeInferida: true } : {})
+    ...(inferida ? { periodicidadeInferida: true } : {}),
+    ...(EMITIR_NATUREZA ? { natureza: naturezaDaSerie(codigo) } : {})
   };
 }
 
@@ -529,7 +637,11 @@ function provMultiSerieSgs(
       fields: [s.campo],
       source_url: urlSerie(s.codigo, s.inicio, s.fim),
       dataset_id: `bcdata.sgs.${s.codigo}`,
-      data_vintage: vintageDeObservacoes(s.observacoes ?? [])
+      data_vintage: vintageDeObservacoes(s.observacoes ?? []),
+      // Todo acesso DESTA série — janela fatiada, sonda `ultimos/20` e
+      // repetições —, não só a URL canônica: o instante de cada sub-fonte é o
+      // da série dela, e o topo é o mais antigo entre elas.
+      filtro: (url: string) => url.startsWith(`${BCB_SGS_BASE}.${s.codigo}/`)
     })),
     ...(derivado ? { derivado } : {})
   });
@@ -1546,7 +1658,8 @@ const SERIE_REF_CONSULTADA_SCHEMA = {
       description:
         "Presente e true quando a periodicidade foi inferida do espaçamento das observações, e não lida " +
         "do catálogo — a API do SGS não publica metadados de série."
-    }
+    },
+    natureza: NATUREZA_SCHEMA
   }
 };
 
@@ -2432,6 +2545,7 @@ const RAW_TOOL_DEFINITIONS = [
               categoria: { type: "string" as const },
               periodicidade: { type: "string" as const },
               periodicidadeInferida: { type: "boolean" as const },
+              natureza: NATUREZA_SCHEMA,
               totalRegistros: { type: "number" as const }
             },
             required: ["codigo", "nome"]
@@ -2541,6 +2655,7 @@ const RAW_TOOL_DEFINITIONS = [
             categoria: { type: "string" as const },
             periodicidade: { type: "string" as const },
             periodicidadeInferida: { type: "boolean" as const },
+            natureza: NATUREZA_SCHEMA,
             totalRegistros: { type: "number" as const }
           },
           required: ["codigo", "nome"]

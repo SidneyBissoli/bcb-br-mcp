@@ -1,8 +1,8 @@
 {
   "$comentario": "Impressão digital da superfície (@sbissoli/mcp-surface). Não editar à mão: `npm run surface:lock` regrava, e só aceita superfície nova sob versão nova.",
   "declarada": {
-    "versao": "1.17.0",
-    "sha256": "517e02247659d74669e245dc7bf519ed483424999848e192e43d94d818d9629c",
+    "versao": "1.18.0",
+    "sha256": "3fd50d391914a8efd9e29f9e9d30907c41032edc5e99857cf38332a5a345ff81",
     "conteudo": {
       "initialize": {
         "capabilities": {
@@ -167,10 +167,10 @@
                 "type": "string"
               },
               "provenance": {
-                "description": "Um bloco por procedência que contribuiu com esta resposta (contrato v1.1; licenças nunca se fundem)",
+                "description": "Um bloco por procedência que contribuiu com esta resposta (bloco de proveniência do portfólio; licenças nunca se fundem)",
                 "items": {
                   "additionalProperties": false,
-                  "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                  "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                   "properties": {
                     "citation": {
                       "description": "Citação/atribuição pronta para uso",
@@ -182,6 +182,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "derivation_note": {
+                      "description": "O que o servidor calculou; presente junto com derived",
+                      "type": "string"
+                    },
+                    "derived": {
+                      "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                      "type": "boolean"
                     },
                     "field_sources": {
                       "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -248,6 +256,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "notices": {
+                      "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
                     },
                     "retrieval": {
                       "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -318,6 +334,33 @@
                     "retrieved_at": {
                       "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                       "type": "string"
+                    },
+                    "revision": {
+                      "additionalProperties": false,
+                      "description": "Se o dado ainda pode mudar na fonte",
+                      "properties": {
+                        "note": {
+                          "description": "O específico da fonte: o que revisa, quando, por quê",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                          "enum": [
+                            "current",
+                            "provisional",
+                            "final"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "note"
+                      ],
+                      "type": "object"
                     },
                     "source": {
                       "description": "Fonte oficial do dado",
@@ -554,10 +597,10 @@
                 "type": "object"
               },
               "provenance": {
-                "description": "Um bloco por procedência que contribuiu com esta resposta (contrato v1.1; licenças nunca se fundem)",
+                "description": "Um bloco por procedência que contribuiu com esta resposta (bloco de proveniência do portfólio; licenças nunca se fundem)",
                 "items": {
                   "additionalProperties": false,
-                  "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                  "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                   "properties": {
                     "citation": {
                       "description": "Citação/atribuição pronta para uso",
@@ -569,6 +612,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "derivation_note": {
+                      "description": "O que o servidor calculou; presente junto com derived",
+                      "type": "string"
+                    },
+                    "derived": {
+                      "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                      "type": "boolean"
                     },
                     "field_sources": {
                       "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -635,6 +686,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "notices": {
+                      "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
                     },
                     "retrieval": {
                       "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -705,6 +764,33 @@
                     "retrieved_at": {
                       "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                       "type": "string"
+                    },
+                    "revision": {
+                      "additionalProperties": false,
+                      "description": "Se o dado ainda pode mudar na fonte",
+                      "properties": {
+                        "note": {
+                          "description": "O específico da fonte: o que revisa, quando, por quê",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                          "enum": [
+                            "current",
+                            "provisional",
+                            "final"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "note"
+                      ],
+                      "type": "object"
                     },
                     "source": {
                       "description": "Fonte oficial do dado",
@@ -827,7 +913,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -839,6 +925,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -905,6 +999,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -975,6 +1077,33 @@
                   "retrieved_at": {
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
+                  },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
                   },
                   "source": {
                     "description": "Fonte oficial do dado",
@@ -1210,7 +1339,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -1222,6 +1351,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -1288,6 +1425,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -1358,6 +1503,33 @@
                   "retrieved_at": {
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
+                  },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
                   },
                   "source": {
                     "description": "Fonte oficial do dado",
@@ -1769,7 +1941,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -1781,6 +1953,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -1847,6 +2027,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -1918,6 +2106,33 @@
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
                   },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
+                  },
                   "source": {
                     "description": "Fonte oficial do dado",
                     "type": "string"
@@ -1948,6 +2163,20 @@
                     },
                     "codigo": {
                       "type": "number"
+                    },
+                    "natureza": {
+                      "description": "O que o valor da série é em cada data: 'nivel' (o valor da grandeza no período — saldo, fluxo, preço, taxa vigente, razão ou índice), 'variacao_no_periodo' (a variação ou rendimento do próprio período, como o IPCA mensal), 'acumulado_no_ano' ou 'acumulado_12_meses' (o acumulado até aquela data: não some nem subtraia esses valores). null = tipo não identificado: a série está fora do catálogo curado ou o catálogo não diz o que ela mede.",
+                      "enum": [
+                        "nivel",
+                        "variacao_no_periodo",
+                        "acumulado_no_ano",
+                        "acumulado_12_meses",
+                        null
+                      ],
+                      "type": [
+                        "string",
+                        "null"
+                      ]
                     },
                     "nome": {
                       "type": "string"
@@ -2299,7 +2528,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -2311,6 +2540,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -2377,6 +2614,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -2448,6 +2693,33 @@
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
                   },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
+                  },
                   "source": {
                     "description": "Fonte oficial do dado",
                     "type": "string"
@@ -2477,6 +2749,20 @@
                   },
                   "codigo": {
                     "type": "number"
+                  },
+                  "natureza": {
+                    "description": "O que o valor da série é em cada data: 'nivel' (o valor da grandeza no período — saldo, fluxo, preço, taxa vigente, razão ou índice), 'variacao_no_periodo' (a variação ou rendimento do próprio período, como o IPCA mensal), 'acumulado_no_ano' ou 'acumulado_12_meses' (o acumulado até aquela data: não some nem subtraia esses valores). null = tipo não identificado: a série está fora do catálogo curado ou o catálogo não diz o que ela mede.",
+                    "enum": [
+                      "nivel",
+                      "variacao_no_periodo",
+                      "acumulado_no_ano",
+                      "acumulado_12_meses",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "nome": {
                     "type": "string"
@@ -2791,7 +3077,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -2803,6 +3089,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -2869,6 +3163,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -2939,6 +3241,33 @@
                   "retrieved_at": {
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
+                  },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
                   },
                   "source": {
                     "description": "Fonte oficial do dado",
@@ -3172,7 +3501,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -3184,6 +3513,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -3250,6 +3587,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -3320,6 +3665,33 @@
                   "retrieved_at": {
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
+                  },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
                   },
                   "source": {
                     "description": "Fonte oficial do dado",
@@ -3573,7 +3945,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -3585,6 +3957,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -3651,6 +4031,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -3721,6 +4109,33 @@
                   "retrieved_at": {
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
+                  },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
                   },
                   "source": {
                     "description": "Fonte oficial do dado",
@@ -3828,7 +4243,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -3840,6 +4255,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -3906,6 +4329,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -3976,6 +4407,33 @@
                   "retrieved_at": {
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
+                  },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
                   },
                   "source": {
                     "description": "Fonte oficial do dado",
@@ -4070,10 +4528,10 @@
                 "type": "boolean"
               },
               "provenance": {
-                "description": "Um bloco por procedência que contribuiu com esta resposta (contrato v1.1; licenças nunca se fundem)",
+                "description": "Um bloco por procedência que contribuiu com esta resposta (bloco de proveniência do portfólio; licenças nunca se fundem)",
                 "items": {
                   "additionalProperties": false,
-                  "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                  "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                   "properties": {
                     "citation": {
                       "description": "Citação/atribuição pronta para uso",
@@ -4085,6 +4543,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "derivation_note": {
+                      "description": "O que o servidor calculou; presente junto com derived",
+                      "type": "string"
+                    },
+                    "derived": {
+                      "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                      "type": "boolean"
                     },
                     "field_sources": {
                       "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -4151,6 +4617,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "notices": {
+                      "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
                     },
                     "retrieval": {
                       "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -4221,6 +4695,33 @@
                     "retrieved_at": {
                       "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                       "type": "string"
+                    },
+                    "revision": {
+                      "additionalProperties": false,
+                      "description": "Se o dado ainda pode mudar na fonte",
+                      "properties": {
+                        "note": {
+                          "description": "O específico da fonte: o que revisa, quando, por quê",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                          "enum": [
+                            "current",
+                            "provisional",
+                            "final"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "note"
+                      ],
+                      "type": "object"
                     },
                     "source": {
                       "description": "Fonte oficial do dado",
@@ -4370,7 +4871,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -4382,6 +4883,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -4448,6 +4957,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -4519,6 +5036,33 @@
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
                   },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
+                  },
                   "source": {
                     "description": "Fonte oficial do dado",
                     "type": "string"
@@ -4550,6 +5094,20 @@
                   "codigo": {
                     "description": "Código da série no SGS/BCB",
                     "type": "number"
+                  },
+                  "natureza": {
+                    "description": "O que o valor da série é em cada data: 'nivel' (o valor da grandeza no período — saldo, fluxo, preço, taxa vigente, razão ou índice), 'variacao_no_periodo' (a variação ou rendimento do próprio período, como o IPCA mensal), 'acumulado_no_ano' ou 'acumulado_12_meses' (o acumulado até aquela data: não some nem subtraia esses valores). null = tipo não identificado: a série está fora do catálogo curado ou o catálogo não diz o que ela mede.",
+                    "enum": [
+                      "nivel",
+                      "variacao_no_periodo",
+                      "acumulado_no_ano",
+                      "acumulado_12_meses",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "nome": {
                     "description": "Nome da série",
@@ -4776,7 +5334,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -4788,6 +5346,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -4854,6 +5420,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -4925,6 +5499,33 @@
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
                   },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
+                  },
                   "source": {
                     "description": "Fonte oficial do dado",
                     "type": "string"
@@ -4956,6 +5557,20 @@
                   "codigo": {
                     "description": "Código da série no SGS/BCB",
                     "type": "number"
+                  },
+                  "natureza": {
+                    "description": "O que o valor da série é em cada data: 'nivel' (o valor da grandeza no período — saldo, fluxo, preço, taxa vigente, razão ou índice), 'variacao_no_periodo' (a variação ou rendimento do próprio período, como o IPCA mensal), 'acumulado_no_ano' ou 'acumulado_12_meses' (o acumulado até aquela data: não some nem subtraia esses valores). null = tipo não identificado: a série está fora do catálogo curado ou o catálogo não diz o que ela mede.",
+                    "enum": [
+                      "nivel",
+                      "variacao_no_periodo",
+                      "acumulado_no_ano",
+                      "acumulado_12_meses",
+                      null
+                    ],
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "nome": {
                     "description": "Nome da série",
@@ -5032,7 +5647,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -5044,6 +5659,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -5110,6 +5733,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -5180,6 +5811,33 @@
                   "retrieved_at": {
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
+                  },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
                   },
                   "source": {
                     "description": "Fonte oficial do dado",
@@ -5514,7 +6172,7 @@
               },
               "provenance": {
                 "additionalProperties": false,
-                "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                 "properties": {
                   "citation": {
                     "description": "Citação/atribuição pronta para uso",
@@ -5526,6 +6184,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "derivation_note": {
+                    "description": "O que o servidor calculou; presente junto com derived",
+                    "type": "string"
+                  },
+                  "derived": {
+                    "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                    "type": "boolean"
                   },
                   "field_sources": {
                     "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -5592,6 +6258,14 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "notices": {
+                    "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   },
                   "retrieval": {
                     "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -5662,6 +6336,33 @@
                   "retrieved_at": {
                     "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                     "type": "string"
+                  },
+                  "revision": {
+                    "additionalProperties": false,
+                    "description": "Se o dado ainda pode mudar na fonte",
+                    "properties": {
+                      "note": {
+                        "description": "O específico da fonte: o que revisa, quando, por quê",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "status": {
+                        "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                        "enum": [
+                          "current",
+                          "provisional",
+                          "final"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "note"
+                    ],
+                    "type": "object"
                   },
                   "source": {
                     "description": "Fonte oficial do dado",
@@ -5764,10 +6465,10 @@
                 "type": "object"
               },
               "provenance": {
-                "description": "Um bloco por procedência que contribuiu com esta resposta (contrato v1.1; licenças nunca se fundem)",
+                "description": "Um bloco por procedência que contribuiu com esta resposta (bloco de proveniência do portfólio; licenças nunca se fundem)",
                 "items": {
                   "additionalProperties": false,
-                  "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                  "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                   "properties": {
                     "citation": {
                       "description": "Citação/atribuição pronta para uso",
@@ -5779,6 +6480,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "derivation_note": {
+                      "description": "O que o servidor calculou; presente junto com derived",
+                      "type": "string"
+                    },
+                    "derived": {
+                      "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                      "type": "boolean"
                     },
                     "field_sources": {
                       "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -5845,6 +6554,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "notices": {
+                      "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
                     },
                     "retrieval": {
                       "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -5915,6 +6632,33 @@
                     "retrieved_at": {
                       "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                       "type": "string"
+                    },
+                    "revision": {
+                      "additionalProperties": false,
+                      "description": "Se o dado ainda pode mudar na fonte",
+                      "properties": {
+                        "note": {
+                          "description": "O específico da fonte: o que revisa, quando, por quê",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                          "enum": [
+                            "current",
+                            "provisional",
+                            "final"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "note"
+                      ],
+                      "type": "object"
                     },
                     "source": {
                       "description": "Fonte oficial do dado",
@@ -5997,10 +6741,10 @@
                 "type": "array"
               },
               "provenance": {
-                "description": "Um bloco por procedência que contribuiu com esta resposta (contrato v1.1; licenças nunca se fundem)",
+                "description": "Um bloco por procedência que contribuiu com esta resposta (bloco de proveniência do portfólio; licenças nunca se fundem)",
                 "items": {
                   "additionalProperties": false,
-                  "description": "Bloco de proveniência (contrato v1.2): fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando a resposta junta partes de origens ou momentos distintos, de onde veio cada parte",
+                  "description": "Bloco de proveniência: fonte, URL, competência, extração, diagnóstico de origem, citação e licença; e, só quando há o que dizer, de onde veio cada parte, avisos da fonte, o que o servidor calculou e se o dado ainda pode mudar",
                   "properties": {
                     "citation": {
                       "description": "Citação/atribuição pronta para uso",
@@ -6012,6 +6756,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "derivation_note": {
+                      "description": "O que o servidor calculou; presente junto com derived",
+                      "type": "string"
+                    },
+                    "derived": {
+                      "description": "Presente (true) só quando o servidor calculou o valor em vez de repassá-lo como veio da fonte",
+                      "type": "boolean"
                     },
                     "field_sources": {
                       "description": "Presente só quando a resposta junta partes de origens ou momentos distintos: para cada grupo de campos, a URL, a extração e se veio do cache. Ausente nas respostas de uma origem só",
@@ -6078,6 +6830,14 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "notices": {
+                      "description": "Avisos que a fonte publica junto com o dado (quebra de série, unidade, frescor), verbatim. Ausente quando não há aviso",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
                     },
                     "retrieval": {
                       "description": "Diagnóstico de origem da chamada: como o dado foi obtido. Medição real do servidor; unstable=true pede ao agente que trate o dado como obtido com dificuldade; null quando o servidor não mede",
@@ -6148,6 +6908,33 @@
                     "retrieved_at": {
                       "description": "Instante REAL da extração na origem (ISO-8601, fuso do servidor). Resposta servida de cache mantém o instante do fetch original, que é a data de extração relevante. Quando a resposta junta partes extraídas em momentos distintos, é o MAIS ANTIGO deles (field_sources diz cada um)",
                       "type": "string"
+                    },
+                    "revision": {
+                      "additionalProperties": false,
+                      "description": "Se o dado ainda pode mudar na fonte",
+                      "properties": {
+                        "note": {
+                          "description": "O específico da fonte: o que revisa, quando, por quê",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "status": {
+                          "description": "current = versão vigente, a fonte pode revisá-la; provisional = preliminar, incompleta ou sujeita a mudança (não compare como se fosse fechada); final = não muda mais, declarado pela fonte",
+                          "enum": [
+                            "current",
+                            "provisional",
+                            "final"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "note"
+                      ],
+                      "type": "object"
                     },
                     "source": {
                       "description": "Fonte oficial do dado",

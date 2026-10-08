@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-10-08
+
+Contrato de proveniência: tempo 2 da v1.2 e tempo 1 da v1.3, no mesmo passo. O
+`field_sources` passa a SAIR nas respostas que fundem sub-fontes; as chaves da 1.3
+passam a ser ACEITAS pelo `outputSchema`, sem sair ainda. E o bloco `serie` declara
+o campo `natureza`, também sem emitir.
+
+### Changed
+
+- **`@sbissoli/mcp-provenance` 0.3.0 → 0.4.0 (contrato v1.3) e
+  `@sbissoli/mcp-upstream` 0.4.0 → 0.4.2.** O schema do bloco continua importado
+  (`CONCISE_BLOCK_JSON_SCHEMA`), então `notices`, `derived`, `derivation_note` e
+  `revision` entram no `outputSchema` das 17 tools como chaves opcionais — o servidor
+  segue sem emiti-las.
+- **O servidor emite o contrato 1.2** (`contractVersion: "1.2"` no contexto). Em
+  `bcb_indicadores_atuais`, `bcb_comparar`, `bcb_correlacao`, `bcb_deflacionar` e
+  `bcb_focus_referencias` o bloco `concise` ganha `field_sources`: uma entrada por
+  série ou escopo, com a URL, a competência, o instante da extração e
+  `served_from_cache` DELA. As demais respostas não mudam.
+- **Cada sub-fonte lê o próprio instante do coletor** (`call.fieldSource`, pelo
+  prefixo da série no SGS e pela URL exata no Focus). Até aqui toda sub-fonte copiava
+  o instante do topo. O `retrieved_at` do topo passa a ser, por construção, o mínimo
+  entre o bloco e as sub-fontes — da 1.2 em diante a lib recusa um topo mais novo que
+  alguma sub-fonte, e isso derrubaria a tool. Sub-fonte sem acesso na chamada sai com
+  instante `null`, nunca "agora".
+- **`revision` informada por procedência** (vai ao bloco canônico; no fio só com a
+  1.3): `current` em todas as fontes. A nota do SGS é a versão curta do que as
+  `instructions` já dizem ("o BCB revisa séries como PIB e IBC-Br, e o SGS não guarda
+  a primeira divulgação"); as demais fontes ficam com `note: null`.
+- A descrição do array multi-bloco deixa de citar "contrato v1.1".
+
+### Added
+
+- **`natureza` no bloco `serie`** (`bcb_serie_valores`, `bcb_serie_ultimos`,
+  `bcb_correlacao`, `bcb_deflacionar`), declarado no `outputSchema` como opcional:
+  `nivel` | `variacao_no_periodo` | `acumulado_no_ano` | `acumulado_12_meses` | `null`.
+  **Ainda não sai** (`EMITIR_NATUREZA = false`): liga-se num patch, depois do prazo do
+  rollout. `naturezaDaSerie` deriva das listas que já existem (acumulados, séries
+  encadeadas, unidade e nome do catálogo); fora do catálogo é sempre `null` ("tipo não
+  identificado") — a conta da `bcb_variacao` supõe nível, o rótulo não repete o
+  palpite. As razões 29037/29038 são `nivel`.
+- Testes: sub-fontes com instantes diferentes (o topo é o mais antigo), filtro de
+  sub-fonte mais largo que a fonte, sub-fonte sem acesso, `field_sources` no fio de
+  `bcb_comparar` e `bcb_focus_referencias`, `revision` no canônico e fora do fio, o
+  schema listado aceitando um bloco 1.3 completo, e `natureza` (derivação, ausência no
+  fio, aceitação pelo schema nas quatro saídas).
+- Superfície declarada nova: trava, `server.json` e manifesto do lhm regravados.
+
 ## [1.17.0] - 2026-10-08
 
 O que cada número é, e em que versão. Duas lacunas apontadas por um leitor do artigo
