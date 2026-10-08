@@ -258,7 +258,12 @@ superfície nova sob a versão antiga; o sha também denuncia edição à mão. 
 `deploy-worker.yml` roda as duas suítes antes do wrangler e, depois do deploy,
 `npx mcp-surface verificar <endpoint>` prova que o NO AR é o travado, e
 `npx mcp-surface replay --url <endpoint>` refaz o histórico de todas as versões
-publicadas (relatório em `baselines/replay-*.md`). O código mora no pacote
+publicadas (relatório em `baselines/replay-*.md`). **Desde a 1.16.2 a impressão
+digital vai também no `server.json`** (`_meta` publisher-provided, forma
+`mcp-surface/1`), e o MCP Registry a publica com a versão para o CLIENTE conferir:
+o `surface:lock` a grava (`mcp-surface registro --tool bcb_series_populares`), o
+teste da trava reprova `server.json` defasado, e o `publish.yml` termina com
+`mcp-surface conferir-registro` (registro × ar, sem ler a trava). O código mora no pacote
 comum `@sbissoli/mcp-surface` (mcp-br-commons), extraído deste molde; os sete
 servidores usam a mesma regra. Uma atualização do SDK que
 mexa nas capabilities também acende a trava — de propósito: o cliente vê outra
