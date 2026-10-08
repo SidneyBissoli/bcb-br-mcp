@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { dispatchTool, TOOL_DEFINITIONS, type ToolResult } from "./tools.js";
+import { dispatchTool, TOOL_DEFINITIONS, vintageDeObservacoes, type ToolResult } from "./tools.js";
 import { _resetCatalogo, _seedCatalogo, CATALOGO_TTL_MS } from "./catalog.js";
 import { _resetDeepResearch } from "./deep-research.js";
 import { CONCISE_BLOCK_JSON_SCHEMA } from "@sbissoli/mcp-provenance";
@@ -360,6 +360,49 @@ describe("data_vintage sai de dado já em mãos, sem requisição a mais", () =>
     mockFetch([["bcdata.sgs.433", OBS_MENSAL]]);
     const r = await call("bcb_serie_valores", { codigo: 433 });
     expect(bloco(r).data_vintage).toBe("01/01/2026–01/03/2026");
+  });
+
+  // Até 08/10/2026 o intervalo eram as PONTAS da lista, e só acertava porque a
+  // leitura ordenava antes. Ordenar dd/MM/yyyy como texto ordena pelo dia: aqui,
+  // "01/02/2026" < "02/01/2026" < "31/12/2025" — o intervalo sairia ao contrário.
+  it("é o mínimo e o máximo pela DATA, venha a lista em que ordem vier", () => {
+    const embaralhadas = [{ data: "01/02/2026" }, { data: "31/12/2025" }, { data: "02/01/2026" }, { data: "lixo" }];
+    expect(vintageDeObservacoes(embaralhadas)).toBe("31/12/2025–01/02/2026");
+    expect(vintageDeObservacoes([{ data: "01/02/2026" }])).toBe("01/02/2026");
+    expect(vintageDeObservacoes([])).toBeNull();
+  });
+
+  // As quatro tools que calculam sobre um período saíam com `data_vintage: null`
+  // até 08/10/2026: a competência existia por série e nenhum chamador a passava.
+  it.each([
+    ["bcb_comparar", { codigos: [433, 189], dataInicial: "2025-12-01", dataFinal: "2026-03-31" }],
+    ["bcb_correlacao", { codigos: [433, 189], dataInicial: "2025-12-01", dataFinal: "2026-03-31" }]
+  ])("%s: o topo cobre da data mais antiga à mais nova entre as séries", async (tool, args) => {
+    mockFetch([
+      // A 433 chega INVERTIDA, como 22 séries curadas chegam do `ultimos/N`.
+      ["bcdata.sgs.433", [...OBS_MENSAL].reverse()],
+      ["bcdata.sgs.189", [{ data: "01/12/2025", valor: "0.10" }, ...OBS_MENSAL.slice(0, 2)]]
+    ]);
+    const r = await call(tool, args);
+    expect(bloco(r).data_vintage).toBe("01/12/2025–01/03/2026");
+  });
+
+  it("bcb_deflacionar: o topo inclui a cobertura do índice de preços", async () => {
+    mockFetch([
+      ["bcdata.sgs.1207", OBS_MENSAL.slice(1)],
+      ["bcdata.sgs.433", [{ data: "01/12/2025", valor: "0.40" }, ...OBS_MENSAL]]
+    ]);
+    const r = await call("bcb_deflacionar", { codigo: 1207, dataInicial: "2026-02-01", dataFinal: "2026-03-31" });
+    expect(bloco(r).data_vintage).toBe("01/12/2025–01/03/2026");
+  });
+
+  it("bcb_indicadores_atuais: o topo vai do indicador mais velho ao mais novo", async () => {
+    mockFetch([
+      ["bcdata.sgs.433/", [{ data: "01/08/2026", valor: "0.3" }]],
+      ["bcdata.sgs.", [{ data: "07/10/2026", valor: "1" }]]
+    ]);
+    const r = await call("bcb_indicadores_atuais");
+    expect(bloco(r).data_vintage).toBe("01/08/2026–07/10/2026");
   });
 
   it("no Focus, é a data da COLETA — a fonte é vintage por construção", async () => {

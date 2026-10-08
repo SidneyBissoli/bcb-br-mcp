@@ -1,7 +1,7 @@
 {
   "identifier": "sidneybissoli-bcb-br-mcp",
   "name": "Banco Central do Brasil - MCP",
-  "version": "1.16.2",
+  "version": "1.17.0",
   "description": "MCP server for the Brazilian Central Bank (Banco Central do Brasil, BCB): SGS time series (Selic, IPCA, exchange rates, GDP and other verified indicators), Focus market expectations (Olinda API) and PTAX exchange rates, with statistics (variation, correlation, deflation) and a provenance block on every response.",
   "author": "Sidney da Silva Pereira Bissoli",
   "authorUrl": "https://github.com/SidneyBissoli",
@@ -4200,7 +4200,7 @@
             "description": "Última observação disponível",
             "properties": {
               "data": {
-                "description": "Data da observação (dd/MM/yyyy)",
+                "description": "Data de referência da observação (dd/MM/yyyy), na convenção do SGS: em série mensal, trimestral ou anual é o PRIMEIRO dia do período (01/03/2026 = março de 2026); em série diária, o próprio dia",
                 "type": "string"
               },
               "valor": {
@@ -4242,7 +4242,7 @@
         "readOnlyHint": true,
         "title": "Últimos valores da série"
       },
-      "description": "Obtém as últimas N observações de UMA série temporal do BCB (mais recentes primeiro a partir do fim da série). Quando usar: para ver os dados mais recentes sem precisar calcular datas (ex.: últimos 12 meses do IPCA). Quantidade entre 1 e 1000 (padrão 10). Quando NÃO usar: para um intervalo de datas ou o histórico completo use bcb_serie_valores. Retorna: objeto `serie`, `totalRegistros` e `dados` (array de {data, valor}); sem dados, `totalRegistros` = 0 com `observacao`. Acima de 20: o endpoint nativo do BCB rejeita N > 20 em qualquer periodicidade, então o servidor descobre a periodicidade da série e busca por janela de datas, devolvendo os N últimos pontos. Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
+      "description": "Obtém as últimas N observações de UMA série temporal do BCB (mais recentes primeiro a partir do fim da série). Quando usar: para ver os dados mais recentes sem precisar calcular datas (ex.: últimos 12 meses do IPCA). Quantidade entre 1 e 1000 (padrão 10). Quando NÃO usar: para um intervalo de datas ou o histórico completo use bcb_serie_valores. Retorna: objeto `serie`, `totalRegistros` e `dados` (array de {data, valor}); sem dados, `totalRegistros` = 0 com `observacao`. Acima de 20: o endpoint nativo do BCB rejeita N > 20 em qualquer periodicidade, então o servidor descobre a periodicidade da série e busca por janela de datas, devolvendo os N últimos pontos. O que cada número é: `data` é a data de referência na convenção do SGS — em série mensal, trimestral ou anual, o PRIMEIRO dia do período (01/03/2026 = março de 2026). Algumas séries já chegam ACUMULADAS da origem e só o nome diz isso: acumulado no ano (PIB 4381, 4386) e acumulado em 12 meses (13522, 4382, 5793) — o valor numa data é o acumulado até aquele período, então não some esses valores nem subtraia um do outro; para o valor de um mês, use a série mensal. Revisões: o valor é o que o SGS publica no instante da extração (`retrieved_at` na proveniência). O BCB revisa séries como PIB, IBC-Br, balanço de pagamentos e crédito, e o SGS não guarda a versão originalmente divulgada — um ponto passado pode mudar entre duas consultas, e este servidor não tem como devolver o número da primeira divulgação. Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -4299,7 +4299,7 @@
               "additionalProperties": false,
               "properties": {
                 "data": {
-                  "description": "Data da observação (dd/MM/yyyy)",
+                  "description": "Data de referência da observação (dd/MM/yyyy), na convenção do SGS: em série mensal, trimestral ou anual é o PRIMEIRO dia do período (01/03/2026 = março de 2026); em série diária, o próprio dia",
                   "type": "string"
                 },
                 "valor": {
@@ -4545,7 +4545,7 @@
         "readOnlyHint": true,
         "title": "Consultar valores da série"
       },
-      "description": "Consulta o histórico de valores de UMA série temporal do BCB pelo código SGS, opcionalmente limitado por um intervalo de datas (dataInicial/dataFinal). Quando usar: para obter a série histórica completa ou uma janela de datas específica. Quando NÃO usar: para apenas os pontos mais recentes use bcb_serie_ultimos; para a variação percentual use bcb_variacao; para comparar várias séries use bcb_comparar; se não souber o código, descubra-o antes com bcb_buscar_serie ou bcb_series_populares. Retorna: objeto `serie` (codigo, nome, categoria, periodicidade), `totalRegistros`, `periodoInicial`, `periodoFinal` e `dados` (array de {data, valor}); quando não há dados, `totalRegistros` = 0 e uma `observacao` explicativa. Períodos longos: a API do BCB limita séries DIÁRIAS a 10 anos por consulta e recusa janela aberta (HTTP 406). Isso é tratado automaticamente — a janela é fatiada em requisições de até 3 anos e o resultado vem fundido e ordenado, com `chunking` na resposta dizendo quantas janelas foram usadas; se o período pedido estava aberto numa série diária, `janelaAplicada` diz qual janela foi usada e por quê. Harmonização: `frequencia` (mensal|trimestral|anual) reamostra a série antes de responder, com a convenção escolhida em `agregacao`; a resposta traz `harmonizacao` com `derived: true` e a nota do cálculo. Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
+      "description": "Consulta o histórico de valores de UMA série temporal do BCB pelo código SGS, opcionalmente limitado por um intervalo de datas (dataInicial/dataFinal). Quando usar: para obter a série histórica completa ou uma janela de datas específica. Quando NÃO usar: para apenas os pontos mais recentes use bcb_serie_ultimos; para a variação percentual use bcb_variacao; para comparar várias séries use bcb_comparar; se não souber o código, descubra-o antes com bcb_buscar_serie ou bcb_series_populares. Retorna: objeto `serie` (codigo, nome, categoria, periodicidade), `totalRegistros`, `periodoInicial`, `periodoFinal` e `dados` (array de {data, valor}); quando não há dados, `totalRegistros` = 0 e uma `observacao` explicativa. Períodos longos: a API do BCB limita séries DIÁRIAS a 10 anos por consulta e recusa janela aberta (HTTP 406). Isso é tratado automaticamente — a janela é fatiada em requisições de até 3 anos e o resultado vem fundido e ordenado, com `chunking` na resposta dizendo quantas janelas foram usadas; se o período pedido estava aberto numa série diária, `janelaAplicada` diz qual janela foi usada e por quê. Harmonização: `frequencia` (mensal|trimestral|anual) reamostra a série antes de responder, com a convenção escolhida em `agregacao`; a resposta traz `harmonizacao` com `derived: true` e a nota do cálculo. O que cada número é: `data` é a data de referência na convenção do SGS — em série mensal, trimestral ou anual, o PRIMEIRO dia do período (01/03/2026 = março de 2026). Algumas séries já chegam ACUMULADAS da origem e só o nome diz isso: acumulado no ano (PIB 4381, 4386) e acumulado em 12 meses (13522, 4382, 5793) — o valor numa data é o acumulado até aquele período, então não some esses valores nem subtraia um do outro; para o valor de um mês, use a série mensal. Revisões: o valor é o que o SGS publica no instante da extração (`retrieved_at` na proveniência). O BCB revisa séries como PIB, IBC-Br, balanço de pagamentos e crédito, e o SGS não guarda a versão originalmente divulgada — um ponto passado pode mudar entre duas consultas, e este servidor não tem como devolver o número da primeira divulgação. Comportamento: consome a API pública SGS do Banco Central do Brasil — sem autenticação, chave de API ou cadastro, e sem limite de requisições divulgado (uso é best-effort). Em falha transitória ou timeout a chamada é repetida automaticamente (até 3 tentativas, backoff exponencial); persistindo o erro, retorna `isError: true` com mensagem em português (HTTP 404 = série inexistente ou sem dados no período solicitado). O resultado vem como JSON tanto em texto quanto em `structuredContent` (conforme o outputSchema); datas no formato dd/MM/yyyy e valores numéricos (ponto decimal).",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -4624,7 +4624,7 @@
               "additionalProperties": false,
               "properties": {
                 "data": {
-                  "description": "Data da observação (dd/MM/yyyy)",
+                  "description": "Data de referência da observação (dd/MM/yyyy), na convenção do SGS: em série mensal, trimestral ou anual é o PRIMEIRO dia do período (01/03/2026 = março de 2026); em série diária, o próprio dia",
                   "type": "string"
                 },
                 "observacoes": {

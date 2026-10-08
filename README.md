@@ -506,7 +506,7 @@ Every successful tool response carries a provenance block (portfolio contract v1
 `br.com.sidneybissoli.bcb/*` (out of band, zero tokens). Each block names the source, the canonical URL that
 reproduces the query, the data vintage, the **real** upstream extraction instant, and the licence.
 
-Two details that are easy to get wrong and are handled here:
+Three details that are easy to get wrong and are handled here:
 
 - **`retrieved_at` is the real extraction instant, not "now".** The portal index is served from a 24-hour
   cache, so a search answered from cache reports the instant the index was actually fetched — which can be a
@@ -514,6 +514,13 @@ Two details that are easy to get wrong and are handled here:
 - **One block per provenance, never merged.** `bcb_buscar_serie` separates the BCB portal index from the
   server's own curated catalogue; `bcb_serie_metadados` separates the live SGS reading from the catalogue;
   `bcb_cambio_cotacao` separates BCB-compiled dollar rates from agency-sourced cross-currency parities.
+- **What each number is, and which version of it.** An SGS observation is only `{data, valor}`: the date of
+  a monthly, quarterly or annual series is the *first day* of the reference period, and some series arrive
+  already accumulated (year-to-date GDP 4381/4386; 12-month IPCA 13522, GDP 4382, primary balance 5793),
+  which only their name tells. The tool descriptions say so, and `data_vintage` is the span actually covered
+  — including on the four tools that compute across several series. Every value is the version the SGS
+  publishes at `retrieved_at`: the BCB revises series such as GDP and IBC-Br and the SGS keeps no
+  as-first-published copy, so this server cannot return one.
 
 ## Development
 
