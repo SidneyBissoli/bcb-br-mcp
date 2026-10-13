@@ -1,6 +1,6 @@
 /**
- * `natureza` do bloco `serie` — tempo 1: a função existe e o esquema DECLARA o
- * campo, mas nenhuma resposta o emite ainda (`EMITIR_NATUREZA = false`).
+ * `natureza` do bloco `serie`. O esquema DECLAROU o campo na 1.18.0 (tempo 1) e
+ * as respostas o emitem desde o tempo 2, depois do prazo de ~7 dias.
  *
  * O rótulo é o oposto do palpite da conta: `metodoVariacaoDaSerie` supõe nível
  * para série fora do catálogo porque precisa calcular alguma coisa; o rótulo
@@ -14,7 +14,6 @@ import { conectarComoCliente } from "@sbissoli/mcp-surface/cliente";
 import {
   ACUMULADOS_EM_12_MESES,
   ACUMULADOS_NO_ANO,
-  EMITIR_NATUREZA,
   NATUREZAS_SERIE,
   SERIES_POPULARES,
   TAXAS_POR_PERIODO,
@@ -88,17 +87,18 @@ describe("naturezaDaSerie: deriva das listas que já existem", () => {
   });
 });
 
-describe("emissão desligada no tempo 1, esquema já aceita", () => {
-  it("hoje o campo NÃO sai", async () => {
-    expect(EMITIR_NATUREZA).toBe(false);
+describe("emissão no tempo 2: o campo sai, e o esquema listado o aceita", () => {
+  it("o campo sai com o rótulo da série, e null fora do catálogo", async () => {
     mockSgs();
     const r = await dispatchTool("bcb_serie_valores", { codigo: 433 }, 5000, 1);
     expect(r.isError).toBeUndefined();
-    expect(r.structuredContent!.serie).not.toHaveProperty("natureza");
+    expect((r.structuredContent!.serie as Record<string, unknown>).natureza).toBe("variacao_no_periodo");
+    const fora = await dispatchTool("bcb_serie_valores", { codigo: 99999 }, 5000, 1);
+    expect((fora.structuredContent!.serie as Record<string, unknown>).natureza).toBeNull();
   });
 
   // As quatro saídas por onde `refSerie` chega ao fio. Esquema selado: se uma
-  // delas não declarasse o campo, ligar a constante derrubaria a tool inteira.
+  // delas não declarasse o campo, emiti-lo derrubaria a tool inteira.
   it.each([
     ["bcb_serie_valores", { codigo: 433 }, (sc: Record<string, unknown>) => sc.serie],
     ["bcb_serie_ultimos", { codigo: 433, quantidade: 3 }, (sc: Record<string, unknown>) => sc.serie],
