@@ -168,6 +168,46 @@ describe("fetch", () => {
     expect(o.metadata).not.toHaveProperty("fonteNome");
   });
 
+  // Medido em 13/10/2026: título e url do documento saíam do índice do portal,
+  // mas a proveniência era só a de `bcb_serie_metadados` (SGS + curado) — o
+  // filtro de prefixo do SGS descartava o acesso ao portal e a procedência dele
+  // ficava omitida.
+  describe("o bloco do portal entra quando o documento leu o índice", () => {
+    const PACKAGE_LIST = "https://dadosabertos.bcb.gov.br/api/3/action/package_list";
+    type Bloco = { source: string; source_url: string };
+    const blocos = (r: ToolResult) => objeto(r).provenance as Bloco[];
+    const doPortal = (r: ToolResult) => blocos(r).filter(b => /Portal de Dados Abertos/.test(b.source));
+
+    it("série só do índice: bloco do portal, na atribuição e no espelho de _meta", async () => {
+      seed(["99999-saldo-da-carteira---credito-rural"]);
+      mockFetch([["bcdata.sgs.99999", OBS]]);
+      const r = await call("fetch", { id: "sgs:99999" });
+      expect(doPortal(r)).toHaveLength(1);
+      expect(doPortal(r)[0].source_url).toBe(PACKAGE_LIST);
+      expect(blocos(r).some(b => /SGS/.test(b.source))).toBe(true);
+      expect(objeto(r).attribution).toContain(PACKAGE_LIST);
+      const meta = r._meta as Record<string, unknown>;
+      expect(meta["br.com.sidneybissoli.bcb/provenance"]).toEqual(objeto(r).provenance);
+      expect(meta["br.com.sidneybissoli.bcb/attribution"]).toEqual(objeto(r).attribution);
+    });
+
+    it("série curada com dataset no portal: a url saiu do índice, o bloco entra", async () => {
+      seed(["1-taxa-de-cambio---livre---dolar-americano-venda---diario"]);
+      mockFetch([["bcdata.sgs.1", OBS]]);
+      const r = await call("fetch", { id: "sgs:1" });
+      expect(objeto(r).url).toMatch(/^https:\/\/dadosabertos\.bcb\.gov\.br\/dataset\//);
+      expect(doPortal(r)).toHaveLength(1);
+    });
+
+    it("série curada sem dataset: o índice não deu nada ao documento, sem bloco do portal", async () => {
+      seed([]);
+      mockFetch([["bcdata.sgs.433", OBS]]);
+      const r = await call("fetch", { id: "sgs:433" });
+      expect(doPortal(r)).toHaveLength(0);
+      expect(objeto(r).attribution).not.toContain(PACKAGE_LIST);
+    });
+  });
+
   it("falha da origem em série do acervo vira erro de tool, não documento vazio", async () => {
     seed(["99999-serie-do-portal"]);
     global.fetch = vi.fn(async () => {
