@@ -46,7 +46,13 @@ import {
 
 import { classeAnexada, classifyThrown } from "./call-shape.js";
 import { CKAN_DATASET_BASE, CKAN_PACKAGE_LIST, nomeDoSlug, obterCatalogo, type SnapshotCatalogo } from "./catalog.js";
-import { provenienciaBcb, resultadoComProveniencia, type Proveniencia } from "./provenance.js";
+import {
+  ATTRIBUTION_META_KEY,
+  PROVENANCE_META_KEY,
+  provenienciaBcb,
+  resultadoComProveniencia,
+  type Proveniencia
+} from "./provenance.js";
 import { BCB_SGS_BASE } from "./series.js";
 import { leituraRemota, type SeriePopular, type ToolDefinition, type ToolResult } from "./shared.js";
 import { palavrasPerguntadas } from "./vocabulario.js";
@@ -181,6 +187,20 @@ function extrasDe(proveniencia: Proveniencia[]): EnvelopeExtras {
   return { structured: structuredContent, meta: _meta as Record<string, unknown> };
 }
 
+/**
+ * Põe os blocos já projetados de outra tool depois dos de `frente`. A atribuição
+ * é a lista de URLs sem repetição (a mesma regra do `attributionList` do pacote).
+ */
+function juntarExtras(frente: EnvelopeExtras, depois: { provenance: unknown; attribution: unknown }): EnvelopeExtras {
+  const lista = (v: unknown): unknown[] => (Array.isArray(v) ? v : [v]);
+  const provenance = [...lista(frente.structured?.provenance), ...lista(depois.provenance)];
+  const attribution = [...new Set([...lista(frente.structured?.attribution), ...lista(depois.attribution)])];
+  return {
+    structured: { provenance, attribution },
+    meta: { [PROVENANCE_META_KEY]: provenance, [ATTRIBUTION_META_KEY]: attribution }
+  };
+}
+
 // ==================== DOCUMENTO ====================
 
 interface Metadados {
@@ -250,7 +270,7 @@ export function criarDeepResearchTools(deps: DeepResearchDeps): DeepResearchTool
     async function fetch(id: string): Promise<FetchReply | null> {
       const codigo = codigoDe(id);
       if (codigo === null) return null;
-      const { acervo } = await obterAcervo(timeoutMs, maxRetries);
+      const { acervo, snapshot } = await obterAcervo(timeoutMs, maxRetries);
       const entrada = acervo.porId.get(id);
       if (!entrada) return null;
 
@@ -265,6 +285,15 @@ export function criarDeepResearchTools(deps: DeepResearchDeps): DeepResearchTool
       const { provenance, attribution, ...dados } = resultado.structuredContent;
       const m = dados as unknown as Metadados;
       const serie = seriesPopulares.find(s => s.codigo === codigo);
+
+      // Quando a `url` (e, fora da curadoria, o título) saiu do índice do portal,
+      // a procedência dele entra à frente dos blocos de `bcb_serie_metadados`: o
+      // filtro de prefixo do SGS descarta esse acesso, e sem o bloco ele ficava
+      // omitido (medido em 13/10/2026). Curada sem dataset não leu o índice.
+      const leuIndice = snapshot !== null && entrada.url.startsWith(CKAN_DATASET_BASE);
+      const extras: EnvelopeExtras = leuIndice
+        ? juntarExtras(extrasDe([provIndicePortal(snapshot)]), { provenance, attribution })
+        : { structured: { provenance, attribution }, meta: resultado._meta as Record<string, unknown> };
 
       // O título é o do acervo, não o de `bcb_serie_metadados`: fora da curadoria
       // ela só sabe dizer "Série N", e o acervo tem o nome derivado do slug do
@@ -285,10 +314,7 @@ export function criarDeepResearchTools(deps: DeepResearchDeps): DeepResearchTool
             ...(m.ultimoValor ? { ultimoValor: m.ultimoValor } : {})
           }
         },
-        extras: {
-          structured: { provenance, attribution },
-          meta: resultado._meta as Record<string, unknown>
-        }
+        extras
       };
     }
 

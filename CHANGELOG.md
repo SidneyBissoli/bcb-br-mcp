@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.1] - 2026-10-13
+
+### Fixed
+
+- **`fetch` passa a declarar o Portal de Dados Abertos quando o documento saiu
+  dele.** A `url` do documento (e, nas séries fora da curadoria, o título) vem do
+  índice de datasets do portal, mas a proveniência devolvida era só a de
+  `bcb_serie_metadados` (SGS + catálogo curado): o acesso ao índice entrava no
+  coletor e o filtro de prefixo do SGS o descartava, então a procedência do portal
+  ficava omitida. Agora o bloco do índice (o mesmo de `search` e
+  `bcb_buscar_serie`) vai à frente dos blocos dos metadados, com a URL do índice na
+  `attribution` e no espelho de `_meta`. Série curada sem dataset no portal não lê
+  o índice e segue sem o bloco. A superfície não muda: o `outputSchema` do `fetch`
+  já era multi-bloco.
+
 ## [1.18.0] - 2026-10-08
 
 Contrato de proveniência: tempo 2 da v1.2 e tempo 1 da v1.3, no mesmo passo. O
