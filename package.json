@@ -70,20 +70,20 @@
     "dist"
   ],
   "dependencies": {
-    "@modelcontextprotocol/server": "^2.3.0",
+    "@modelcontextprotocol/server": "^2.3.1",
     "@sbissoli/mcp-provenance": "^0.4.0",
-    "@sbissoli/mcp-search": "^0.9.0",
-    "@sbissoli/mcp-stats": "^0.3.1",
+    "@sbissoli/mcp-search": "^0.9.1",
+    "@sbissoli/mcp-stats": "^0.3.2",
     "@sbissoli/mcp-upstream": "^0.4.2"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "^2.3.0",
-    "@sbissoli/mcp-evals": "^0.2.1",
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@sbissoli/mcp-evals": "^0.2.2",
     "@sbissoli/mcp-surface": "^0.6.0",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vite": "^8.3.2",
+    "vite": "^8.3.4",
     "vitest": "^5.0.3"
   }
 }
