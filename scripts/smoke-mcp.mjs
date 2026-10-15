@@ -112,6 +112,28 @@ function checkUpstream(label, result, detail = "") {
   check(label, !result?.isError, detail);
 }
 
+/**
+ * A busca não vira `isError` quando o portal de dados abertos cai: ela degrada
+ * para o catálogo curado, e o sinal é estrutural — `catalogo` sem `obtidoEm`
+ * (não há índice obtido). Nesse caso as checagens do índice viram AVISO, e o
+ * que é do NOSSO lado continua sendo checado: a degradação tem de ser dita em
+ * `avisos`, e a cobertura não pode afirmar inexistência. Medido em 14/10/2026:
+ * `package_search` respondia 200 com HTML e o deploy saía vermelho sem defeito.
+ */
+function indiceDoPortalFora(label, out) {
+  const fora = !!out?.catalogo && !out.catalogo.obtidoEm;
+  if (fora) {
+    warnings++;
+    console.log(`  [AVISO] ${label} — índice do portal de dados abertos indisponível agora; busca degradou para o catálogo curado`);
+    check(
+      "  → a degradação é declarada em avisos",
+      (out?.avisos ?? []).some(a => a.includes("Índice do portal indisponível")),
+      (out?.avisos ?? []).join(" | ").slice(0, 120)
+    );
+  }
+  return fora;
+}
+
 // ==================== transports ====================
 
 function stdioClient() {
@@ -307,11 +329,19 @@ try {
     !busca.result?.isError && buscaOut?.totalEncontradas > 0,
     `${buscaOut?.totalEncontradas} séries`
   );
-  check(
-    "  → declara a cobertura do índice em vez de afirmar inexistência",
-    (buscaOut?.catalogo?.cobertura ?? "").includes("NÃO é o SGS inteiro"),
-    `${buscaOut?.catalogo?.seriesIndexadas ?? 0} séries indexadas`
-  );
+  if (indiceDoPortalFora("  → declara a cobertura do índice do portal", buscaOut)) {
+    check(
+      "  → declara a cobertura do catálogo curado em vez de afirmar inexistência",
+      (buscaOut?.catalogo?.cobertura ?? "").includes("não significa que a série não"),
+      `${buscaOut?.catalogo?.seriesIndexadas ?? 0} séries curadas`
+    );
+  } else {
+    check(
+      "  → declara a cobertura do índice em vez de afirmar inexistência",
+      (buscaOut?.catalogo?.cobertura ?? "").includes("NÃO é o SGS inteiro"),
+      `${buscaOut?.catalogo?.seriesIndexadas ?? 0} séries indexadas`
+    );
+  }
 
   check(
     "  → o achado curado declara a procedência do nome",
@@ -744,7 +774,10 @@ try {
   const busca2 = await call("bcb_buscar_serie", { termo: "cambio" });
   const busca2Out = busca2.result?.structuredContent;
   checkUpstream("proveniência: 2ª busca é servida de cache", busca2.result);
-  if (!busca2.result?.isError) {
+  if (!busca2.result?.isError && indiceDoPortalFora("  → proveniência do índice do portal", busca2Out)) {
+    const doServidor = (busca2Out?.provenance ?? []).find(x => String(x.source).includes("catálogo curado"));
+    check("  → o bloco do catálogo do servidor continua presente", !!doServidor);
+  } else if (!busca2.result?.isError) {
     const doPortal = (busca2Out?.provenance ?? []).find(x => String(x.source).includes("Portal"));
     const doServidor = (busca2Out?.provenance ?? []).find(x => String(x.source).includes("catálogo curado"));
     check("  → um bloco por procedência (portal × catálogo do servidor)", !!doPortal && !!doServidor);
