@@ -31,6 +31,15 @@ idêntico).
   `bcb_serie_valores`, `bcb_serie_ultimos`, `bcb_correlacao` e `bcb_deflacionar`.
   A constante `EMITIR_NATUREZA` saiu: o campo é emitido sempre.
 
+### Maintenance
+
+- Dependências atualizadas desde a 1.18.1: na raiz, SDK MCP 2.3.1,
+  `@sbissoli/mcp-search` 0.9.1, `@sbissoli/mcp-stats` 0.3.2,
+  `@sbissoli/mcp-evals` 0.2.2 e vite 8.3.4 (#70); no worker, `agents` 0.28 e
+  wrangler (#71).
+- O smoke de produção trata o Portal de Dados Abertos fora do ar como aviso da
+  origem, não como falha do deploy (#72).
+
 ## [1.18.1] - 2026-10-13
 
 ### Fixed
