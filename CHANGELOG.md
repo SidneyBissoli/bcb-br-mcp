@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.2] - 2026-10-15
+
+Tempo 2 do contrato de proveniência 1.3 e do campo `natureza`: o que a 1.18.0
+passou a ACEITAR no esquema passa a SAIR nas respostas, sete dias depois, como
+manda o rollout em dois tempos. O `tools/list` não muda (`surface.lock.json`
+idêntico).
+
+### Changed
+
+- **O servidor emite o contrato 1.3.** O bloco `concise` leva `revision` em toda
+  resposta (`current` em todas as fontes; o SGS com a nota de que o BCB revisa
+  séries como PIB e IBC-Br e não guarda a primeira divulgação), `notices` quando
+  a fonte tem aviso (o disclaimer da PTAX, a qualificação da paridade não-USD, a
+  nota do catálogo curado) e `derived` + `derivation_note` quando o servidor
+  calculou (`bcb_variacao`, `bcb_comparar`, `bcb_correlacao`, `bcb_deflacionar`,
+  harmonização de frequência). Sem aviso e sem cálculo, as duas chaves ficam
+  ausentes, não vazias.
+- **O bloco `serie` traz `natureza`**: `nivel`, `variacao_no_periodo`,
+  `acumulado_no_ano` ou `acumulado_12_meses`, e `null` ("tipo não identificado")
+  fora do catálogo curado ou onde o catálogo não diz o que a série mede — nunca o
+  palpite `nivel` que a conta da `bcb_variacao` usa por dentro. Sai em
+  `bcb_serie_valores`, `bcb_serie_ultimos`, `bcb_correlacao` e `bcb_deflacionar`.
+  A constante `EMITIR_NATUREZA` saiu: o campo é emitido sempre.
+
+### Maintenance
+
+- Dependências atualizadas desde a 1.18.1: na raiz, SDK MCP 2.3.1,
+  `@sbissoli/mcp-search` 0.9.1, `@sbissoli/mcp-stats` 0.3.2,
+  `@sbissoli/mcp-evals` 0.2.2 e vite 8.3.4 (#70); no worker, `agents` 0.28 e
+  wrangler (#71).
+- O smoke de produção trata o Portal de Dados Abertos fora do ar como aviso da
+  origem, não como falha do deploy (#72).
+
 ## [1.18.1] - 2026-10-13
 
 ### Fixed

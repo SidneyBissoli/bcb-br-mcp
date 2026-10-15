@@ -62,19 +62,21 @@ import {
  * Contexto único do servidor: namespace de `_meta`, idioma, fuso, modo e a
  * versão do contrato que o servidor EMITE.
  *
- * `contractVersion: "1.2"` desde a 1.18.0 (tempo 2 da 1.2): o `field_sources`
- * passa a sair no `concise` das respostas que fundem sub-fontes, e a lib cobra
- * que o `retrieved_at` do topo seja o mais antigo entre elas (`provenienciaBcb`
- * o deriva assim, por construção). A 1.3 já é ACEITA pelo schema importado
- * (tempo 1 da 1.3); ligá-la é a sessão seguinte. Quem precisar mostrar a versão
- * lê `provenanceContext.contractVersion`, nunca um literal.
+ * Emite a 1.3 desde o tempo 2 dela (o schema importado a aceitava desde a
+ * 1.18.0, de 08/10/2026): o `concise` passa a levar `revision` sempre (vem de
+ * `FONTES_BCB[*].revisao`), `notices` quando a fonte tem aviso (PTAX, paridade,
+ * catálogo curado) e `derived` + `derivation_note` quando o servidor calculou —
+ * ausentes, e não vazios, quando não há o que dizer. Da 1.2 segue valendo o
+ * `field_sources` nas respostas que fundem sub-fontes, com o topo = o mais
+ * antigo entre elas (`provenienciaBcb`, por construção). Quem precisar mostrar
+ * a versão lê `provenanceContext.contractVersion`, nunca um literal.
  */
 export const provenanceContext = createProvenanceContext({
   metaNamespace: "br.com.sidneybissoli.bcb",
   locale: "pt-BR",
   timezone: { offset: "-03:00", label: "horário de Brasília" },
   defaultMode: "concise",
-  contractVersion: "1.2"
+  contractVersion: "1.3"
 });
 
 /** Envelope canônico v1.0 (pós-validação). */

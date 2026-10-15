@@ -535,21 +535,25 @@ describe("o schema do bloco vem do pacote — importado, não transcrito", () =>
   });
 
   it("todo bloco emitido tem as chaves do schema, na ordem dele, e nenhuma a mais", async () => {
+    // Na 1.3, a resposta comum do SGS ganha só `revision`: sem aviso da fonte e
+    // sem cálculo, `notices` e `derived` seguem ausentes (não vazios).
     mockFetch([["bcdata.sgs.433", OBS_MENSAL]]);
     const r = await call("bcb_serie_valores", { codigo: 433 });
-    expect(Object.keys(bloco(r))).toEqual(CONCISE_BLOCK_JSON_SCHEMA.required);
+    expect(Object.keys(bloco(r))).toEqual([...CONCISE_BLOCK_JSON_SCHEMA.required, "revision"]);
+    const declaradas = Object.keys(CONCISE_BLOCK_JSON_SCHEMA.properties);
+    for (const chave of Object.keys(bloco(r))) expect(declaradas, chave).toContain(chave);
   });
 });
 
-// ==================== contrato 1.2 no fio, 1.3 no esquema ====================
+// ==================== contrato 1.3 no fio (o field_sources vem da 1.2) ====================
 
 describe("field_sources (contrato 1.2): o topo é o MAIS ANTIGO das sub-fontes", () => {
   const SGS = "https://api.bcb.gov.br/dados/serie/bcdata.sgs";
   const NOVO = new Date("2026-10-08T15:00:00Z");
   const VELHO = new Date("2026-10-07T09:30:00Z");
 
-  it("o servidor emite a 1.2 (tempo 2), lida do contexto e não de literal", () => {
-    expect(provenanceContext.contractVersion).toBe("1.2");
+  it("o servidor emite a 1.3 (tempo 2 da 1.3), lida do contexto e não de literal", () => {
+    expect(provenanceContext.contractVersion).toBe("1.3");
   });
 
   it("cada sub-fonte traz o instante DELA, e o topo é o mais antigo", () => {
@@ -616,7 +620,13 @@ describe("field_sources (contrato 1.2): o topo é o MAIS ANTIGO das sub-fontes",
       expect(f.served_from_cache).toBe(false);
       expect(Date.parse(String(b.retrieved_at))).toBeLessThanOrEqual(Date.parse(String(f.retrieved_at)));
     }
-    expect(Object.keys(b)).toEqual([...CONCISE_BLOCK_JSON_SCHEMA.required, "field_sources"]);
+    expect(Object.keys(b)).toEqual([
+      ...CONCISE_BLOCK_JSON_SCHEMA.required,
+      "field_sources",
+      "derived",
+      "derivation_note",
+      "revision"
+    ]);
   });
 
   it("bcb_focus_referencias: cada escopo casa com a URL que ele mesmo buscou", async () => {
@@ -628,7 +638,7 @@ describe("field_sources (contrato 1.2): o topo é o MAIS ANTIGO das sub-fontes",
   });
 });
 
-describe("revision (contrato 1.3): informada pelos builders, fora do fio enquanto emitimos 1.2", () => {
+describe("contrato 1.3 no fio: revision, notices e derived", () => {
   it("toda fonte do BCB é `current`; só o SGS tem nota, a das instructions", () => {
     for (const [chave, fonte] of Object.entries(FONTES_BCB)) {
       expect(fonte.revisao.status, chave).toBe("current");
@@ -637,7 +647,7 @@ describe("revision (contrato 1.3): informada pelos builders, fora do fio enquant
     expect(SERVER_INSTRUCTIONS).toContain("o BCB revisa séries como PIB e IBC-Br e não guarda a primeira divulgação");
   });
 
-  it("o canônico carrega a revisão; o concise 1.2 não a emite", async () => {
+  it("o canônico carrega a revisão, e o concise a emite", async () => {
     const p = provenienciaBcb({ fonte: "SGS", url: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json" });
     expect(p.revision).toEqual(REVISAO_SGS);
     const f = provenienciaBcb({ fonte: "FOCUS", url: "https://olinda.bcb.gov.br/x" });
@@ -645,7 +655,23 @@ describe("revision (contrato 1.3): informada pelos builders, fora do fio enquant
 
     mockFetch([["bcdata.sgs.433", OBS_MENSAL]]);
     const r = await call("bcb_serie_valores", { codigo: 433 });
-    expect(bloco(r)).not.toHaveProperty("revision");
+    expect(bloco(r).revision).toEqual(REVISAO_SGS);
+    expect(bloco(r)).not.toHaveProperty("notices");
+    expect(bloco(r)).not.toHaveProperty("derived");
+  });
+
+  it("o que o servidor calcula diz que calculou, com a nota", async () => {
+    mockFetch([["bcdata.sgs.433", OBS_MENSAL]]);
+    const r = await call("bcb_variacao", { codigo: 433, dataInicial: "2026-01-01", dataFinal: "2026-03-31" });
+    expect(bloco(r).derived).toBe(true);
+    expect(String(bloco(r).derivation_note)).toMatch(/encadeamento/);
+  });
+
+  it("o aviso da fonte vai no bloco: o disclaimer da PTAX sai verbatim", async () => {
+    mockFetch([["CotacaoDolar", COTACAO]]);
+    const r = await call("bcb_cambio_cotacao", { moeda: "USD" });
+    expect(r.isError, JSON.stringify(r.content)).toBeUndefined();
+    expect(blocos(r).find(b => /PTAX/.test(String(b.source)))!.notices).toContain(DISCLAIMER_PTAX);
   });
 
   it("o esquema LISTADO aceita um bloco 1.3 completo (as quatro chaves novas)", async () => {

@@ -138,7 +138,8 @@ describe("bcb_serie_valores", () => {
         codigo: 433,
         nome: "IPCA - Variação mensal",
         categoria: "Inflação",
-        periodicidade: "Mensal"
+        periodicidade: "Mensal",
+        natureza: "variacao_no_periodo"
       },
       totalRegistros: 2,
       periodoInicial: "01/01/2020",
@@ -159,7 +160,9 @@ describe("bcb_serie_valores", () => {
       codigo: 99999,
       nome: "Série 99999",
       categoria: "Desconhecida",
-      periodicidade: "Desconhecida"
+      periodicidade: "Desconhecida",
+      // Fora do catálogo: "não identificado", nunca o palpite `nivel` da conta.
+      natureza: null
     });
   });
 
@@ -205,7 +208,9 @@ describe("bcb_serie_ultimos", () => {
         codigo: 432,
         nome: "Taxa de juros - Meta Selic definida pelo Copom",
         categoria: "Juros",
-        periodicidade: "Diária"
+        periodicidade: "Diária",
+        // "Percentual ao ano" = taxa vigente = nível (decisão do dono, 09/10/2026).
+        natureza: "nivel"
       },
       totalRegistros: 1,
       dados: [{ data: "01/03/2020", valor: 4.25 }]

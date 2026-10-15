@@ -380,8 +380,8 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   nem encadeamento têm sentido nela. `bcb_comparar` usa a mesma decisão,
   encadeando sobre as observações ORIGINAIS, antes de qualquer harmonização.
   O RÓTULO publicado é outra coisa: `naturezaDaSerie` (campo `natureza` do bloco
-  `serie`, declarado no schema desde a 1.18.0 e emitido só quando
-  `EMITIR_NATUREZA` for ligada) dá `null` fora do catálogo e onde o catálogo
+  `serie`, declarado no schema desde a 1.18.0 e emitido desde o tempo 2 do
+  contrato 1.3) dá `null` fora do catálogo e onde o catálogo
   não afirma o que a série mede — a conta supõe nível, o rótulo não.
 - **A poupança (25, 195) publica UMA TAXA MENSAL POR DIA.** Medido em
   15/08/2026: janeiro de 2024 tem 28 observações, cada uma o rendimento do

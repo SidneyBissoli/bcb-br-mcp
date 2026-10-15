@@ -425,17 +425,6 @@ export const NATUREZAS_SERIE: readonly NaturezaSerie[] = [
 ];
 
 /**
- * Emissão do campo `natureza` no bloco `serie` — DESLIGADA no tempo 1.
- *
- * Mesmo rollout em dois tempos do contrato de proveniência: nesta versão o
- * `outputSchema` passa a DECLARAR o campo (opcional), e nenhuma resposta muda;
- * um conector que guardou o schema antigo, fechado por `additionalProperties:
- * false`, recusaria a resposta inteira se o campo saísse já. A sessão de ~7 dias
- * depois liga a constante (um patch, sem mexer em schema).
- */
-export const EMITIR_NATUREZA = false;
-
-/**
  * Unidades do portal que dizem, por si, que o valor é NÍVEL: montante em moeda,
  * número-índice, preço (câmbio), razão ou participação ("Percentual", "Pontos
  * percentuais") e taxa vigente expressa ao ano ("Percentual ao ano" — a meta
@@ -498,7 +487,7 @@ export function naturezaDaSerie(codigo: number): NaturezaSerie | null {
   return null;
 }
 
-/** Fragmento do `outputSchema` do campo — declarado opcional, aceito desde o tempo 1. */
+/** Fragmento do `outputSchema` do campo — opcional no esquema desde a 1.18.0 (tempo 1). */
 const NATUREZA_SCHEMA = {
   type: ["string", "null"] as const,
   enum: [...NATUREZAS_SERIE, null],
@@ -532,7 +521,11 @@ function refSerie(codigo: number, periodicidade: Periodicidade | null): Record<s
     categoria: info?.categoria || "Desconhecida",
     periodicidade: info?.periodicidade || (periodicidade ? ROTULO_PERIODICIDADE[periodicidade] : "Desconhecida"),
     ...(inferida ? { periodicidadeInferida: true } : {}),
-    ...(EMITIR_NATUREZA ? { natureza: naturezaDaSerie(codigo) } : {})
+    // Rollout em dois tempos, como o do contrato de proveniência: o esquema
+    // declarou o campo na 1.18.0 (08/10/2026) e só depois de ~7 dias ele passou
+    // a sair — um conector com o esquema anterior, selado por
+    // `additionalProperties: false`, recusaria a resposta inteira.
+    natureza: naturezaDaSerie(codigo)
   };
 }
 
