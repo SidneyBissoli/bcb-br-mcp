@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Hosted worker: `https://sidneybissoli.com` is an accepted `Origin` on the
+  public `/mcp` route.** The author's site registers WebMCP tools for agents
+  running in the visitor's browser and calls this server by plain JSON-RPC;
+  until now the handler's Origin check (DNS-rebinding defence) answered 403 to
+  both the preflight and the POST. Only that one hostname, only on `/mcp`: the
+  private `/mcp/uso-proprio` route keeps the handler defaults, and any other
+  Origin is still refused (`worker/tests/origin.test.ts`). npm package and
+  `tools/list` unchanged.
+
 ## [1.18.2] - 2026-10-15
 
 Tempo 2 do contrato de proveniência 1.3 e do campo `natureza`: o que a 1.18.0
