@@ -19,6 +19,7 @@ import { SERVER_CONFIG } from "./config.js";
 import { landingResponse } from "./landing.js";
 import { discoveryResponseForPath } from "./discovery.js";
 import { logger } from "./logger.js";
+import { origensAceitas } from "./origin.js";
 import { checkRateLimit } from "./rate-limit.js";
 import { unknownCursorError } from "../../dist/pagination.js";
 import { buildServer } from "./server.js";
@@ -193,6 +194,9 @@ export default {
       ...(SERVER_CONFIG.extraAllowedHostnames.length
         ? { allowedHostnames: [...SERVER_CONFIG.extraAllowedHostnames] }
         : {}),
+      // Header Origin: só na rota pública, o site do autor passa a valer
+      // (WebMCP). A rota privada fica nos defaults. Ver src/origin.ts.
+      allowedOriginHostnames: origensAceitas(rotaMcp),
       corsOptions: {
         origin: env.ALLOWED_ORIGIN || "*",
         methods: "GET, POST, DELETE, OPTIONS",
