@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Contrato semanal do catálogo SGS: fonte fora ≠ deriva.** O teste
+  `src/sgs-contract.integration.test.ts` passa a rodar cada série em `aoVivo`
+  do `@sbissoli/mcp-live-source/vitest` (0.2.0), com a rede pelo
+  `@sbissoli/mcp-upstream` (^0.5.1, antes ^0.4.3): série cuja origem está fora
+  (timeout, rede, 429, 5xx) depois de 3 idas é **pulada** e anotada como
+  `Fonte indisponível` — job verde, o painel do portfólio conta as noites —, e
+  só a asserção (série congelada, código errado) é deriva, vermelho rotulado
+  `Deriva de formato`. Antes, um 502 do SGS era vermelho igual a deriva (item
+  `mcp:fonte-indisponivel-nao-e-deriva`). Depois de 5 séries seguidas sem
+  resposta e nenhuma capturada, as demais pulam sem ir à rede.
+  O teste pede `ultimos/2` e toma a data MAIOR, não `ultimos/1`: medido em
+  22/10/2026, a 190 (IGP-DI) responde `200 {"erro":{}}` a `ultimos/1` em 5 de 5
+  chamadas e dados normais a `ultimos/2` — defeito da origem em N=1 (a série
+  está viva, 09/2026). Corpo 200 que não é array é ambíguo (repete; se
+  persistir, `Ambíguo`). Rodada local: 135 de 135 em 77 s. Servidor e
+  `tools/list` inalterados; o mcp-upstream 0.5.x só acrescenta
+  `entregaDaOrigem`.
+
 - **Hosted worker: `https://sidneybissoli.com` is an accepted `Origin` on the
   public `/mcp` route.** The author's site registers WebMCP tools for agents
   running in the visitor's browser and calls this server by plain JSON-RPC;
