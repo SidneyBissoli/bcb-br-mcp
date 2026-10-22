@@ -254,14 +254,33 @@ function stdioClient() {
   });
 
   let id = 1;
+  // Teto de uma chamada no transporte STDIO. No canal hospedado quem corta é o
+  // Worker (10 s) e a tool volta `isError` dizendo que a origem não respondeu;
+  // aqui não há Worker, o servidor repete por dentro e uma janela longa do SGS
+  // lento passa dos 30 s (medido em 22/10/2026 em `bcb_deflacionar` desde 2000).
+  // Por isso o estouro de `tools/call` NÃO lança: vira o mesmo `isError` que o
+  // Worker produziria, e o `verificar` SONDA a fonte antes de rotular — fonte
+  // fora = aviso, fonte servindo = falha. Antes saía `Falha alheia à origem`
+  // sem ninguém olhar a origem. Método de protocolo que estoura continua
+  // lançando: aí é o servidor que não responde.
+  const TIMEOUT_STDIO_MS = 30000;
   const rpc = (method, params) =>
     new Promise((resolve, reject) => {
       const msgId = id++;
       pending.set(msgId, resolve);
       child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: msgId, method, params })}\n`);
       setTimeout(() => {
-        if (pending.delete(msgId)) reject(new Error(`timeout em ${method}`));
-      }, 30000);
+        if (!pending.delete(msgId)) return;
+        if (method !== "tools/call") return reject(new Error(`timeout em ${method}`));
+        resolve({
+          jsonrpc: "2.0",
+          id: msgId,
+          result: {
+            isError: true,
+            content: [{ type: "text", text: `a tool ${params?.name ?? "?"} não respondeu em ${TIMEOUT_STDIO_MS / 1000} s (teto do transporte STDIO do smoke)` }],
+          },
+        });
+      }, TIMEOUT_STDIO_MS);
     });
 
   const notify = method => child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method })}\n`);
@@ -1010,8 +1029,10 @@ try {
     { esperaErro: true, detalhe: () => texto.slice(0, 80) }
   );
 } catch (error) {
-  // Uma chamada do próprio smoke lançou (JSON-RPC, parse, timeout do transporte):
-  // defeito do deploy ou do roteiro, nunca da origem — vermelho, sem sondar.
+  // Uma chamada do próprio smoke lançou (JSON-RPC, parse, timeout de método de
+  // protocolo): defeito do deploy ou do roteiro, nunca da origem — vermelho, sem
+  // sondar. O timeout de `tools/call` no STDIO não cai aqui: vira `isError` e é
+  // sondado (ver o transporte).
   await smoke.verificar("roteiro completo (nenhuma chamada do smoke lançou)", async () => {
     throw error;
   });

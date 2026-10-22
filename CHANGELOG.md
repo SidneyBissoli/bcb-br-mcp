@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Smoke em STDIO: timeout do transporte numa tool é sondado, não rotulado
+  às cegas.** No canal hospedado quem corta é o Worker (10 s) e a tool volta
+  `isError`; em STDIO não há Worker, o servidor repete por dentro e uma janela
+  longa do SGS lento passa dos 30 s do smoke (medido em 22/10/2026 em
+  `bcb_deflacionar` desde 2000) — o `tools/call` lançava, o roteiro parava e o
+  relatório dizia `Falha alheia à origem` sem ninguém olhar a origem. Agora o
+  estouro de `tools/call` vira o mesmo `isError` que o Worker produziria ("a
+  tool X não respondeu em 30 s") e o `verificar` sonda a fonte nomeada: fonte
+  fora = aviso, servindo = falha com o texto; o roteiro segue. Método de
+  protocolo que estoura continua lançando. `@sbissoli/mcp-live-source` ^0.3.1
+  (dev): 4xx com página HTML e sonda com credencial recusada contam como fonte
+  fora.
 - **Envelope de erro em JSON com HTTP 200 (`{"erro":{}}`) era lido como "nenhum
   dado".** Medido em 22/10/2026: a série 190 (IGP-DI, viva — último ponto
   09/2026) responde esse envelope a `dados/ultimos/1` em 5 de 5 chamadas, e
