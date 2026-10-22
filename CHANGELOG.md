@@ -22,7 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   o envelope e o contorno), nunca "série inexistente"; (2) em
   `buscarUltimosSgs`, esgotadas as tentativas com o envelope, pede N+1 e devolve
   as N últimas — as tentativas falhas ficam no `retrieval` da resposta
-  (`unstable`), o defeito não é escondido. `tools/list` inalterado.
+  (`unstable`), o defeito não é escondido. No pedido `ultimos/N` o envelope NÃO
+  é repetido (medido determinístico, 0,2 s; o contorno N+1 já é a segunda
+  chance): a chamada cai de ~3,4 s para ~0,5 s. Na janela de datas, sem
+  contorno, repete como a página HTML. `tools/list` inalterado.
 
 ### Changed
 

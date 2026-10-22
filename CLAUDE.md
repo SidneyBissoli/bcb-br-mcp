@@ -448,7 +448,9 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   = `malformed_body`, a classe da página HTML: repete; persistindo,
   `ErroEnvelopeDeErroSgs`, classe `fonte`, nunca "série inexistente"), e
   `buscarUltimosSgs` contorna pedindo N+1 e devolvendo as N últimas — o
-  `retrieval` da resposta conta as tentativas falhas (`unstable: true`). Gates em
+  `retrieval` da resposta conta as tentativas falhas (`unstable: true`). No
+  `ultimos/N` o envelope NÃO se repete (`registrarTentativaFalha`): é
+  determinístico e o contorno já é a segunda chance — repetir custava ~3 s. Gates em
   `src/shared.fetch.test.ts` e `src/series.test.ts`. Não trate objeto JSON da
   origem como dado sem olhar a chave `erro`.
 - **O catálogo do portal (CKAN) NÃO é oráculo de validade.** Medido em
