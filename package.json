@@ -74,7 +74,7 @@
     "@sbissoli/mcp-provenance": "^0.4.0",
     "@sbissoli/mcp-search": "^0.9.1",
     "@sbissoli/mcp-stats": "^0.3.2",
-    "@sbissoli/mcp-upstream": "^0.4.2"
+    "@sbissoli/mcp-upstream": "^0.4.3"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.3.1",
@@ -84,6 +84,6 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   }
 }
