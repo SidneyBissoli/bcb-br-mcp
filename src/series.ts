@@ -24,7 +24,7 @@
  * saber a periodicidade de origem, e é este módulo que a conhece.
  */
 
-import { ErroDaOrigem, ErroHttpBcb, fetchBcbApi, type SerieValor } from "./shared.js";
+import { ErroDaOrigem, ErroEnvelopeDeErroSgs, ErroHttpBcb, fetchBcbApi, type SerieValor } from "./shared.js";
 
 export const BCB_SGS_BASE = "https://api.bcb.gov.br/dados/serie/bcdata.sgs";
 
@@ -442,12 +442,29 @@ export async function buscarUltimosSgs(
   maxRetries?: number
 ): Promise<ResultadoSerie> {
   if (quantidade <= TETO_ULTIMOS) {
-    const url = `${BCB_SGS_BASE}.${codigo}/dados/ultimos/${quantidade}?formato=json`;
-    const dados = (await fetchBcbApi(url, timeoutMs, maxRetries)) as SerieValor[];
-    // `ultimos/N` é o caminho onde a origem devolve descendente em parte das
-    // séries — ver `ordenarPorData`.
-    const observacoes = ordenarPorData(Array.isArray(dados) ? dados : []);
-    return { observacoes, periodicidade: inferirPeriodicidade(observacoes), requisicoes: 1 };
+    const ultimos = async (n: number): Promise<SerieValor[]> => {
+      const url = `${BCB_SGS_BASE}.${codigo}/dados/ultimos/${n}?formato=json`;
+      const dados = (await fetchBcbApi(url, timeoutMs, maxRetries)) as SerieValor[];
+      // `ultimos/N` é o caminho onde a origem devolve descendente em parte das
+      // séries — ver `ordenarPorData`.
+      return ordenarPorData(Array.isArray(dados) ? dados : []);
+    };
+    try {
+      const observacoes = await ultimos(quantidade);
+      return { observacoes, periodicidade: inferirPeriodicidade(observacoes), requisicoes: 1 };
+    } catch (erro) {
+      // Contorno de defeito da ORIGEM, medido em 22/10/2026: a 190 (IGP-DI)
+      // responde um envelope de erro `{"erro":{}}` com 200 a `ultimos/1` em
+      // 5 de 5 chamadas, e dado normal a `ultimos/2`. Esgotadas as tentativas
+      // do pedido (`ErroEnvelopeDeErroSgs`), pedir UMA observação a mais e
+      // devolver as N últimas. As tentativas falhas ficam contadas no
+      // `retrieval` da resposta (a ida é do mesmo coletor): a resposta diz
+      // `unstable`, não esconde o defeito. Só uma vez: se N+1 também falhar,
+      // o erro sobe como veio.
+      if (!(erro instanceof ErroEnvelopeDeErroSgs) || quantidade >= TETO_ULTIMOS) throw erro;
+      const observacoes = (await ultimos(quantidade + 1)).slice(-quantidade);
+      return { observacoes, periodicidade: inferirPeriodicidade(observacoes), requisicoes: 2 };
+    }
   }
 
   const periodicidade = (await sondarPeriodicidade(codigo, timeoutMs, maxRetries)) ?? "mensal";

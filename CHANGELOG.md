@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Envelope de erro em JSON com HTTP 200 (`{"erro":{}}`) era lido como "nenhum
+  dado".** Medido em 22/10/2026: a série 190 (IGP-DI, viva — último ponto
+  09/2026) responde esse envelope a `dados/ultimos/1` em 5 de 5 chamadas, e
+  dados normais a `ultimos/2`..`ultimos/5` e à janela de datas; as outras 134
+  séries curadas respondem bem a `ultimos/1`. É defeito da origem naquele
+  pedido, e `bcb_serie_ultimos(190, 1)` respondia "Nenhum dado encontrado para
+  a série 190" — ausência falsa com 200. Conserto em duas camadas: (1) no ponto
+  único de rede (`upstreamBcb`, `inspectBody`), objeto JSON com `erro` no topo é
+  `malformed_body`, a mesma classe da página HTML de erro — a origem repete e,
+  se persistir, o erro é `ErroEnvelopeDeErroSgs` (classe `fonte`, mensagem com
+  o envelope e o contorno), nunca "série inexistente"; (2) em
+  `buscarUltimosSgs`, esgotadas as tentativas com o envelope, pede N+1 e devolve
+  as N últimas — as tentativas falhas ficam no `retrieval` da resposta
+  (`unstable`), o defeito não é escondido. `tools/list` inalterado.
+
 ### Changed
 
 - **Contrato semanal do catálogo SGS: fonte fora ≠ deriva.** O teste

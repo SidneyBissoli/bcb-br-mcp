@@ -438,6 +438,19 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   **repetição**: código que não existe falha em todas as tentativas; série boa
   volta na seguinte. Gate em `src/shared.fetch.test.ts`. **Não reintroduza o
   atalho de lançar na primeira página HTML.**
+- **A origem responde `200 {"erro":{}}` a um pedido bom — e só naquele pedido.**
+  Medido em 22/10/2026: a série 190 (IGP-DI, viva, último ponto 09/2026)
+  responde esse envelope a `dados/ultimos/1` em 5 de 5 chamadas, e dados a
+  `ultimos/2`..`ultimos/5` e à janela de datas; as outras 134 curadas respondem
+  bem a `ultimos/1`. Até o conserto, `call.json` aceitava o envelope como JSON
+  válido e `bcb_serie_ultimos(190, 1)` dizia "Nenhum dado encontrado" — ausência
+  FALSA com 200. Hoje: `upstreamBcb` tem `inspectBody` (objeto com `erro` no topo
+  = `malformed_body`, a classe da página HTML: repete; persistindo,
+  `ErroEnvelopeDeErroSgs`, classe `fonte`, nunca "série inexistente"), e
+  `buscarUltimosSgs` contorna pedindo N+1 e devolvendo as N últimas — o
+  `retrieval` da resposta conta as tentativas falhas (`unstable: true`). Gates em
+  `src/shared.fetch.test.ts` e `src/series.test.ts`. Não trate objeto JSON da
+  origem como dado sem olhar a chave `erro`.
 - **O catálogo do portal (CKAN) NÃO é oráculo de validade.** Medido em
   24/09/2026: `package_list` traz 4.261 datasets, 3.577 nomeados por código — e
   **10 de 20 códigos válidos conhecidos estão fora dele**, inclusive o **433

@@ -22,8 +22,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CONFIG,
+  ErroEnvelopeDeErroSgs,
   ErroHttpBcb,
   ErroSerieInexistente,
+  ehEnvelopeDeErro,
   TIMEOUT_PEDIDO_PEQUENO_MS,
   WORKER_CONFIG,
   ehPedidoPequeno,
@@ -126,6 +128,63 @@ describe("a página HTML não é veredito: série que existe volta na repetiçã
 
     expect(await capturado).toEqual([{ data: "01/09/2026", valor: "15.00" }]);
     expect(prazos[0]).toBeLessThanOrEqual(TIMEOUT_PEDIDO_PEQUENO_MS);
+  });
+});
+
+/**
+ * Envelope de erro em JSON com 200 — `{"erro":{}}` —, medido em 22/10/2026 na
+ * série 190 (IGP-DI, viva) com `ultimos/1`, em 5 de 5 chamadas; `ultimos/2` e a
+ * janela respondem dado; as outras 134 curadas respondem a `ultimos/1`. Até
+ * então o envelope passava como JSON válido e a ferramenta dizia "Nenhum dado
+ * encontrado para a série 190" — ausência falsa com HTTP 200.
+ */
+function respostaEnvelope(): Response {
+  return new Response(JSON.stringify({ erro: {} }), {
+    status: 200,
+    headers: { "content-type": "application/json" }
+  });
+}
+
+describe("envelope de erro com 200 não é dado nem série inexistente", () => {
+  it("ehEnvelopeDeErro: objeto com `erro` no topo, e só ele", () => {
+    expect(ehEnvelopeDeErro('{"erro":{}}')).toBe(true);
+    expect(ehEnvelopeDeErro(' {"erro":"x","detalhe":1}')).toBe(true);
+    expect(ehEnvelopeDeErro("[]")).toBe(false);
+    expect(ehEnvelopeDeErro('[{"data":"01/09/2026","valor":"1"}]')).toBe(false);
+    expect(ehEnvelopeDeErro('{"data":"01/09/2026"}')).toBe(false);
+    expect(ehEnvelopeDeErro('{"error":"ckan"}')).toBe(false);
+    expect(ehEnvelopeDeErro("<html>")).toBe(false);
+    expect(ehEnvelopeDeErro("")).toBe(false);
+  });
+
+  it("envelope na 1ª tentativa e JSON na 2ª devolve o DADO (é soluço, repete)", async () => {
+    vi.useFakeTimers();
+    let n = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => (++n === 1 ? respostaEnvelope() : respostaJson())));
+
+    const capturado = fetchBcbApi(PEQUENO, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).then((d) => d, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(CONFIG.RETRY_DELAY_MS * 4);
+
+    expect(await capturado).toEqual([{ data: "01/09/2026", valor: "15.00" }]);
+    expect(n).toBe(2);
+  });
+
+  it("envelope em TODAS as tentativas é ErroEnvelopeDeErroSgs, classe fonte, que nomeia o contorno — não 'inexistente'", async () => {
+    vi.useFakeTimers();
+    let n = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => { n++; return respostaEnvelope(); }));
+
+    const capturado = fetchBcbApi(PEQUENO, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).then((d) => d, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(CONFIG.RETRY_DELAY_MS * 8);
+    const erro = await capturado;
+
+    expect(erro).toBeInstanceOf(ErroEnvelopeDeErroSgs);
+    expect(erro).not.toBeInstanceOf(ErroSerieInexistente);
+    expect((erro as ErroEnvelopeDeErroSgs).classe).toBe("fonte");
+    expect((erro as Error).message).toContain('{"erro":{}}');
+    expect((erro as Error).message).toContain(`${n} tentativas`);
+    expect((erro as Error).message).toMatch(/outra quantidade|janela|bcb_serie_valores/);
+    expect(n).toBe(CONFIG.MAX_RETRIES);
   });
 });
 

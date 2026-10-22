@@ -262,6 +262,46 @@ export class ErroDaOrigem extends Error {
  * exatamente a mesma resposta. Ter um tipo próprio é o que permite não repetir
  * a consulta: como um 4xx, isto é determinístico.
  */
+/**
+ * A origem respondeu `200` com um ENVELOPE DE ERRO em JSON a um pedido bom.
+ *
+ * Medido em 22/10/2026: a série 190 (IGP-DI, viva — último ponto 09/2026)
+ * responde `{"erro":{}}` a `dados/ultimos/1` em 5 de 5 chamadas, e dados
+ * normais a `ultimos/2`..`ultimos/5` e à janela de datas; as outras 134 séries
+ * curadas respondem bem a `ultimos/1`. É defeito da origem NAQUELE pedido, não
+ * ausência de dado: até então o envelope passava por `call.json` como JSON
+ * válido, a ferramenta via "não é array" e respondia "Nenhum dado encontrado
+ * para a série 190" — ausência falsa com HTTP 200. Agora o envelope é
+ * `malformed_body` no ponto único de rede (`upstreamBcb`, `inspectBody`): a
+ * origem repete como qualquer página de erro, e só quando persiste vira este
+ * erro — classe `fonte`, porque a origem falhou, e a mensagem nomeia o
+ * contorno (pedir outra quantidade ou uma janela de datas).
+ */
+export class ErroEnvelopeDeErroSgs extends Error {
+  readonly classe: ErrorClass = "fonte";
+
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "ErroEnvelopeDeErroSgs";
+  }
+}
+
+/**
+ * O corpo é um envelope de erro do SGS: objeto JSON com a chave `erro` no topo.
+ * Array (dado), objeto sem `erro` e corpo que nem JSON é (página HTML — o
+ * pacote já o rejeita sozinho) não são envelope.
+ */
+export function ehEnvelopeDeErro(corpo: string): boolean {
+  const texto = corpo.trimStart();
+  if (!texto.startsWith("{")) return false;
+  try {
+    const json: unknown = JSON.parse(texto);
+    return typeof json === "object" && json !== null && !Array.isArray(json) && "erro" in json;
+  } catch {
+    return false;
+  }
+}
+
 export class ErroSerieInexistente extends Error {
   /**
    * `nao_encontrado`, e não pela frase: a mensagem diz "requisição inválida"
@@ -357,6 +397,10 @@ export function upstreamBcb(
     backoff: BACKOFF_BCB,
     honorRetryAfter: true,
     retryOn: ctx => registrarTentativaFalha(ctx, tentativas),
+    // Envelope de erro em JSON com 200 (`{"erro":{}}`, medido na 190 em
+    // 22/10/2026) é página de erro como a HTML: o pacote o repete e, se
+    // persistir, `traduzirErroDaOrigem` o nomeia. Ver `ErroEnvelopeDeErroSgs`.
+    inspectBody: (_res, body) => (ehEnvelopeDeErro(body) ? "malformed_body" : null),
     // Ligação TARDIA ao `fetch` global: os testes o dublam depois de o módulo
     // carregar, e a guarda sem rede do worker também.
     fetchImpl: (input, init) => globalThis.fetch(input, init)
@@ -446,6 +490,18 @@ function traduzirErroDaOrigem(erro: unknown, pequeno: boolean, orcamentoMs: numb
   // precisa dele de volta rápido para fatiar a janela e tentar de novo.
   if (erro.kind === "http_4xx") {
     return new ErroHttpBcb(erro.status ?? 400, `Erro na API do BCB: ${erro.status}`);
+  }
+
+  // Envelope de erro em JSON que PERSISTIU nas tentativas: a origem respondeu,
+  // e respondeu erro a este pedido — não é série inexistente (a 190 existe) nem
+  // ausência de dado. Classe `fonte`; a mensagem nomeia o contorno.
+  if (erro.kind === "malformed_body" && erro.body !== undefined && ehEnvelopeDeErro(erro.body)) {
+    return new ErroEnvelopeDeErroSgs(
+      `A API do BCB respondeu um envelope de erro (${erro.body.trim().slice(0, 80)}) com HTTP 200 a este ` +
+        `pedido em ${contarTentativas(erro.attempts)} — defeito da origem neste pedido, não ausência de dado ` +
+        "(medido na série 190 com `ultimos/1` em 22/10/2026: `ultimos/2` e a janela de datas respondem). " +
+        "Peça outra quantidade de observações ou um período com `bcb_serie_valores`."
+    );
   }
 
   // SUSPEITA de inexistência, no pedido pequeno: ou a origem devolveu a página
