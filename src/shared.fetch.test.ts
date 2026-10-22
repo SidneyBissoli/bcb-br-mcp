@@ -157,22 +157,13 @@ describe("envelope de erro com 200 não é dado nem série inexistente", () => {
     expect(ehEnvelopeDeErro("")).toBe(false);
   });
 
-  it("envelope na 1ª tentativa e JSON na 2ª devolve o DADO (é soluço, repete)", async () => {
+  // No pedido `ultimos/N` o envelope NÃO se repete (medido determinístico; o
+  // contorno N+1 de `buscarUltimosSgs` é a segunda chance): UMA tentativa, erro
+  // na hora — repetir custava ~3 s por uma resposta que não muda.
+  it("envelope num `ultimos/N` é ErroEnvelopeDeErroSgs na 1ª tentativa, classe fonte, nomeando o contorno — não 'inexistente'", async () => {
     vi.useFakeTimers();
     let n = 0;
-    vi.stubGlobal("fetch", vi.fn(async () => (++n === 1 ? respostaEnvelope() : respostaJson())));
-
-    const capturado = fetchBcbApi(PEQUENO, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).then((d) => d, (e: unknown) => e);
-    await vi.advanceTimersByTimeAsync(CONFIG.RETRY_DELAY_MS * 4);
-
-    expect(await capturado).toEqual([{ data: "01/09/2026", valor: "15.00" }]);
-    expect(n).toBe(2);
-  });
-
-  it("envelope em TODAS as tentativas é ErroEnvelopeDeErroSgs, classe fonte, que nomeia o contorno — não 'inexistente'", async () => {
-    vi.useFakeTimers();
-    let n = 0;
-    vi.stubGlobal("fetch", vi.fn(async () => { n++; return respostaEnvelope(); }));
+    vi.stubGlobal("fetch", vi.fn(async () => { n++; return n === 1 ? respostaEnvelope() : respostaJson(); }));
 
     const capturado = fetchBcbApi(PEQUENO, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).then((d) => d, (e: unknown) => e);
     await vi.advanceTimersByTimeAsync(CONFIG.RETRY_DELAY_MS * 8);
@@ -182,8 +173,35 @@ describe("envelope de erro com 200 não é dado nem série inexistente", () => {
     expect(erro).not.toBeInstanceOf(ErroSerieInexistente);
     expect((erro as ErroEnvelopeDeErroSgs).classe).toBe("fonte");
     expect((erro as Error).message).toContain('{"erro":{}}');
-    expect((erro as Error).message).toContain(`${n} tentativas`);
+    expect((erro as Error).message).toContain("1 tentativa");
     expect((erro as Error).message).toMatch(/outra quantidade|janela|bcb_serie_valores/);
+    expect(n).toBe(1);
+  });
+
+  // Na janela de datas não há contorno: o envelope repete como a página HTML.
+  it("envelope na janela de datas: 1ª envelope e 2ª JSON devolve o DADO (repete)", async () => {
+    vi.useFakeTimers();
+    let n = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => (++n === 1 ? respostaEnvelope() : respostaJson())));
+
+    const capturado = fetchBcbApi(GRANDE, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).then((d) => d, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(CONFIG.RETRY_DELAY_MS * 4);
+
+    expect(await capturado).toEqual([{ data: "01/09/2026", valor: "15.00" }]);
+    expect(n).toBe(2);
+  });
+
+  it("envelope na janela de datas em TODAS as tentativas é ErroEnvelopeDeErroSgs com a contagem", async () => {
+    vi.useFakeTimers();
+    let n = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => { n++; return respostaEnvelope(); }));
+
+    const capturado = fetchBcbApi(GRANDE, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).then((d) => d, (e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(CONFIG.RETRY_DELAY_MS * 8);
+    const erro = await capturado;
+
+    expect(erro).toBeInstanceOf(ErroEnvelopeDeErroSgs);
+    expect((erro as Error).message).toContain(`${n} tentativas`);
     expect(n).toBe(CONFIG.MAX_RETRIES);
   });
 });

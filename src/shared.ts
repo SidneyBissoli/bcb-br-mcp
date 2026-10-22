@@ -409,6 +409,13 @@ export function upstreamBcb(
 
 /** A política de repetição é a padrão do pacote; aqui só entra o log que já existia. */
 function registrarTentativaFalha(ctx: RetryContext, tentativas: number): boolean {
+  // Envelope de erro num pedido `ultimos/N` NÃO se repete: medido determinístico
+  // (190, N=1, 10+ chamadas, 0,2 s cada) e o contorno N+1 de `buscarUltimosSgs`
+  // já é a segunda chance a um soluço. Repetir 3× custava ~3 s de espera por uma
+  // resposta que não muda. Na janela de datas, sem contorno, a repetição fica.
+  if (ctx.kind === "malformed_body" && ehPedidoPequeno(ctx.url) && ctx.body !== undefined && ehEnvelopeDeErro(ctx.body)) {
+    return false;
+  }
   const repete = defaultRetryOn(ctx);
   if (repete && ctx.attempt < tentativas) {
     console.error(`Tentativa ${ctx.attempt}/${tentativas} falhou (${ctx.kind}). Repetindo...`);
