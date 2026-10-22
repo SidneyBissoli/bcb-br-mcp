@@ -35,9 +35,18 @@ npm test               # vitest run
 npm run typecheck      # tsc --noEmit (inclui os testes — o build os exclui)
 npm run smoke          # smoke contra o worker hospedado
 node scripts/smoke-mcp.mjs --stdio        # o mesmo smoke sobre dist/index.js local
+node scripts/smoke-mcp.mjs --sonda        # só pergunta às APIs do BCB se estão servindo (sai 0/2) — para ler um deploy vermelho
 node scripts/dump-surface.mjs --stdio     # dump normalizado da superfície (ver baselines/)
 npx tsx src/evals/run.ts                  # eval de seleção com MODELO REAL — CUSTA DINHEIRO
 ```
+
+O smoke corre sobre `criarSmoke` do `@sbissoli/mcp-live-source` (dev): tool que
+responde `isError` inesperado dispara uma sonda direta na API que o check nomeia
+(`sondas: ["sgs"]`, `["focus"]`, `["ptax"]` ou `["portal"]`); fonte fora =
+`::warning title=Fonte indisponível`, saída 0 (o passo do deploy fica verde);
+fonte servindo = vermelho com o texto da tool. Check que lança (asserção, HTTP,
+JSON-RPC) é defeito do deploy e nunca sonda. A decisão é pelo `kind` do erro da
+sonda, nunca por frase da tool.
 
 O eval pago consome a API da Anthropic, cobrada à parte de qualquer assinatura.
 **Nunca rodar sem o decisor pedir a rodada**; sem `ANTHROPIC_API_KEY` o script

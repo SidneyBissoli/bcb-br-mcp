@@ -29,6 +29,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Smoke pós-deploy: fonte fora ≠ deploy quebrado, decidido pelo pacote, não
+  por frase.** `scripts/smoke-mcp.mjs` passa a correr sobre `criarSmoke` do
+  `@sbissoli/mcp-live-source` (0.3.0, dev; antes ^0.2.0). Medido em 22/10/2026:
+  com o SGS em 502, o deploy do #75 reprovou duas reexecuções em tools
+  diferentes a cada rodada (`bcb_serie_metadados`, `bcb_variacao`,
+  `bcb_serie_ultimos`, `bcb_deflacionar`), todas `isError` com textos que a
+  regex local de "upstream fora" não cobria; dez minutos depois, com a origem
+  em 200, a terceira passou sem mudar nada. O #76 pôs a sonda direta no SGS
+  neste script; agora a sonda e a decisão são do pacote (o molde que ele
+  generalizou): tool com `isError` inesperado → GET mínimo na API que o check
+  NOMEIA, veredito pelo `kind` do erro (`entregaDaOrigem`) — fonte fora
+  (timeout, rede, 429, 5xx, corpo que não é o esperado) = AVISO
+  `::warning title=Fonte indisponível`, saída 0; fonte servindo = FALHA com o
+  texto da tool, saída 1. Check que lança (asserção, HTTP, JSON-RPC) é defeito
+  do deploy e nunca sonda; erro pedagógico (recusa da 13522, da `referencia`
+  em horizonte rolante, do `fetch` de id desconhecido, do argumento ausente,
+  do código inexistente) é `esperaErro`. A regex `UPSTREAM_DECLARADO`, a sonda
+  própria e os contadores manuais saíram; a degradação da busca para o
+  catálogo curado (sinal estrutural, `catalogo` sem `obtidoEm`) continua
+  aviso. Quatro sondas, uma por API que o roteiro consulta, cada uma medida em
+  200 com a forma esperada: `sgs` (433 `ultimos/1`, array JSON), `focus`
+  (Olinda `ExpectativasMercadoAnuais?$top=1`, `value[]`), `ptax` (Olinda
+  `Moedas?$top=1`, `value[]`) e `portal` (CKAN `package_list?limit=1`,
+  `success` + `result[]`); `SMOKE_SONDA_<NOME>` desvia uma delas
+  (`SMOKE_SONDA_URL` segue valendo para a do SGS). `--sonda` sonda as quatro e
+  sai 0/2. Provas: `--sonda` 0 com as quatro servindo e 2 com o SGS desviado
+  para `127.0.0.1:9`; roteiro completo contra a produção verde (mesmos checks,
+  mesmos argumentos, mesmas asserções de antes). Servidor, pacote npm e
+  `tools/list` inalterados.
+
 - **Contrato semanal do catálogo SGS: fonte fora ≠ deriva.** O teste
   `src/sgs-contract.integration.test.ts` passa a rodar cada série em `aoVivo`
   do `@sbissoli/mcp-live-source/vitest` (0.2.0), com a rede pelo
