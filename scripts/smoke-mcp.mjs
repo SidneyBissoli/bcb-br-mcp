@@ -6,6 +6,7 @@
  *   node scripts/smoke-mcp.mjs                 # worker hospedado (produção)
  *   node scripts/smoke-mcp.mjs --url <url>     # outro endpoint (ex.: wrangler dev)
  *   node scripts/smoke-mcp.mjs --stdio         # dist/index.js local (exige npm run build)
+ *   node scripts/smoke-mcp.mjs --sonda         # só pergunta ao SGS se ele está servindo (sai 0/2)
  *
  * Verifica: handshake, superfície completa (a contagem de tools vem do baseline
  * de superfície mais recente — não é literal —, 3 resources, 3 prompts), a
@@ -99,17 +100,83 @@ function check(label, ok, detail = "") {
 /**
  * Indisponibilidade do BCB não é falha DESTE servidor — o smoke existe para
  * verificar o nosso lado. Uma resposta de erro que cite 5xx/timeout do upstream
- * vira AVISO (o caminho de degradação funcionou); qualquer outra coisa é falha.
+ * vira AVISO (o caminho de degradação funcionou).
+ *
+ * Mas a frase não basta, e isso foi medido em 22/10/2026: com o SGS em 502
+ * (`curl` direto, 5 s), o deploy do #75 reprovou DUAS vezes em testes
+ * diferentes a cada rodada — `bcb_serie_metadados`, `bcb_variacao`,
+ * `bcb_serie_ultimos`, `bcb_deflacionar` —, todos `isError` com textos que a
+ * regex não cobria: o pedido pequeno que não traz dado vira "A API do BCB não
+ * trouxe dado em 2 tentativas ... ou a origem está indisponível" (classe
+ * `nao_encontrado`, porque inexistência e queda terminam igual, ver
+ * `traduzirErroDaOrigem` em src/shared.ts), e a deflação sem observações vira
+ * "O índice de preços não devolveu observações". Dez minutos depois, com a
+ * origem em 200, a terceira reexecução passou sem mudar nada. A classe do erro
+ * não viaja no fio (é chave-símbolo não enumerável, só a telemetria a lê), então
+ * o smoke não pode decidir por ela.
+ *
+ * Decisão: erro que a frase não atribui à origem é SONDADO — um GET pequeno
+ * direto no SGS, fora do servidor. Origem que não serve JSON agora = AVISO,
+ * com o HTTP medido no texto; origem servindo = FALHA, e aí o texto do erro
+ * vai para o log, porque até aqui o `[FALHA]` imprimia só `undefined` e quem
+ * lia tinha de reconstruir a causa à mão.
  */
-function checkUpstream(label, result, detail = "") {
+// Frases que AFIRMAM a origem como causa. "ou a origem está indisponível" fica
+// de fora de propósito: é a mensagem ambígua (inexistência OU queda), e numa
+// série que o smoke sabe que existe quem decide entre as duas é a sonda.
+const UPSTREAM_DECLARADO = /50\d|timeout|Falha após|não respondeu|falha de rede|limitou a taxa/i;
+
+/**
+ * A origem está servindo? Pedido mínimo (um ponto da 433, que existe desde
+ * 1980) com orçamento curto. Só o estado desta tentativa — não repete, não
+ * interpreta: o que se quer saber é se a origem respondia no instante em que
+ * a tool falhou, e por isso a sonda sai logo depois da falha.
+ */
+const SONDA_URL = process.env.SMOKE_SONDA_URL ??
+  "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/1?formato=json";
+async function sondarOrigem() {
+  try {
+    const res = await fetch(SONDA_URL, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json" } });
+    const corpo = await res.text();
+    let json = false;
+    try { json = Array.isArray(JSON.parse(corpo)); } catch { json = false; }
+    return { servindo: res.ok && json, estado: `HTTP ${res.status}${res.ok && !json ? ", corpo não é JSON" : ""}` };
+  } catch (e) {
+    return { servindo: false, estado: e?.name === "TimeoutError" ? "timeout em 8s" : `rede (${e?.message ?? e})` };
+  }
+}
+
+// `--sonda`: só a sonda, sem roteiro — para provar o caminho de aviso sem
+// esperar a origem cair (`SMOKE_SONDA_URL` aponta a sonda para outro lugar) e
+// para responder "o SGS está de pé?" na hora de ler um deploy vermelho.
+if (args.includes("--sonda")) {
+  const origem = await sondarOrigem();
+  console.log(`sonda ${SONDA_URL}: ${origem.servindo ? "servindo" : "FORA"} (${origem.estado})`);
+  // Sair no mesmo tick em que o socket do fetch fecha derruba o Node 24 no
+  // Windows ("Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)", rc 127
+  // em vez do código pedido). Um respiro resolve; medido em 22/10/2026.
+  await new Promise(r => setTimeout(r, 200));
+  process.exit(origem.servindo ? 0 : 2);
+}
+
+async function checkUpstream(label, result, detail = "") {
+  if (result?.isError !== true) {
+    check(label, true, detail);
+    return;
+  }
   const texto = result?.content?.[0]?.text ?? "";
-  const upstreamDown = result?.isError === true && /50\d|timeout|Falha após/i.test(texto);
-  if (upstreamDown) {
+  if (UPSTREAM_DECLARADO.test(texto)) {
     warnings++;
     console.log(`  [AVISO] ${label} — API do BCB indisponível agora: ${texto.slice(0, 90)}`);
     return;
   }
-  check(label, !result?.isError, detail);
+  const origem = await sondarOrigem();
+  if (!origem.servindo) {
+    warnings++;
+    console.log(`  [AVISO] ${label} — origem sondada e fora do ar (${origem.estado}); a tool disse: ${texto.slice(0, 90)}`);
+    return;
+  }
+  check(label, false, `origem sondada e servindo (${origem.estado}); a tool disse: ${texto.slice(0, 160)}`);
 }
 
 /**
@@ -356,9 +423,9 @@ try {
 
   const meta432 = await call("bcb_serie_metadados", { codigo: 432 });
   const meta1178 = await call("bcb_serie_metadados", { codigo: 1178 });
-  checkUpstream("bcb_serie_metadados 432 = meta do Copom", meta432.result,
+  await checkUpstream("bcb_serie_metadados 432 = meta do Copom", meta432.result,
     `${meta432.result?.structuredContent?.nome}`);
-  checkUpstream("bcb_serie_metadados 1178 = Selic efetiva", meta1178.result,
+  await checkUpstream("bcb_serie_metadados 1178 = Selic efetiva", meta1178.result,
     `${meta1178.result?.structuredContent?.nome}`);
   if (!meta432.result?.isError && !meta1178.result?.isError) {
     const n432 = meta432.result.structuredContent.nome;
@@ -440,7 +507,7 @@ try {
     arguments: { codigo: 432, quantidade: 3 }
   });
   const dados = selic.result?.structuredContent?.dados ?? [];
-  checkUpstream(
+  await checkUpstream(
     "bcb_serie_ultimos consulta o SGS ao vivo",
     selic.result,
     `${dados.length} obs; última = ${dados.at(-1)?.data} ${dados.at(-1)?.valor}`
@@ -457,7 +524,7 @@ try {
     codigo: 1, dataInicial: "2010-01-01", dataFinal: "2024-12-31"
   });
   const longaOut = longa.result?.structuredContent;
-  checkUpstream(
+  await checkUpstream(
     "bcb_serie_valores atravessa 15 anos de série diária (a origem recusa >10 em uma janela)",
     longa.result,
     `${longaOut?.totalRegistros} obs em ${longaOut?.chunking?.janelas} janelas`
@@ -478,7 +545,7 @@ try {
   // Teto de 20 do endpoint nativo: 60 pontos só sai por janela de datas.
   const acima = await call("bcb_serie_ultimos", { codigo: 433, quantidade: 60 });
   const acimaOut = acima.result?.structuredContent;
-  checkUpstream(
+  await checkUpstream(
     "bcb_serie_ultimos entrega 60 pontos (a origem limita o endpoint nativo a 20)",
     acima.result,
     `${acimaOut?.totalRegistros} obs; última = ${acimaOut?.dados?.at(-1)?.data}`
@@ -499,7 +566,7 @@ try {
   // 1.6.1 e `bcb/docs/06`.
   const invertida = await call("bcb_variacao", { codigo: 4513, periodos: 12 });
   const invOut = invertida.result?.structuredContent;
-  checkUpstream(
+  await checkUpstream(
     "bcb_variacao numa série que a origem serve do mais novo para o mais velho",
     invertida.result,
     `${invOut?.periodo?.dataInicial} a ${invOut?.periodo?.dataFinal} = ${invOut?.analise?.variacaoFormatada}`
@@ -531,7 +598,7 @@ try {
   // tolerância medida do encadeamento (0,0052 pp) mais o arredondamento da fonte.
   const ipca2024 = await call("bcb_variacao", { codigo: 433, dataInicial: "2024-01-01", dataFinal: "2024-12-31" });
   const ipcaOut = ipca2024.result?.structuredContent;
-  checkUpstream(
+  await checkUpstream(
     "bcb_variacao no IPCA de 2024 (série que já é variação)",
     ipca2024.result,
     `${ipcaOut?.analise?.metodo} = ${ipcaOut?.analise?.variacaoFormatada}`
@@ -554,7 +621,7 @@ try {
 
   const invUlt = await call("bcb_serie_ultimos", { codigo: 4513, quantidade: 12 });
   const invUltOut = invUlt.result?.structuredContent;
-  checkUpstream(
+  await checkUpstream(
     "bcb_serie_ultimos normaliza a ordem da mesma série",
     invUlt.result,
     `${invUltOut?.dados?.[0]?.data} .. ${invUltOut?.dados?.at(-1)?.data}`
@@ -567,7 +634,7 @@ try {
   // Periodicidade inferida onde a fonte não publica metadados (endpoint 404).
   const meta = await call("bcb_serie_metadados", { codigo: 24369 });
   const metaOut = meta.result?.structuredContent;
-  checkUpstream("bcb_serie_metadados sem endpoint de metadados na origem", meta.result, `${metaOut?.periodicidade}`);
+  await checkUpstream("bcb_serie_metadados sem endpoint de metadados na origem", meta.result, `${metaOut?.periodicidade}`);
   if (!meta.result?.isError) {
     check("  → traz o último valor e uma periodicidade", !!metaOut?.ultimoValor && !!metaOut?.periodicidade);
   }
@@ -578,7 +645,7 @@ try {
     frequencia: "anual", agregacao: "acumulada"
   });
   const harmOut = harm.result?.structuredContent;
-  checkUpstream("bcb_serie_valores harmoniza IPCA mensal em anual", harm.result, `${harmOut?.dados?.[0]?.valor}% em 2024`);
+  await checkUpstream("bcb_serie_valores harmoniza IPCA mensal em anual", harm.result, `${harmOut?.dados?.[0]?.valor}% em 2024`);
   if (!harm.result?.isError) {
     check("  → um ponto, agregando 12 observações", harmOut?.dados?.length === 1 && harmOut?.dados?.[0]?.observacoes === 12);
     check("  → marcado como derivado, com nota", harmOut?.harmonizacao?.derived === true && !!harmOut?.harmonizacao?.nota);
@@ -597,7 +664,7 @@ try {
     codigos: [1, 433], dataInicial: "2024-01-01", dataFinal: "2024-12-31"
   });
   const mistoOut = misto.result?.structuredContent;
-  checkUpstream("bcb_comparar avisa sobre periodicidades diferentes", misto.result, `${mistoOut?.seriesComDados} séries`);
+  await checkUpstream("bcb_comparar avisa sobre periodicidades diferentes", misto.result, `${mistoOut?.seriesComDados} séries`);
   if (!misto.result?.isError) {
     check("  → aviso presente com as duas periodicidades", (mistoOut?.aviso ?? "").includes("periodicidades diferentes"));
     check("  → estatística marcada como derivada", mistoOut?.derivacao?.derived === true);
@@ -628,7 +695,7 @@ try {
   });
   const gemeasOut = gemeas.result?.structuredContent;
   const parGemeas = gemeasOut?.pares?.[0];
-  checkUpstream("bcb_correlacao IPCA × INPC (mesma família de índice)", gemeas.result, `r = ${parGemeas?.coeficiente}`);
+  await checkUpstream("bcb_correlacao IPCA × INPC (mesma família de índice)", gemeas.result, `r = ${parGemeas?.coeficiente}`);
   if (!gemeas.result?.isError) {
     check("  → alinhou os 120 meses, sem descarte", parGemeas?.n === 120 && parGemeas?.descartados === 0);
     check("  → correlação forte, como a fonte manda esperar", (parGemeas?.coeficiente ?? 0) > 0.9);
@@ -642,7 +709,7 @@ try {
     codigos: [1, 12], dataInicial: "2015-01-01", dataFinal: "2024-12-31"
   });
   const diariasOut = diarias.result?.structuredContent;
-  checkUpstream("bcb_correlacao em 10 anos de duas séries diárias", diarias.result, `${diariasOut?.alinhamento?.completas} datas`);
+  await checkUpstream("bcb_correlacao em 10 anos de duas séries diárias", diarias.result, `${diariasOut?.alinhamento?.completas} datas`);
   if (!diarias.result?.isError) {
     check("  → mais de 2000 datas alinhadas nas duas séries", (diariasOut?.alinhamento?.completas ?? 0) > 2000);
     check("  → grade declarada como diária", diariasOut?.alinhamento?.grade === "diária");
@@ -655,7 +722,7 @@ try {
     codigo: 1619, dataInicial: "2000-01-01", dataFinal: "2024-12-31"
   });
   const deflOut = defl.result?.structuredContent;
-  checkUpstream("bcb_deflacionar salário mínimo desde 2000 pelo IPCA", defl.result,
+  await checkUpstream("bcb_deflacionar salário mínimo desde 2000 pelo IPCA", defl.result,
     `nominal ${deflOut?.variacao?.nominal}% × real ${deflOut?.variacao?.real}%`);
   if (!defl.result?.isError) {
     check("  → o índice foi reconstruído desde 2000", deflOut?.deflator?.cobertura?.primeiroMes === "01/2000");
@@ -674,7 +741,7 @@ try {
     codigo: 1619, dataInicial: "2000-01-01", dataFinal: "2024-12-31", mesBase: "2010-01"
   });
   const base2010Out = base2010.result?.structuredContent;
-  checkUpstream("bcb_deflacionar com mês base explícito", base2010.result, `base ${base2010Out?.base?.mes}`);
+  await checkUpstream("bcb_deflacionar com mês base explícito", base2010.result, `base ${base2010Out?.base?.mes}`);
   if (!base2010.result?.isError && !defl.result?.isError) {
     check("  → a base pedida foi aplicada", base2010Out?.base?.mes === "01/2010");
     check(
@@ -689,7 +756,7 @@ try {
   // Focus consolidado: o horizonte escolhe o recurso, e a URL da consulta prova qual.
   const anual = await call("bcb_focus_expectativas", { indicador: "IPCA", horizonte: "anual", referencia: "2027" });
   const anualOut = anual.result?.structuredContent;
-  checkUpstream("bcb_focus_expectativas (anual)", anual.result, `${anualOut?.totalRegistros} coletas`);
+  await checkUpstream("bcb_focus_expectativas (anual)", anual.result, `${anualOut?.totalRegistros} coletas`);
   if (!anual.result?.isError) {
     check(
       "  → foi ao recurso anual, com filtro por construção",
@@ -709,7 +776,7 @@ try {
   // normalização regredir, `mediana` volta nula e este check pega.
   const top5 = await call("bcb_focus_selic", { top5: true, limite: 3 });
   const top5Out = top5.result?.structuredContent;
-  checkUpstream("bcb_focus_selic (top5)", top5.result, `${top5Out?.totalRegistros} coletas`);
+  await checkUpstream("bcb_focus_selic (top5)", top5.result, `${top5Out?.totalRegistros} coletas`);
   if (!top5.result?.isError) {
     check(
       "  → campos em caixa baixa do Top 5 chegam normalizados",
@@ -721,7 +788,7 @@ try {
   // Referências: o valor da tool é a quebra POR horizonte.
   const refs = await call("bcb_focus_referencias", { escopo: "anual" });
   const refsOut = refs.result?.structuredContent;
-  checkUpstream("bcb_focus_referencias (anual)", refs.result, `${refsOut?.escopos?.[0]?.indicadores?.length} indicadores`);
+  await checkUpstream("bcb_focus_referencias (anual)", refs.result, `${refsOut?.escopos?.[0]?.indicadores?.length} indicadores`);
   if (!refs.result?.isError) {
     check(
       "  → traz indicadores e referências do horizonte pedido",
@@ -733,7 +800,7 @@ try {
   // então o check é a URL trazer a data invertida E vir cotação.
   const ptax = await call("bcb_cambio_cotacao", { moeda: "EUR", dataInicial: "2026-08-03", dataFinal: "2026-08-10" });
   const ptaxOut = ptax.result?.structuredContent;
-  checkUpstream("bcb_cambio_cotacao (EUR, intervalo)", ptax.result, `${ptaxOut?.totalRegistros} boletins`);
+  await checkUpstream("bcb_cambio_cotacao (EUR, intervalo)", ptax.result, `${ptaxOut?.totalRegistros} boletins`);
   if (!ptax.result?.isError) {
     check("  → datas na URL em MM-DD-YYYY", ptaxOut?.urlConsulta?.includes("'08-03-2026'"));
     check("  → disclaimer do BCB repassado literalmente", (ptaxOut?.disclaimer ?? "").includes("não assume qualquer responsabilidade"));
@@ -743,7 +810,7 @@ try {
 
   const moedas = await call("bcb_cambio_moedas", {});
   const moedasOut = moedas.result?.structuredContent;
-  checkUpstream("bcb_cambio_moedas", moedas.result, `${moedasOut?.totalMoedas} moedas`);
+  await checkUpstream("bcb_cambio_moedas", moedas.result, `${moedasOut?.totalMoedas} moedas`);
   if (!moedas.result?.isError) {
     check("  → símbolos utilizáveis em bcb_cambio_cotacao", (moedasOut?.moedas ?? []).some(m => m.simbolo === "EUR"));
   }
@@ -757,7 +824,7 @@ try {
   // qualquer validador de schema.
   const provSerie = await call("bcb_serie_ultimos", { codigo: 433, quantidade: 3 });
   const provOut = provSerie.result?.structuredContent;
-  checkUpstream("proveniência: bcb_serie_ultimos traz o bloco", provSerie.result);
+  await checkUpstream("proveniência: bcb_serie_ultimos traz o bloco", provSerie.result);
   if (!provSerie.result?.isError) {
     const b = provOut?.provenance;
     const hoje = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -773,7 +840,7 @@ try {
   await call("bcb_buscar_serie", { termo: "selic" });
   const busca2 = await call("bcb_buscar_serie", { termo: "cambio" });
   const busca2Out = busca2.result?.structuredContent;
-  checkUpstream("proveniência: 2ª busca é servida de cache", busca2.result);
+  await checkUpstream("proveniência: 2ª busca é servida de cache", busca2.result);
   if (!busca2.result?.isError && indiceDoPortalFora("  → proveniência do índice do portal", busca2Out)) {
     const doServidor = (busca2Out?.provenance ?? []).find(x => String(x.source).includes("catálogo curado"));
     check("  → o bloco do catálogo do servidor continua presente", !!doServidor);
@@ -805,7 +872,7 @@ try {
   const busca3 = await call("search", { query: "selic meta copom" });
   const buscaObj = busca3.result?.structuredContent;
   const buscaTexto = (() => { try { return JSON.parse(busca3.result?.content?.[0]?.text ?? ""); } catch { return null; } })();
-  checkUpstream("search devolve resultados do contrato", busca3.result, `${buscaObj?.results?.length ?? 0} resultados`);
+  await checkUpstream("search devolve resultados do contrato", busca3.result, `${buscaObj?.results?.length ?? 0} resultados`);
   if (!busca3.result?.isError) {
     const primeiro = buscaObj?.results?.[0];
     check("  → content é UM bloco com o JSON de { results }", busca3.result?.content?.length === 1 && Array.isArray(buscaTexto?.results));
@@ -816,7 +883,7 @@ try {
 
     const doc = await call("fetch", { id: primeiro.id });
     const docObj = doc.result?.structuredContent;
-    checkUpstream("fetch devolve o documento do id buscado", doc.result, `${docObj?.title}`);
+    await checkUpstream("fetch devolve o documento do id buscado", doc.result, `${docObj?.title}`);
     if (!doc.result?.isError) {
       check("  → id, title, text e url preenchidos, id igual ao pedido",
         docObj?.id === primeiro.id && ["title", "text", "url"].every(k => typeof docObj?.[k] === "string" && docObj[k]),

@@ -50,6 +50,17 @@ idêntico).
   wrangler (#71).
 - O smoke de produção trata o Portal de Dados Abertos fora do ar como aviso da
   origem, não como falha do deploy (#72).
+- O smoke de produção deixa de pintar o deploy de vermelho quando é o SGS que
+  está fora. Medido em 22/10/2026 com a origem em 502: duas reexecuções do
+  deploy do #75 reprovaram em testes diferentes a cada rodada, porque a frase do
+  erro de pedido pequeno ("não trouxe dado ... ou a origem está indisponível")
+  e a da deflação sem observações não casavam com a regex de upstream — e a
+  classe do erro não viaja no fio. Agora todo erro que a frase não atribui à
+  origem é sondado com um GET direto no SGS: origem fora = aviso com o HTTP
+  medido; origem servindo = falha, e o texto do erro vai para o log (antes o
+  `[FALHA]` imprimia só `undefined`). `node scripts/smoke-mcp.mjs --sonda`
+  responde "o SGS está de pé?" sozinho (sai 0/2; `SMOKE_SONDA_URL` redireciona
+  a sonda, foi assim que os quatro estados foram provados).
 
 ## [1.18.1] - 2026-10-13
 
