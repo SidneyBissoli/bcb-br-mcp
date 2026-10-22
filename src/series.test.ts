@@ -296,6 +296,31 @@ describe("buscarUltimosSgs", () => {
     expect(r.periodicidade).toBe("mensal");
   });
 
+  // Defeito da ORIGEM medido em 22/10/2026: a 190 responde `{"erro":{}}` com
+  // 200 a `ultimos/1` (5 de 5) e dado a `ultimos/2`. A camada de rede trata o
+  // envelope como página de erro (repete; persistindo, ErroEnvelopeDeErroSgs)
+  // e aqui o contorno pede N+1 e devolve as N últimas.
+  it("envelope de erro persistente em ultimos/N: pede N+1 e devolve as N últimas", async () => {
+    const dois = mensais("2026-08-01", 2);
+    mock([
+      ["dados/ultimos/1?", { erro: {} }],
+      ["dados/ultimos/2?", dois]
+    ]);
+
+    const r = await buscarUltimosSgs(190, 1, 5000, 1);
+
+    expect(urls.map(u => u.replace(/^.*dados\//, ""))).toEqual(["ultimos/1?formato=json", "ultimos/2?formato=json"]);
+    expect(r.observacoes).toEqual([dois[1]]);
+    expect(r.requisicoes).toBe(2);
+  });
+
+  it("envelope também em N+1 sobe como veio (o contorno é uma vez só)", async () => {
+    mock([["dados/ultimos/", { erro: {} }]]);
+
+    await expect(buscarUltimosSgs(190, 1, 5000, 1)).rejects.toThrow(/envelope de erro/);
+    expect(urls.length).toBe(2);
+  });
+
   it("põe observação sem data parseável no fim, sem descartar", async () => {
     mock([["dados/ultimos/4", [
       { data: "01/03/2025", valor: "3" },
