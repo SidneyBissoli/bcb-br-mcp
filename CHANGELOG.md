@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   protocolo que estoura continua lançando. `@sbissoli/mcp-live-source` ^0.3.1
   (dev): 4xx com página HTML e sonda com credencial recusada contam como fonte
   fora.
+- **Smoke: a linha `[OK  ]` mostra o tempo da CHAMADA.** O roteiro chama a tool
+  primeiro e entrega o resultado ao check depois, então o pacote media só a
+  devolução — "(0 ms)" em todas as linhas, como se medisse a tool. Os dois
+  transportes cronometram cada `rpc` e guardam a duração junto ao resultado; o
+  `checkUpstream` a entrega ao `verificar` (`ms`, `@sbissoli/mcp-live-source`
+  ^0.3.2). O `check` puro (asserção sobre resultado já obtido) sai sem tempo.
 - **Envelope de erro em JSON com HTTP 200 (`{"erro":{}}`) era lido como "nenhum
   dado".** Medido em 22/10/2026: a série 190 (IGP-DI, viva — último ponto
   09/2026) responde esse envelope a `dados/ultimos/1` em 5 de 5 chamadas, e

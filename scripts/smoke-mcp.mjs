@@ -179,7 +179,7 @@ async function check(label, ok, detail = "") {
       exigir(ok, detail || "a condição do check é falsa");
       return true;
     },
-    { detalhe: () => detail }
+    { detalhe: () => detail, ms: null }
   );
 }
 
@@ -187,8 +187,27 @@ async function check(label, ok, detail = "") {
  * Tool que foi à origem: `isError` inesperado → o pacote sonda a(s) fonte(s)
  * nomeada(s) em `sondas` e decide (fora = aviso; servindo = falha com o texto).
  */
+/**
+ * O tempo da linha `[OK  ]` é o da CHAMADA, não o do check. Este roteiro chama a
+ * tool primeiro e entrega o resultado ao check depois, então o pacote só veria o
+ * tempo de devolver o resultado — "(0 ms)" em todas as linhas, como se medisse a
+ * tool (apontado em 22/10/2026). Os dois transportes cronometram cada `rpc` e
+ * guardam a duração junto ao `result` (WeakMap: nada vaza para o fio); o
+ * `checkUpstream` a entrega ao `verificar` (`ms`, mcp-live-source 0.3.2). O
+ * `check` puro é asserção sobre resultado já obtido: `ms: null`, linha sem tempo.
+ */
+const duracoes = new WeakMap();
+function cronometrado(rpc) {
+  return async (method, params) => {
+    const inicio = performance.now();
+    const msg = await rpc(method, params);
+    if (msg && typeof msg.result === "object" && msg.result !== null) duracoes.set(msg.result, Math.round(performance.now() - inicio));
+    return msg;
+  };
+}
+
 async function checkUpstream(label, result, detail = "", sondas) {
-  return smoke.verificar(label.trim(), async () => result, { sondas, detalhe: () => detail });
+  return smoke.verificar(label.trim(), async () => result, { sondas, detalhe: () => detail, ms: duracoes.get(result) });
 }
 
 /**
@@ -284,7 +303,7 @@ function stdioClient() {
     });
 
   const notify = method => child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method })}\n`);
-  return { rpc, notify, close: () => child.kill() };
+  return { rpc: cronometrado(rpc), notify, close: () => child.kill() };
 }
 
 function httpClient(url) {
@@ -327,7 +346,7 @@ function httpClient(url) {
     });
   };
 
-  return { rpc, notify, close: () => {} };
+  return { rpc: cronometrado(rpc), notify, close: () => {} };
 }
 
 // ==================== smoke ====================
@@ -411,7 +430,7 @@ try {
         exigir(init.result?.serverInfo, `handshake sem serverInfo: ${JSON.stringify(init).slice(0, 200)}`);
         return init;
       },
-      { detalhe: i => `${i.result.serverInfo.name} ${i.result.serverInfo.version}` }
+      { detalhe: i => `${i.result.serverInfo.name} ${i.result.serverInfo.version}`, ms: duracoes.get(init.result) }
     )
   );
   await client.notify("notifications/initialized");
@@ -472,7 +491,7 @@ try {
       exigir(buscaOut?.totalEncontradas > 0, `totalEncontradas = ${buscaOut?.totalEncontradas}`);
       return busca.result;
     },
-    { sondas: ["portal"], detalhe: () => `${buscaOut?.totalEncontradas} séries` }
+    { sondas: ["portal"], detalhe: () => `${buscaOut?.totalEncontradas} séries`, ms: duracoes.get(busca.result) }
   );
   if (await indiceDoPortalFora("  → declara a cobertura do índice do portal", buscaOut)) {
     await check(
@@ -552,7 +571,8 @@ try {
     const textoInexistente = inexistente.result?.content?.[0]?.text ?? "";
     await smoke.verificar(rotuloInexistente, async () => inexistente.result, {
       esperaErro: true,
-      detalhe: () => textoInexistente.slice(0, 70)
+      detalhe: () => textoInexistente.slice(0, 70),
+      ms: duracoes.get(inexistente.result)
     });
     // A mensagem pedagógica só é possível quando a origem SERVE a página de
     // erro. Quando ela pendura, o que volta é erro de prazo — condição da
@@ -565,7 +585,7 @@ try {
         if (inexistente.result?.isError === true) return inexistente.result;
         throw new Error(`resposta sem erro: ${textoInexistente.slice(0, 90)}`);
       },
-      { sondas: ["sgs"], detalhe: () => textoInexistente.slice(0, 70) }
+      { sondas: ["sgs"], detalhe: () => textoInexistente.slice(0, 70), ms: null }
     );
   }
 
@@ -721,7 +741,7 @@ try {
       exigir(/janela móvel/.test(textoAcumMovel), `recusa sem a orientação esperada: ${textoAcumMovel.slice(0, 90)}`);
       return acumMovel.result;
     },
-    { esperaErro: true, detalhe: () => textoAcumMovel.slice(0, 70) }
+    { esperaErro: true, detalhe: () => textoAcumMovel.slice(0, 70), ms: duracoes.get(acumMovel.result) }
   );
 
   const invUlt = await call("bcb_serie_ultimos", { codigo: 4513, quantidade: 12 });
@@ -792,7 +812,7 @@ try {
       exigir(/periodicidades diferentes/i.test(textoCruzado), `recusa por outro motivo: ${textoCruzado.slice(0, 90)}`);
       return cruzado.result;
     },
-    { esperaErro: true, detalhe: () => textoCruzado.slice(0, 70) }
+    { esperaErro: true, detalhe: () => textoCruzado.slice(0, 70), ms: duracoes.get(cruzado.result) }
   );
   await check("  → e o erro ensina a saída (`frequencia`)", textoCruzado.includes("frequencia"));
 
@@ -883,7 +903,7 @@ try {
       exigir(/rolante/i.test(textoRolante), `recusa por outro motivo: ${textoRolante.slice(0, 90)}`);
       return rolante.result;
     },
-    { esperaErro: true, detalhe: () => textoRolante.slice(0, 70) }
+    { esperaErro: true, detalhe: () => textoRolante.slice(0, 70), ms: duracoes.get(rolante.result) }
   );
 
   // Top 5 da Selic: o recurso que publica os campos em caixa baixa. Se a
@@ -1010,7 +1030,7 @@ try {
   await smoke.verificar(
     "fetch com id desconhecido é erro de tool, não sucesso vazio",
     async () => desconhecido.result,
-    { esperaErro: true, detalhe: () => desconhecido.result?.content?.[0]?.text?.slice(0, 60) ?? "" }
+    { esperaErro: true, detalhe: () => desconhecido.result?.content?.[0]?.text?.slice(0, 60) ?? "", ms: duracoes.get(desconhecido.result) }
   );
 
   // Leitura de resource.
@@ -1026,7 +1046,7 @@ try {
       exigir(!texto.includes("undefined"), `o erro cita 'undefined': ${texto.slice(0, 80)}`);
       return invalido.result;
     },
-    { esperaErro: true, detalhe: () => texto.slice(0, 80) }
+    { esperaErro: true, detalhe: () => texto.slice(0, 80), ms: duracoes.get(invalido.result) }
   );
 } catch (error) {
   // Uma chamada do próprio smoke lançou (JSON-RPC, parse, timeout de método de
