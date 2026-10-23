@@ -21,12 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   protocolo que estoura continua lançando. `@sbissoli/mcp-live-source` ^0.3.1
   (dev): 4xx com página HTML e sonda com credencial recusada contam como fonte
   fora.
-- **Smoke: a linha `[OK  ]` mostra o tempo da CHAMADA.** O roteiro chama a tool
-  primeiro e entrega o resultado ao check depois, então o pacote media só a
-  devolução — "(0 ms)" em todas as linhas, como se medisse a tool. Os dois
-  transportes cronometram cada `rpc` e guardam a duração junto ao resultado; o
-  `checkUpstream` a entrega ao `verificar` (`ms`, `@sbissoli/mcp-live-source`
-  ^0.3.2). O `check` puro (asserção sobre resultado já obtido) sai sem tempo.
+- **Smoke: a linha `[OK  ]` mostra o tempo da CHAMADA.** O roteiro chamava a
+  tool primeiro e entregava o resultado ao check depois, então o pacote media só
+  a devolução — "(0 ms)" em todas as linhas, como se medisse a tool. Agora a
+  chamada acontece DENTRO do `fn` do `verificar` (ver "a chamada à tool acontece
+  dentro da verificação", em Changed) e quem mede é o pacote; o `check` puro
+  (asserção sobre resultado já obtido) sai sem tempo. A solução intermediária
+  deste ciclo — cronometrar cada `rpc` nos transportes e entregar `ms` ao
+  `verificar` (`@sbissoli/mcp-live-source` 0.3.2) — saiu: com `ms` informado o
+  pacote não repete a chamada.
 - **Envelope de erro em JSON com HTTP 200 (`{"erro":{}}`) era lido como "nenhum
   dado".** Medido em 22/10/2026: a série 190 (IGP-DI, viva — último ponto
   09/2026) responde esse envelope a `dados/ultimos/1` em 5 de 5 chamadas, e
@@ -47,6 +50,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Smoke: a chamada à tool acontece DENTRO da verificação, e o pacote repete
+  uma vez antes de julgar.** `@sbissoli/mcp-live-source` ^0.4.0 (dev): quando a
+  tool devolve `isError` e a sonda da fonte nomeada diz "servindo", o
+  `verificar` chama o `fn` de novo — passou na 2ª = AVISO "soluço da origem"
+  (`[AVISO] … passou na 2ª chamada; a 1ª disse: …`, `::warning title=Fonte
+  indisponível`, saída 0) e o resultado volta ao roteiro; falhou de novo =
+  FALHA "em 2 chamadas". Isso só funciona com a chamada dentro do `fn`, e aqui
+  ela acontecia FORA em ~40 blocos (`call(...)` e depois `checkUpstream(label,
+  r.result, …)`, com a duração num WeakMap entregue como `ms` — e com `ms`
+  informado o pacote não repete, de propósito). Medido em 22/10/2026 (~21h,
+  quatro rodadas seguidas do smoke em produção): o SGS oscilava — a sonda
+  mínima (433 `ultimos/1`) respondia do cache em 0,2 s enquanto pedidos pesados
+  (10–15 anos diários) e séries específicas (432, 1178) caíam por timeout; os
+  checks saíam `Falha alheia à origem` "com a fonte no ar" e as rodadas
+  seguintes passavam 107/107. Decisão do dono, entre três caminhos: repetir uma
+  vez antes de julgar. `checkUpstream(label, chamada, detail, sondas)` recebe a
+  FUNÇÃO que chama a tool e devolve o que o `verificar` devolve (o resultado
+  quando passou, inclusive na 2ª chamada; `undefined` quando falhou); os checks
+  dependentes ficam atrás de `if (resultado)` — nunca um `TypeError` por ler
+  `undefined`, que viraria "roteiro completo" vermelho. As verificações com
+  `esperaErro` (recusas pedagógicas) e o `initialize` (uma chamada só, antes do
+  `notifications/initialized`) também chamam dentro do `fn`; o WeakMap e a
+  cronometragem dos transportes saíram; o timeout de `tools/call` em STDIO
+  continua virando `isError` sintético, agora repetido pelo pacote quando a
+  sonda diz "de pé". Provas: mesmos 107 rótulos, argumentos e asserções contra a
+  produção (107 de 107); em STDIO a repetição aconteceu ao vivo —
+  `bcb_variacao` no IPCA de 2024 estourou os 30 s, a sonda disse "servindo", a
+  2ª chamada respondeu em 170 ms e a rodada saiu verde com aviso (104 de 105).
+  Servidor, pacote npm e `tools/list` inalterados.
 - **Smoke pós-deploy: fonte fora ≠ deploy quebrado, decidido pelo pacote, não
   por frase.** `scripts/smoke-mcp.mjs` passa a correr sobre `criarSmoke` do
   `@sbissoli/mcp-live-source` (0.3.0, dev; antes ^0.2.0). Medido em 22/10/2026:

@@ -46,7 +46,12 @@ responde `isError` inesperado dispara uma sonda direta na API que o check nomeia
 `::warning title=Fonte indisponível`, saída 0 (o passo do deploy fica verde);
 fonte servindo = vermelho com o texto da tool. Check que lança (asserção, HTTP,
 JSON-RPC) é defeito do deploy e nunca sonda. A decisão é pelo `kind` do erro da
-sonda, nunca por frase da tool.
+sonda, nunca por frase da tool. A chamada à tool acontece DENTRO do `fn` do
+`verificar` (`checkUpstream` recebe a FUNÇÃO que chama a tool, e devolve o
+resultado ou `undefined`): é o que deixa o pacote medir o tempo da chamada e,
+desde a 0.4.0, repeti-la uma vez quando a tool falhou com a fonte de pé —
+passou na 2ª = aviso "soluço da origem"; falhou de novo = vermelho. Check que
+depende do resultado fica atrás de `if (resultado)`, nunca lê `undefined`.
 
 O eval pago consome a API da Anthropic, cobrada à parte de qualquer assinatura.
 **Nunca rodar sem o decisor pedir a rodada**; sem `ANTHROPIC_API_KEY` o script
