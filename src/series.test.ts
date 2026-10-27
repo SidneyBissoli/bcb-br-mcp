@@ -25,6 +25,7 @@ import {
   inferirPeriodicidade,
   ordenarPorData,
   parseDataSgs,
+  partirAoMeio,
   sondarPeriodicidade
 } from "./series.js";
 
@@ -245,6 +246,68 @@ describe("buscarSerieSgs", () => {
 
     await expect(buscarSerieSgs({ codigo: 9, dataInicial: "01/01/2024", dataFinal: "31/12/2024" }, 5000, 1))
       .rejects.toThrow(/500/);
+  });
+
+  // Defeito da ORIGEM medido em 27/10/2026: a 12 (CDI) responde `{"erro":{}}`
+  // com 200 à janela exata 01/01/2024–31/12/2024 em toda chamada, e dado às
+  // metades. A janela é partida ao meio UMA vez.
+  it("envelope de erro numa janela: parte ao meio e devolve as duas metades", async () => {
+    mock([
+      ["dataInicial=01/01/2024&dataFinal=31/12/2024", { erro: {} }],
+      ["dataInicial=01/01/2024&dataFinal=01/07/2024", diarias("2024-01-02", 2)],
+      ["dataInicial=02/07/2024&dataFinal=31/12/2024", diarias("2024-07-02", 2)]
+    ]);
+
+    const r = await buscarSerieSgs({ codigo: 12, dataInicial: "01/01/2024", dataFinal: "31/12/2024" }, 5000, 1);
+
+    expect(urls.map(u => u.replace(/^.*formato=json&/, ""))).toEqual([
+      "dataInicial=01/01/2024&dataFinal=31/12/2024",
+      "dataInicial=01/01/2024&dataFinal=01/07/2024",
+      "dataInicial=02/07/2024&dataFinal=31/12/2024"
+    ]);
+    expect(r.observacoes.map(o => o.data)).toEqual(["02/01/2024", "03/01/2024", "02/07/2024", "03/07/2024"]);
+    expect(r.requisicoes).toBe(3);
+  });
+
+  it("envelope numa FATIA do chunking: só aquela fatia é partida", async () => {
+    mock([
+      ["dados/ultimos/20", diarias("2026-07-15", 20)],
+      ["dataInicial=01/01/2024&dataFinal=31/12/2024", { erro: {} }],
+      ["bcdata.sgs.12/dados?formato=json&dataInicial", diarias("2024-07-02", 1)]
+    ]);
+
+    const r = await buscarSerieSgs({ codigo: 12, dataInicial: "01/01/2015", dataFinal: "31/12/2024" }, 5000, 1);
+
+    expect(r.chunking).toEqual({ janelas: 4, fatiaAnos: FATIA_ANOS });
+    expect(r.requisicoes).toBe(7); // sonda + 4 fatias + as 2 metades da fatia de 2024
+    expect(urls.filter(u => u.includes("dataFinal=01/07/2024")).length).toBe(1);
+  });
+
+  it("envelope também numa metade sobe como veio (o contorno é uma vez só)", async () => {
+    mock([["bcdata.sgs.12/dados?formato=json&dataInicial", { erro: {} }]]);
+
+    await expect(buscarSerieSgs({ codigo: 12, dataInicial: "01/01/2024", dataFinal: "31/12/2024" }, 5000, 1))
+      .rejects.toThrow(/envelope de erro/);
+    expect(urls.length).toBe(2); // a janela e a 1ª metade
+  });
+});
+
+describe("partirAoMeio", () => {
+  it("duas metades contíguas, sem sobreposição nem buraco", () => {
+    expect(partirAoMeio("01/01/2024", "31/12/2024")).toEqual([
+      { inicio: "01/01/2024", fim: "01/07/2024" },
+      { inicio: "02/07/2024", fim: "31/12/2024" }
+    ]);
+    expect(partirAoMeio("01/01/2024", "02/01/2024")).toEqual([
+      { inicio: "01/01/2024", fim: "01/01/2024" },
+      { inicio: "02/01/2024", fim: "02/01/2024" }
+    ]);
+  });
+
+  it("nada a partir: janela aberta ou de um dia só", () => {
+    expect(partirAoMeio(undefined, "31/12/2024")).toBeNull();
+    expect(partirAoMeio("01/01/2024", undefined)).toBeNull();
+    expect(partirAoMeio("01/01/2024", "01/01/2024")).toBeNull();
   });
 });
 

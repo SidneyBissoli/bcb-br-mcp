@@ -409,11 +409,12 @@ export function upstreamBcb(
 
 /** A política de repetição é a padrão do pacote; aqui só entra o log que já existia. */
 function registrarTentativaFalha(ctx: RetryContext, tentativas: number): boolean {
-  // Envelope de erro num pedido `ultimos/N` NÃO se repete: medido determinístico
-  // (190, N=1, 10+ chamadas, 0,2 s cada) e o contorno N+1 de `buscarUltimosSgs`
-  // já é a segunda chance a um soluço. Repetir 3× custava ~3 s de espera por uma
-  // resposta que não muda. Na janela de datas, sem contorno, a repetição fica.
-  if (ctx.kind === "malformed_body" && ehPedidoPequeno(ctx.url) && ctx.body !== undefined && ehEnvelopeDeErro(ctx.body)) {
+  // Envelope de erro NÃO se repete: medido determinístico nas duas formas de
+  // pedido — `ultimos/N` (190, N=1, 22/10/2026) e janela de datas (12, ano de
+  // 2024, 27/10/2026), 0,2–0,5 s cada, a origem guarda o erro por URL. A
+  // segunda chance é outra URL: N+1 em `buscarUltimosSgs`, a janela partida ao
+  // meio em `buscarJanela`. Repetir custava ~1–3 s por uma resposta que não muda.
+  if (ctx.kind === "malformed_body" && ctx.body !== undefined && ehEnvelopeDeErro(ctx.body)) {
     return false;
   }
   const repete = defaultRetryOn(ctx);
@@ -506,7 +507,8 @@ function traduzirErroDaOrigem(erro: unknown, pequeno: boolean, orcamentoMs: numb
     return new ErroEnvelopeDeErroSgs(
       `A API do BCB respondeu um envelope de erro (${erro.body.trim().slice(0, 80)}) com HTTP 200 a este ` +
         `pedido em ${contarTentativas(erro.attempts)} — defeito da origem neste pedido, não ausência de dado ` +
-        "(medido na série 190 com `ultimos/1` em 22/10/2026: `ultimos/2` e a janela de datas respondem). " +
+        "(medido na série 190 com `ultimos/1` em 22/10/2026 e na série 12 com a janela de 2024 em 27/10/2026: " +
+        "outra quantidade ou outra janela respondem). " +
         "Peça outra quantidade de observações ou um período com `bcb_serie_valores`."
     );
   }

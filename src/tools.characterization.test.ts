@@ -385,6 +385,22 @@ describe("bcb_indicadores_atuais", () => {
       { indicador: "IBC-Br (com ajuste sazonal)", codigo: 24364, erro: "Sem dados disponíveis" }
     ]);
   });
+
+  // A origem guarda `200 {"erro":{}}` por URL (190 com `ultimos/1`, 22/10/2026).
+  // O painel passa pelo contorno N+1 de `buscarUltimosSgs`, não pede `ultimos/1`
+  // direto: o indicador sai com o último ponto, não com erro.
+  it("envelope de erro em `ultimos/1` é contornado com N+1", async () => {
+    mockFetch([
+      ["bcdata.sgs.432/dados/ultimos/1?", { erro: {} }],
+      ["bcdata.sgs.432/dados/ultimos/2?", [{ data: "01/02/2020", valor: "4.50" }, { data: "01/03/2020", valor: "4.25" }]],
+      ["/dados/ultimos/1?", [{ data: "01/03/2020", valor: "1.00" }]]
+    ]);
+
+    const out = structured(await call("bcb_indicadores_atuais"));
+    const selic = (out.indicadores as Array<Record<string, unknown>>)[0];
+
+    expect(selic).toEqual({ indicador: "Selic - meta Copom (% a.a.)", codigo: 432, data: "01/03/2020", valor: 4.25 });
+  });
 });
 
 // ==================== bcb_variacao — GATE da arbitragem 4 ====================
