@@ -41,4 +41,12 @@ jobs:
       - name: SGS catalog contract against live BCB API
         env:
           INTEGRATION_TESTS: '1'
+          # Orçamento de parede da suíte (@sbissoli/mcp-live-source >= 0.5.0), em s.
+          # Medido em 26/10/2026: a origem sumiu no meio, o disjuntor (só dispara com
+          # zero capturas) não agiu, e o job foi cortado pelo teto de 15 min — que o
+          # GitHub reporta `cancelled`, sem rótulo. Esgotado o orçamento, as séries
+          # restantes pulam, o arquivo sai vermelho `Fonte inalcançável` e o retry o
+          # pega. Conta: teto 900 s − um teste em curso 180 s − preparo ~10 s − folga
+          # = 600 s; rodada saudável leva 150–165 s.
+          AO_VIVO_ORCAMENTO_S: '600'
         run: npx vitest run src/sgs-contract.integration.test.ts
