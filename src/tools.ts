@@ -972,11 +972,13 @@ export async function handleIndicadoresAtuais(
     const resultados = await Promise.all(
       indicadores.map(async (ind) => {
         try {
-          const url = `${BCB_API_BASE}.${ind.codigo}/dados/ultimos/1?formato=json`;
-          const data = await fetchBcbApi(url, timeoutMs, maxRetries) as SerieValor[];
+          // Por `buscarUltimosSgs`, não `ultimos/1` direto: é ele que contorna o
+          // envelope de erro que a origem guarda por URL (190, 22/10/2026).
+          const { observacoes } = await buscarUltimosSgs(ind.codigo, 1, timeoutMs, maxRetries);
+          const ultimo = observacoes[observacoes.length - 1];
 
-          if (Array.isArray(data) && data.length > 0) {
-            return { indicador: ind.nome, codigo: ind.codigo, data: data[0].data, valor: parseFloat(data[0].valor) };
+          if (ultimo) {
+            return { indicador: ind.nome, codigo: ind.codigo, data: ultimo.data, valor: parseFloat(ultimo.valor) };
           }
           return { indicador: ind.nome, codigo: ind.codigo, erro: "Sem dados disponíveis" };
         } catch (err) {

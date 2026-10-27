@@ -314,20 +314,77 @@ function fundir(partes: SerieValor[][]): SerieValor[] {
   return [...ordenadas, ...semData];
 }
 
+/** Parte [inicio, fim] em duas metades contíguas; `null` se não há dois dias para partir. */
+export function partirAoMeio(inicio?: string, fim?: string): [Janela, Janela] | null {
+  if (!inicio || !fim) return null;
+  const t0 = parseDataSgs(inicio);
+  const t1 = parseDataSgs(fim);
+  if (t0 === null || t1 === null || t1 <= t0) return null;
+  const meio = t0 + Math.floor((t1 - t0) / DIA_MS / 2) * DIA_MS;
+  return [
+    { inicio, fim: formatarDataSgs(meio) },
+    { inicio: formatarDataSgs(meio + DIA_MS), fim }
+  ];
+}
+
+interface Busca {
+  dados: SerieValor[];
+  requisicoes: number;
+}
+
+/**
+ * UMA janela de datas, com o contorno do envelope de erro da origem.
+ *
+ * Defeito da ORIGEM medido em 27/10/2026: a série 12 (CDI) responde
+ * `200 {"erro":{}}` à janela exata 01/01/2024–31/12/2024 em toda chamada
+ * (0,2–0,5 s; parâmetro extra e ordem dos parâmetros não mudam nada, e a borda
+ * diz `X-Cache: CONFIG_NOCACHE`), enquanto 02/01–31/12, 01/01–30/12, as duas
+ * metades e 2022–2024 respondem dado. O primeiro pedido daquela janela tinha
+ * estourado ~30 s: a origem guarda o erro por (série, janela) e o serve até
+ * expirar — a 190 com `ultimos/1` (22/10) durou dias e já tinha sumido em 27/10.
+ * Repetir a mesma URL devolve o mesmo erro; outra URL não. Então, esgotado o
+ * pedido, parte-se a janela ao meio UMA vez e pedem-se as metades, em série
+ * (não estoura o orçamento de concorrência de quem chamou). As tentativas
+ * falhas ficam no `retrieval` da resposta, que sai `unstable`. Se uma metade
+ * também falhar, o erro sobe como veio.
+ */
+async function buscarJanela(
+  codigo: number,
+  inicio: string | undefined,
+  fim: string | undefined,
+  timeoutMs?: number,
+  maxRetries?: number
+): Promise<Busca> {
+  const pedir = async (i?: string, f?: string): Promise<SerieValor[]> => {
+    const dados = (await fetchBcbApi(urlSerie(codigo, i, f), timeoutMs, maxRetries)) as SerieValor[];
+    return Array.isArray(dados) ? dados : [];
+  };
+  try {
+    return { dados: await pedir(inicio, fim), requisicoes: 1 };
+  } catch (erro) {
+    const metades = erro instanceof ErroEnvelopeDeErroSgs ? partirAoMeio(inicio, fim) : null;
+    if (!metades) throw erro;
+    const primeira = await pedir(metades[0].inicio, metades[0].fim);
+    const segunda = await pedir(metades[1].inicio, metades[1].fim);
+    return { dados: fundir([primeira, segunda]), requisicoes: 3 };
+  }
+}
+
 async function buscarFatias(
   codigo: number,
   janelas: Janela[],
   timeoutMs?: number,
   maxRetries?: number,
   concorrencia: number = CONCORRENCIA
-): Promise<SerieValor[][]> {
-  return comConcorrencia(
-    janelas.map(j => async () => {
-      const dados = (await fetchBcbApi(urlSerie(codigo, j.inicio, j.fim), timeoutMs, maxRetries)) as SerieValor[];
-      return Array.isArray(dados) ? dados : [];
-    }),
+): Promise<{ partes: SerieValor[][]; requisicoes: number }> {
+  const buscas = await comConcorrencia(
+    janelas.map(j => () => buscarJanela(codigo, j.inicio, j.fim, timeoutMs, maxRetries)),
     concorrencia
   );
+  return {
+    partes: buscas.map(b => b.dados),
+    requisicoes: buscas.reduce((soma, b) => soma + b.requisicoes, 0)
+  };
 }
 
 /**
@@ -363,9 +420,9 @@ export async function buscarSerieSgs(
     janelaAplicada?: JanelaAplicada
   ): Promise<ResultadoSerie> => {
     const janelas = fatiarJanela(inicio, fim);
-    const partes = await buscarFatias(codigo, janelas, timeoutMs, maxRetries, concorrencia);
-    requisicoes += janelas.length;
-    const observacoes = fundir(partes);
+    const fatias = await buscarFatias(codigo, janelas, timeoutMs, maxRetries, concorrencia);
+    requisicoes += fatias.requisicoes;
+    const observacoes = fundir(fatias.partes);
 
     return {
       observacoes,
@@ -388,13 +445,11 @@ export async function buscarSerieSgs(
 
   // Caminho normal: uma requisição, como sempre foi.
   try {
-    const dados = (await fetchBcbApi(
-      urlSerie(codigo, pedido.dataInicial, pedido.dataFinal), timeoutMs, maxRetries
-    )) as SerieValor[];
-    requisicoes += 1;
+    const busca = await buscarJanela(codigo, pedido.dataInicial, pedido.dataFinal, timeoutMs, maxRetries);
+    requisicoes += busca.requisicoes;
     // Medido crescente em todas as janelas de data, mas a garantia não é da
     // origem: normalizar aqui também custa um sort e fecha a classe inteira.
-    const observacoes = ordenarPorData(Array.isArray(dados) ? dados : []);
+    const observacoes = ordenarPorData(busca.dados);
     return { observacoes, periodicidade: inferirPeriodicidade(observacoes), requisicoes };
   } catch (erro) {
     if (!(erro instanceof ErroHttpBcb) || erro.status !== 406) throw erro;
@@ -474,15 +529,15 @@ export async function buscarUltimosSgs(
   const inicio = formatarDataSgs(t1 - diasNecessarios * DIA_MS);
 
   const janelas = fatiarJanela(inicio, fim);
-  const partes = await buscarFatias(codigo, janelas, timeoutMs, maxRetries);
-  const todas = fundir(partes);
+  const fatias = await buscarFatias(codigo, janelas, timeoutMs, maxRetries);
+  const todas = fundir(fatias.partes);
   const observacoes = todas.slice(-quantidade);
 
   return {
     observacoes,
     periodicidade: inferirPeriodicidade(observacoes) ?? periodicidade,
     ...(janelas.length > 1 ? { chunking: { janelas: janelas.length, fatiaAnos: FATIA_ANOS } } : {}),
-    requisicoes: 1 + janelas.length
+    requisicoes: 1 + fatias.requisicoes
   };
 }
 

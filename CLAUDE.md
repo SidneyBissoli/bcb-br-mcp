@@ -467,6 +467,15 @@ Secrets necessários: `NPM_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_I
   determinístico e o contorno já é a segunda chance — repetir custava ~3 s. Gates em
   `src/shared.fetch.test.ts` e `src/series.test.ts`. Não trate objeto JSON da
   origem como dado sem olhar a chave `erro`.
+  **Vale também para a janela de datas** (medido em 27/10/2026): a 12 (CDI)
+  responde o envelope à janela exata 01/01/2024–31/12/2024 em toda chamada e
+  dado às metades — a origem guarda o erro POR URL (parâmetro extra não fura;
+  a borda diz `CONFIG_NOCACHE`) até expirar (o da 190 sumiu em ≤ 5 dias).
+  `buscarJanela` parte a janela ao meio uma vez; o envelope não se repete em
+  forma nenhuma de pedido. Todo pedido de DADO ao SGS passa por `buscarJanela` ou
+  `buscarUltimosSgs` — não chame `fetchBcbApi` com URL do SGS direto (a única
+  exceção é `sondarPeriodicidade`, que em erro devolve `null` e o chamador segue
+  sem a sonda).
 - **O catálogo do portal (CKAN) NÃO é oráculo de validade.** Medido em
   24/09/2026: `package_list` traz 4.261 datasets, 3.577 nomeados por código — e
   **10 de 20 códigos válidos conhecidos estão fora dele**, inclusive o **433

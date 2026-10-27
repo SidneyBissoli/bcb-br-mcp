@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Janela de datas que a origem responde com `200 {"erro":{}}` é partida ao
+  meio, não repetida.** Medido em 27/10/2026: a série 12 (CDI) responde o
+  envelope de erro à janela exata 01/01/2024–31/12/2024 em toda chamada
+  (0,2–0,5 s; parâmetro extra e ordem não mudam nada), e dado às metades, a
+  01/01–30/12 e a 2022–2024. A origem guarda o erro por URL até expirar (o da
+  190 com `ultimos/1`, de 22/10, já tinha sumido em 27/10). Era a fatia de 2024
+  de `bcb_correlacao`/`bcb_serie_valores` em 2015–2024: a tool respondia
+  "apenas 1 série retornou" e o smoke derrubou os quatro deploys de 27/10. Agora
+  `buscarJanela` (`series.ts`) parte a janela ao meio UMA vez quando ela volta
+  com o envelope — no caminho direto e em cada fatia do chunking —, e o
+  envelope deixa de ser repetido também na janela (era ~1–3 s por uma resposta
+  que não muda). As tentativas falhas seguem no `retrieval` (`unstable`).
+- **`bcb_indicadores_atuais` passa pelo contorno N+1.** Pedia `ultimos/1`
+  direto, por fora de `buscarUltimosSgs`: um envelope guardado pela origem para
+  um dos cinco indicadores (como o da 190) virava erro no painel.
+
 - **Smoke em STDIO: timeout do transporte numa tool é sondado, não rotulado
   às cegas.** No canal hospedado quem corta é o Worker (10 s) e a tool volta
   `isError`; em STDIO não há Worker, o servidor repete por dentro e uma janela
