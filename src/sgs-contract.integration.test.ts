@@ -28,9 +28,9 @@
  * .github/workflows/integration.yml). Suíte offline não é afetada.
  */
 import { describe, expect, it } from "vitest";
-import { createUpstream } from "@sbissoli/mcp-upstream";
+import { createUpstream, UpstreamError } from "@sbissoli/mcp-upstream";
 import { suiteAoVivo } from "@sbissoli/mcp-live-source/vitest";
-import { getUserAgent } from "./shared.js";
+import { ehEnvelopeDeErro, getUserAgent } from "./shared.js";
 import { SERIES_POPULARES } from "./tools.js";
 
 const LIVE = process.env.INTEGRATION_TESTS === "1" || process.env.INTEGRATION_TESTS === "true";
@@ -52,11 +52,18 @@ interface Ultimo {
   valor: string;
 }
 
-// `ultimos/2`, não `ultimos/1`: medido em 22/10/2026, a série 190 (IGP-DI)
-// responde 200 com `{"erro":{}}` a `ultimos/1` em 5 de 5 chamadas e dados
-// normais a `ultimos/2` — defeito da origem em N=1, não do catálogo (a série
-// está viva: 09/2026). O último ponto é o de data MAIOR, porque `ultimos/N`
-// vem invertido em 22 séries (CLAUDE.md), não "o último do array".
+// O último ponto é o de data MAIOR, porque `ultimos/N` vem invertido em 22
+// séries (CLAUDE.md), não "o último do array".
+//
+// A origem responde `200 {"erro":{}}` a um `ultimos/N` bom, e o N que falha
+// muda de série para série: 190 (IGP-DI) em N=1 (medido em 22/10/2026) e
+// 27788 (M1) em N=2 (medido em 27/10/2026 — `/1`, `/3`, `/5` e a janela de
+// datas respondiam; a série está viva, 08/2026). Escolher um N fixo que
+// escape de uma cai na outra: foi o que aconteceu quando este teste passou
+// a pedir `ultimos/2` para fugir da 190. Por isso o contorno é o MESMO do
+// servidor (`buscarUltimosSgs`): envelope de erro em N = pedir N+1 uma vez.
+// Página HTML e corpo de outra forma seguem ambíguos (o `aoVivo` repete), e
+// se N+1 também vier envelope o erro sobe como veio.
 const ULTIMOS = 2;
 
 // UMA tentativa de 45 s por ida; as 3 idas (2 s, 4 s de espera) são do
@@ -67,14 +74,30 @@ const upstream = createUpstream({
   timeoutMs: 45_000,
   retries: 0,
   // 200 cujo corpo não é um array JSON = página de erro da origem (HTML atrás
-  // do Front Door, envelope `{"erro":{}}`): ambíguo, repete.
+  // do Front Door, envelope `{"erro":{}}`): ambíguo, repete — exceto o
+  // envelope, que `ultimoPonto` contorna pedindo N+1 (ver `ULTIMOS`).
   inspectBody: (_res, body) => (body.trimStart().startsWith("[") ? null : "malformed_body"),
 });
 const { aoVivo } = suiteAoVivo();
 
+function buscarUltimos(codigo: number, n: number): Promise<Ultimo[]> {
+  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigo}/dados/ultimos/${n}?formato=json`;
+  return upstream.call().json<Ultimo[]>(url, { headers: { Accept: "application/json" } });
+}
+
 async function ultimoPonto(codigo: number): Promise<Ultimo | undefined> {
-  const url = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigo}/dados/ultimos/${ULTIMOS}?formato=json`;
-  const body = await upstream.call().json<Ultimo[]>(url, { headers: { Accept: "application/json" } });
+  let body: Ultimo[];
+  try {
+    body = await buscarUltimos(codigo, ULTIMOS);
+  } catch (err) {
+    const envelope =
+      err instanceof UpstreamError &&
+      err.kind === "malformed_body" &&
+      err.body !== undefined &&
+      ehEnvelopeDeErro(err.body);
+    if (!envelope) throw err;
+    body = await buscarUltimos(codigo, ULTIMOS + 1);
+  }
   let ultimo: Ultimo | undefined;
   for (const p of body) {
     if (ultimo === undefined || dataUtc(p.data) > dataUtc(ultimo.data)) ultimo = p;
