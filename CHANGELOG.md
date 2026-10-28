@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.18.4] - 2026-10-27
+## [1.19.0] - 2026-10-27
+
+Renumerada de 1.18.4 (nunca publicada) para 1.19.0: a superfície publicada mudou (descrições no `outputSchema`), e pela convenção do repositório isso é versão minor.
 
 ### Fixed
 
