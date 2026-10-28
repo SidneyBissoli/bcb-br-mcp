@@ -310,19 +310,21 @@ export const CAMBIO_TOOL_DEFINITIONS: ToolDefinition[] = [
     outputSchema: {
       type: "object" as const,
       properties: {
-        moeda: { type: "string" as const },
+        moeda: { type: "string" as const, description: "Símbolo da moeda consultada, em maiúsculas" },
         periodo: {
           type: "object" as const,
+          description: "Intervalo consultado; num dia específico, início e fim são o mesmo dia",
           properties: {
-            dataInicial: { type: "string" as const },
-            dataFinal: { type: "string" as const },
+            dataInicial: { type: "string" as const, description: "Início do intervalo (yyyy-MM-dd)" },
+            dataFinal: { type: "string" as const, description: "Fim do intervalo (yyyy-MM-dd)" },
             janelaPadrao: { type: "boolean" as const, description: "true quando a janela de 7 dias foi assumida" }
           },
           required: ["dataInicial", "dataFinal", "janelaPadrao"]
         },
-        totalRegistros: { type: "number" as const },
+        totalRegistros: { type: "number" as const, description: "Boletins encontrados no intervalo, antes do corte por `limite`" },
         cotacoes: {
           type: "array" as const,
+          description: "Boletins de cotação, do mais recente para o mais antigo, até `limite`",
           items: {
             type: "object" as const,
             properties: {
@@ -338,9 +340,12 @@ export const CAMBIO_TOOL_DEFINITIONS: ToolDefinition[] = [
         },
         disclaimer: { type: "string" as const, description: "Disclaimer de responsabilidade do BCB, repassado literalmente" },
         qualificacaoParidade: { type: "string" as const, description: "Qualificação da origem das paridades não-dólar" },
-        urlConsulta: { type: "string" as const },
-        consultadoEm: { type: "string" as const },
-        observacao: { type: "string" as const }
+        urlConsulta: { type: "string" as const, description: "URL OData consultada, reproduzível no navegador" },
+        consultadoEm: { type: "string" as const, description: "Timestamp ISO 8601 da consulta" },
+        observacao: {
+          type: "string" as const,
+          description: "Presente quando `cotacoes` foi cortado por `limite` ou quando o intervalo voltou vazio, com o que fazer"
+        }
       },
       required: ["moeda", "periodo", "totalRegistros", "cotacoes", "disclaimer", "urlConsulta", "consultadoEm"]
     }
@@ -365,9 +370,10 @@ export const CAMBIO_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: "object" as const,
       properties: {
         termo: { type: ["string", "null"] as const, description: "Termo aplicado no filtro; nulo quando não foi informado" },
-        totalMoedas: { type: "number" as const },
+        totalMoedas: { type: "number" as const, description: "Moedas na lista, depois do filtro por `termo`" },
         moedas: {
           type: "array" as const,
+          description: "Moedas com cotação publicada pelo BCB",
           items: {
             type: "object" as const,
             properties: {
@@ -378,11 +384,11 @@ export const CAMBIO_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ["simbolo"]
           }
         },
-        disclaimer: { type: "string" as const },
-        qualificacaoParidade: { type: "string" as const },
-        urlConsulta: { type: "string" as const },
-        consultadoEm: { type: "string" as const },
-        observacao: { type: "string" as const }
+        disclaimer: { type: "string" as const, description: "Disclaimer de responsabilidade do BCB, repassado literalmente" },
+        qualificacaoParidade: { type: "string" as const, description: "Qualificação da origem das paridades não-dólar" },
+        urlConsulta: { type: "string" as const, description: "URL OData consultada, reproduzível no navegador" },
+        consultadoEm: { type: "string" as const, description: "Timestamp ISO 8601 da consulta" },
+        observacao: { type: "string" as const, description: "Lembrete de usar o `simbolo` em bcb_cambio_cotacao" }
       },
       required: ["totalMoedas", "moedas", "disclaimer", "urlConsulta", "consultadoEm"]
     }

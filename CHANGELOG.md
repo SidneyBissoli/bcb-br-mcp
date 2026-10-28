@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.18.4] - 2026-10-27
+
+### Fixed
+
+- **Toda propriedade dos `outputSchema` tem descrição.** O mcpscore 1.29.1
+  acrescentou a regra `tools_output_properties_documented` (LOW, 1 ponto), e a
+  produção falhava só nela: 74 propriedades sem `description` em nove tools
+  (`bcb_variacao`, `bcb_comparar`, `bcb_correlacao`, `bcb_deflacionar`, as três
+  do Focus e as duas de câmbio). Cada descrição foi escrita a partir do handler
+  que produz o campo (formato de data de cada fonte, o que conta em
+  `totalRegistros`, quando `observacao` aparece). Só descrições: nenhum campo,
+  tipo ou valor mudou. A superfície declarada muda, daí a versão e a trava
+  novas.
+
 ## [1.18.3] - 2026-10-27
 
 ### Fixed

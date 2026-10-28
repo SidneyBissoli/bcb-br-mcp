@@ -1,8 +1,8 @@
 {
   "$comentario": "Impressão digital da superfície (@sbissoli/mcp-surface). Não editar à mão: `npm run surface:lock` regrava, e só aceita superfície nova sob versão nova.",
   "declarada": {
-    "versao": "1.18.0",
-    "sha256": "3fd50d391914a8efd9e29f9e9d30907c41032edc5e99857cf38332a5a345ff81",
+    "versao": "1.18.4",
+    "sha256": "e71100fa749760024bd4ba45cda0ff117070d28e9875a611cd15ac51dcc466a3",
     "conteudo": {
       "initialize": {
         "capabilities": {
@@ -511,9 +511,11 @@
                 "type": "array"
               },
               "consultadoEm": {
+                "description": "Timestamp ISO 8601 da consulta",
                 "type": "string"
               },
               "cotacoes": {
+                "description": "Boletins de cotação, do mais recente para o mais antigo, até `limite`",
                 "items": {
                   "additionalProperties": false,
                   "properties": {
@@ -570,18 +572,23 @@
                 "type": "string"
               },
               "moeda": {
+                "description": "Símbolo da moeda consultada, em maiúsculas",
                 "type": "string"
               },
               "observacao": {
+                "description": "Presente quando `cotacoes` foi cortado por `limite` ou quando o intervalo voltou vazio, com o que fazer",
                 "type": "string"
               },
               "periodo": {
                 "additionalProperties": false,
+                "description": "Intervalo consultado; num dia específico, início e fim são o mesmo dia",
                 "properties": {
                   "dataFinal": {
+                    "description": "Fim do intervalo (yyyy-MM-dd)",
                     "type": "string"
                   },
                   "dataInicial": {
+                    "description": "Início do intervalo (yyyy-MM-dd)",
                     "type": "string"
                   },
                   "janelaPadrao": {
@@ -819,9 +826,11 @@
                 "type": "string"
               },
               "totalRegistros": {
+                "description": "Boletins encontrados no intervalo, antes do corte por `limite`",
                 "type": "number"
               },
               "urlConsulta": {
+                "description": "URL OData consultada, reproduzível no navegador",
                 "type": "string"
               }
             },
@@ -871,12 +880,15 @@
                 "type": "array"
               },
               "consultadoEm": {
+                "description": "Timestamp ISO 8601 da consulta",
                 "type": "string"
               },
               "disclaimer": {
+                "description": "Disclaimer de responsabilidade do BCB, repassado literalmente",
                 "type": "string"
               },
               "moedas": {
+                "description": "Moedas com cotação publicada pelo BCB",
                 "items": {
                   "additionalProperties": false,
                   "properties": {
@@ -909,6 +921,7 @@
                 "type": "array"
               },
               "observacao": {
+                "description": "Lembrete de usar o `simbolo` em bcb_cambio_cotacao",
                 "type": "string"
               },
               "provenance": {
@@ -1126,6 +1139,7 @@
                 "type": "object"
               },
               "qualificacaoParidade": {
+                "description": "Qualificação da origem das paridades não-dólar",
                 "type": "string"
               },
               "termo": {
@@ -1136,9 +1150,11 @@
                 ]
               },
               "totalMoedas": {
+                "description": "Moedas na lista, depois do filtro por `termo`",
                 "type": "number"
               },
               "urlConsulta": {
+                "description": "URL OData consultada, reproduzível no navegador",
                 "type": "string"
               }
             },
@@ -1325,9 +1341,11 @@
                 "description": "Janela temporal comparada",
                 "properties": {
                   "dataFinal": {
+                    "description": "Data final pedida, em dd/MM/yyyy",
                     "type": "string"
                   },
                   "dataInicial": {
+                    "description": "Data inicial pedida, em dd/MM/yyyy",
                     "type": "string"
                   }
                 },
@@ -1927,9 +1945,11 @@
                 "description": "Janela temporal correlacionada",
                 "properties": {
                   "dataFinal": {
+                    "description": "Data final pedida, em dd/MM/yyyy",
                     "type": "string"
                   },
                   "dataInicial": {
+                    "description": "Data inicial pedida, em dd/MM/yyyy",
                     "type": "string"
                   }
                 },
@@ -2307,6 +2327,7 @@
                 "description": "Mês em cujos preços os valores reais estão expressos",
                 "properties": {
                   "descricao": {
+                    "description": "O mês base em prosa, para repetir ao leitor",
                     "type": "string"
                   },
                   "mes": {
@@ -2383,6 +2404,7 @@
                 "properties": {
                   "cobertura": {
                     "additionalProperties": false,
+                    "description": "Primeiro e último mês com deflator — observação fora deste intervalo sai com `valorReal: null`",
                     "properties": {
                       "primeiroMes": {
                         "description": "MM/yyyy",
@@ -2400,12 +2422,15 @@
                     "type": "object"
                   },
                   "codigo": {
+                    "description": "Código SGS da série de variação mensal do índice",
                     "type": "number"
                   },
                   "indice": {
+                    "description": "Índice usado como deflator: IPCA, INPC ou IGPM",
                     "type": "string"
                   },
                   "nome": {
+                    "description": "Nome da série do índice",
                     "type": "string"
                   }
                 },
@@ -2512,11 +2537,14 @@
               },
               "periodo": {
                 "additionalProperties": false,
+                "description": "Janela pedida da série nominal",
                 "properties": {
                   "dataFinal": {
+                    "description": "Data final pedida, em dd/MM/yyyy",
                     "type": "string"
                   },
                   "dataInicial": {
+                    "description": "Data inicial pedida, em dd/MM/yyyy",
                     "type": "string"
                   }
                 },
@@ -2745,9 +2773,11 @@
                 "description": "Identificação da série nominal",
                 "properties": {
                   "categoria": {
+                    "description": "Categoria econômica no catálogo curado; 'Desconhecida' quando o código está fora dele",
                     "type": "string"
                   },
                   "codigo": {
+                    "description": "Código da série no SGS/BCB",
                     "type": "number"
                   },
                   "natureza": {
@@ -2765,15 +2795,19 @@
                     ]
                   },
                   "nome": {
+                    "description": "Nome da série no catálogo curado; 'Série N' quando o código está fora dele",
                     "type": "string"
                   },
                   "periodicidade": {
+                    "description": "Periodicidade (Diária, Mensal, etc.): a do catálogo curado ou, fora dele, a inferida das observações",
                     "type": "string"
                   },
                   "periodicidadeInferida": {
+                    "description": "Presente e true quando a periodicidade foi inferida do espaçamento das observações, e não lida do catálogo — a API do SGS não publica metadados de série.",
                     "type": "boolean"
                   },
                   "totalRegistros": {
+                    "description": "Quantidade de observações em `dados`",
                     "type": "number"
                   }
                 },
@@ -2787,9 +2821,11 @@
                 "description": "Variação percentual do período em moeda corrente ao lado da variação em moeda constante — é a comparação que a tool existe para entregar. `null` quando há menos de duas observações deflacionadas.",
                 "properties": {
                   "dataFinal": {
+                    "description": "Data da última observação deflacionada (dd/MM/yyyy)",
                     "type": "string"
                   },
                   "dataInicial": {
+                    "description": "Data da primeira observação deflacionada (dd/MM/yyyy)",
                     "type": "string"
                   },
                   "nominal": {
@@ -2903,6 +2939,7 @@
                 "type": "array"
               },
               "base": {
+                "description": "consenso (todas as instituições) ou top5 (as cinco mais assertivas)",
                 "enum": [
                   "consenso",
                   "top5"
@@ -2914,6 +2951,7 @@
                 "type": "string"
               },
               "expectativas": {
+                "description": "Expectativas por data de coleta, da mais recente para a mais antiga, até `limite`",
                 "items": {
                   "additionalProperties": false,
                   "properties": {
@@ -3030,9 +3068,11 @@
                 "description": "Filtro efetivamente aplicado na origem; nulo onde o parâmetro não foi informado",
                 "properties": {
                   "dataFinal": {
+                    "description": "Fim da janela de coleta aplicada (yyyy-MM-dd)",
                     "type": "string"
                   },
                   "dataInicial": {
+                    "description": "Início da janela de coleta aplicada (yyyy-MM-dd)",
                     "type": "string"
                   },
                   "janelaPadrao": {
@@ -3040,12 +3080,14 @@
                     "type": "boolean"
                   },
                   "referencia": {
+                    "description": "Referência pedida; nula quando não informada",
                     "type": [
                       "string",
                       "null"
                     ]
                   },
                   "suavizada": {
+                    "description": "Filtro de série suavizada pedido; nulo quando não informado",
                     "type": [
                       "boolean",
                       "null"
@@ -3060,6 +3102,7 @@
                 "type": "object"
               },
               "horizonte": {
+                "description": "Horizonte consultado",
                 "enum": [
                   "mensal",
                   "trimestral",
@@ -3070,9 +3113,11 @@
                 "type": "string"
               },
               "indicador": {
+                "description": "Indicador consultado, como pedido",
                 "type": "string"
               },
               "observacao": {
+                "description": "Presente quando `expectativas` foi cortado por `limite` ou quando a janela voltou vazia, com o que fazer",
                 "type": "string"
               },
               "provenance": {
@@ -3357,6 +3402,7 @@
                 "type": "array"
               },
               "consultadoEm": {
+                "description": "Timestamp ISO 8601 da consulta",
                 "type": "string"
               },
               "escopos": {
@@ -3461,6 +3507,7 @@
                     ]
                   },
                   "indicador": {
+                    "description": "Indicador pedido; nulo quando não informado",
                     "type": [
                       "string",
                       "null"
@@ -3481,9 +3528,11 @@
                 "description": "Janela de coleta observada para montar as listas",
                 "properties": {
                   "dataFinal": {
+                    "description": "Fim da janela (yyyy-MM-dd): hoje",
                     "type": "string"
                   },
                   "dataInicial": {
+                    "description": "Início da janela (yyyy-MM-dd): 15 dias antes de hoje",
                     "type": "string"
                   }
                 },
@@ -3494,9 +3543,11 @@
                 "type": "object"
               },
               "observacao": {
+                "description": "Como usar as listas: o texto é sensível ao nome EXATO e o conjunto muda por escopo",
                 "type": "string"
               },
               "observacaoFalhas": {
+                "description": "Presente quando algum escopo não respondeu, ou quando nenhum escopo publica o indicador pedido",
                 "type": "string"
               },
               "provenance": {
@@ -3721,6 +3772,7 @@
                 "type": "array"
               },
               "totalRegistros": {
+                "description": "Linhas lidas da fonte, somadas em todos os escopos que responderam",
                 "type": "number"
               }
             },
@@ -3789,6 +3841,7 @@
                 "type": "array"
               },
               "base": {
+                "description": "consenso (todas as instituições) ou top5 (as cinco mais assertivas)",
                 "enum": [
                   "consenso",
                   "top5"
@@ -3796,9 +3849,11 @@
                 "type": "string"
               },
               "consultadoEm": {
+                "description": "Timestamp ISO 8601 da consulta",
                 "type": "string"
               },
               "expectativas": {
+                "description": "Expectativas por data de coleta, da mais recente para a mais antiga, até `limite`; `referencia` é a reunião",
                 "items": {
                   "additionalProperties": false,
                   "properties": {
@@ -3915,15 +3970,19 @@
                 "description": "Filtro efetivamente aplicado; `reuniao` é nula quando não foi informada",
                 "properties": {
                   "dataFinal": {
+                    "description": "Fim da janela de coleta aplicada (yyyy-MM-dd)",
                     "type": "string"
                   },
                   "dataInicial": {
+                    "description": "Início da janela de coleta aplicada (yyyy-MM-dd)",
                     "type": "string"
                   },
                   "janelaPadrao": {
+                    "description": "true quando a janela de 30 dias foi assumida",
                     "type": "boolean"
                   },
                   "reuniao": {
+                    "description": "Reunião do Copom pedida (R1/2026); nula quando não informada",
                     "type": [
                       "string",
                       "null"
@@ -3938,9 +3997,11 @@
                 "type": "object"
               },
               "observacao": {
+                "description": "Presente quando `expectativas` foi cortado por `limite` ou quando a janela voltou vazia, com o que fazer",
                 "type": "string"
               },
               "observacaoEixo": {
+                "description": "Lembrete de que o eixo é a reunião do Copom, não o calendário",
                 "type": "string"
               },
               "provenance": {
@@ -4158,9 +4219,11 @@
                 "type": "object"
               },
               "totalRegistros": {
+                "description": "Coletas encontradas na janela (contagem client-side), antes do corte por `limite`",
                 "type": "number"
               },
               "urlConsulta": {
+                "description": "URL OData consultada, reproduzível no navegador",
                 "type": "string"
               }
             },
@@ -6033,6 +6096,7 @@
                     "type": "number"
                   },
                   "variacaoFormatada": {
+                    "description": "variacaoPercentual em texto, com sinal e duas casas (ex.: \"+4.83%\")",
                     "type": "string"
                   },
                   "variacaoPercentual": {
@@ -6105,15 +6169,19 @@
                 "description": "Estatísticas descritivas dos valores no período",
                 "properties": {
                   "amplitude": {
+                    "description": "maximo − minimo (derivada, 4 casas)",
                     "type": "number"
                   },
                   "maximo": {
+                    "description": "Maior valor do período, verbatim da fonte",
                     "type": "number"
                   },
                   "media": {
+                    "description": "Média aritmética dos valores do período (derivada, 4 casas)",
                     "type": "number"
                   },
                   "minimo": {
+                    "description": "Menor valor do período, verbatim da fonte",
                     "type": "number"
                   }
                 },
@@ -6154,12 +6222,15 @@
                 "description": "Janela temporal analisada",
                 "properties": {
                   "dataFinal": {
+                    "description": "Data da última observação usada (dd/MM/yyyy, como o SGS publica)",
                     "type": "string"
                   },
                   "dataInicial": {
+                    "description": "Data da primeira observação usada (dd/MM/yyyy, como o SGS publica)",
                     "type": "string"
                   },
                   "totalPeriodos": {
+                    "description": "Quantidade de observações no período",
                     "type": "number"
                   }
                 },
@@ -6389,12 +6460,15 @@
                 "description": "Identificação da série",
                 "properties": {
                   "categoria": {
+                    "description": "Categoria econômica no catálogo curado; 'Desconhecida' quando o código está fora dele",
                     "type": "string"
                   },
                   "codigo": {
+                    "description": "Código da série no SGS/BCB",
                     "type": "number"
                   },
                   "nome": {
+                    "description": "Nome da série no catálogo curado; 'Série N' quando o código está fora dele",
                     "type": "string"
                   }
                 },
