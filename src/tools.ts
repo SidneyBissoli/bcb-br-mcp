@@ -2322,9 +2322,9 @@ const RAW_TOOL_DEFINITIONS = [
           type: "object" as const,
           description: "Identificação da série",
           properties: {
-            codigo: { type: "number" as const },
-            nome: { type: "string" as const },
-            categoria: { type: "string" as const }
+            codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
+            nome: { type: "string" as const, description: "Nome da série no catálogo curado; 'Série N' quando o código está fora dele" },
+            categoria: { type: "string" as const, description: "Categoria econômica no catálogo curado; 'Desconhecida' quando o código está fora dele" }
           },
           required: ["codigo", "nome"]
         },
@@ -2332,9 +2332,9 @@ const RAW_TOOL_DEFINITIONS = [
           type: "object" as const,
           description: "Janela temporal analisada",
           properties: {
-            dataInicial: { type: "string" as const },
-            dataFinal: { type: "string" as const },
-            totalPeriodos: { type: "number" as const }
+            dataInicial: { type: "string" as const, description: "Data da primeira observação usada (dd/MM/yyyy, como o SGS publica)" },
+            dataFinal: { type: "string" as const, description: "Data da última observação usada (dd/MM/yyyy, como o SGS publica)" },
+            totalPeriodos: { type: "number" as const, description: "Quantidade de observações no período" }
           },
           required: ["dataInicial", "dataFinal", "totalPeriodos"]
         },
@@ -2353,7 +2353,10 @@ const RAW_TOOL_DEFINITIONS = [
               description: "valorFinal − valorInicial em série de nível; NULO em série encadeada, onde não se aplica"
             },
             variacaoPercentual: { type: "number" as const, description: "Variação (nível) ou acumulado (encadeamento), em %" },
-            variacaoFormatada: { type: "string" as const }
+            variacaoFormatada: {
+              type: "string" as const,
+              description: "variacaoPercentual em texto, com sinal e duas casas (ex.: \"+4.83%\")"
+            }
           },
           // O handler sempre devolve os seis campos — o contrato reflete isso.
           required: ["metodo", "valorInicial", "valorFinal", "diferencaAbsoluta", "variacaoPercentual", "variacaoFormatada"]
@@ -2362,10 +2365,10 @@ const RAW_TOOL_DEFINITIONS = [
           type: "object" as const,
           description: "Estatísticas descritivas dos valores no período",
           properties: {
-            maximo: { type: "number" as const },
-            minimo: { type: "number" as const },
-            media: { type: "number" as const },
-            amplitude: { type: "number" as const }
+            maximo: { type: "number" as const, description: "Maior valor do período, verbatim da fonte" },
+            minimo: { type: "number" as const, description: "Menor valor do período, verbatim da fonte" },
+            media: { type: "number" as const, description: "Média aritmética dos valores do período (derivada, 4 casas)" },
+            amplitude: { type: "number" as const, description: "maximo − minimo (derivada, 4 casas)" }
           },
           required: ["maximo", "minimo", "media", "amplitude"]
         },
@@ -2410,8 +2413,8 @@ const RAW_TOOL_DEFINITIONS = [
           type: "object" as const,
           description: "Janela temporal comparada",
           properties: {
-            dataInicial: { type: "string" as const },
-            dataFinal: { type: "string" as const }
+            dataInicial: { type: "string" as const, description: "Data inicial pedida, em dd/MM/yyyy" },
+            dataFinal: { type: "string" as const, description: "Data final pedida, em dd/MM/yyyy" }
           },
           required: ["dataInicial", "dataFinal"]
         },
@@ -2522,8 +2525,8 @@ const RAW_TOOL_DEFINITIONS = [
           type: "object" as const,
           description: "Janela temporal correlacionada",
           properties: {
-            dataInicial: { type: "string" as const },
-            dataFinal: { type: "string" as const }
+            dataInicial: { type: "string" as const, description: "Data inicial pedida, em dd/MM/yyyy" },
+            dataFinal: { type: "string" as const, description: "Data final pedida, em dd/MM/yyyy" }
           },
           required: ["dataInicial", "dataFinal"]
         },
@@ -2645,13 +2648,21 @@ const RAW_TOOL_DEFINITIONS = [
           type: "object" as const,
           description: "Identificação da série nominal",
           properties: {
-            codigo: { type: "number" as const },
-            nome: { type: "string" as const },
-            categoria: { type: "string" as const },
-            periodicidade: { type: "string" as const },
-            periodicidadeInferida: { type: "boolean" as const },
+            codigo: { type: "number" as const, description: "Código da série no SGS/BCB" },
+            nome: { type: "string" as const, description: "Nome da série no catálogo curado; 'Série N' quando o código está fora dele" },
+            categoria: { type: "string" as const, description: "Categoria econômica no catálogo curado; 'Desconhecida' quando o código está fora dele" },
+            periodicidade: {
+              type: "string" as const,
+              description: "Periodicidade (Diária, Mensal, etc.): a do catálogo curado ou, fora dele, a inferida das observações"
+            },
+            periodicidadeInferida: {
+              type: "boolean" as const,
+              description:
+                "Presente e true quando a periodicidade foi inferida do espaçamento das observações, e não lida " +
+                "do catálogo — a API do SGS não publica metadados de série."
+            },
             natureza: NATUREZA_SCHEMA,
-            totalRegistros: { type: "number" as const }
+            totalRegistros: { type: "number" as const, description: "Quantidade de observações em `dados`" }
           },
           required: ["codigo", "nome"]
         },
@@ -2659,11 +2670,12 @@ const RAW_TOOL_DEFINITIONS = [
           type: "object" as const,
           description: "Índice de preços usado e o intervalo que ele cobre",
           properties: {
-            indice: { type: "string" as const },
-            codigo: { type: "number" as const },
-            nome: { type: "string" as const },
+            indice: { type: "string" as const, description: "Índice usado como deflator: IPCA, INPC ou IGPM" },
+            codigo: { type: "number" as const, description: "Código SGS da série de variação mensal do índice" },
+            nome: { type: "string" as const, description: "Nome da série do índice" },
             cobertura: {
               type: "object" as const,
+              description: "Primeiro e último mês com deflator — observação fora deste intervalo sai com `valorReal: null`",
               properties: {
                 primeiroMes: { type: "string" as const, description: "MM/yyyy" },
                 ultimoMes: { type: "string" as const, description: "MM/yyyy" }
@@ -2678,15 +2690,16 @@ const RAW_TOOL_DEFINITIONS = [
           description: "Mês em cujos preços os valores reais estão expressos",
           properties: {
             mes: { type: "string" as const, description: "MM/yyyy" },
-            descricao: { type: "string" as const }
+            descricao: { type: "string" as const, description: "O mês base em prosa, para repetir ao leitor" }
           },
           required: ["mes", "descricao"]
         },
         periodo: {
           type: "object" as const,
+          description: "Janela pedida da série nominal",
           properties: {
-            dataInicial: { type: "string" as const },
-            dataFinal: { type: "string" as const }
+            dataInicial: { type: "string" as const, description: "Data inicial pedida, em dd/MM/yyyy" },
+            dataFinal: { type: "string" as const, description: "Data final pedida, em dd/MM/yyyy" }
           },
           required: ["dataInicial", "dataFinal"]
         },
@@ -2718,8 +2731,8 @@ const RAW_TOOL_DEFINITIONS = [
           properties: {
             nominal: { type: "number" as const, description: "Variação percentual sem descontar inflação" },
             real: { type: "number" as const, description: "Variação percentual em poder de compra" },
-            dataInicial: { type: "string" as const },
-            dataFinal: { type: "string" as const }
+            dataInicial: { type: "string" as const, description: "Data da primeira observação deflacionada (dd/MM/yyyy)" },
+            dataFinal: { type: "string" as const, description: "Data da última observação deflacionada (dd/MM/yyyy)" }
           },
           required: ["nominal", "real", "dataInicial", "dataFinal"]
         },

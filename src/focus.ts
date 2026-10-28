@@ -759,26 +759,33 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
     outputSchema: {
       type: "object" as const,
       properties: {
-        indicador: { type: "string" as const },
-        horizonte: { type: "string" as const, enum: HORIZONTES },
-        base: { type: "string" as const, enum: ["consenso", "top5"] },
+        indicador: { type: "string" as const, description: "Indicador consultado, como pedido" },
+        horizonte: { type: "string" as const, enum: HORIZONTES, description: "Horizonte consultado" },
+        base: { type: "string" as const, enum: ["consenso", "top5"], description: "consenso (todas as instituições) ou top5 (as cinco mais assertivas)" },
         filtro: {
           type: "object" as const,
           description: "Filtro efetivamente aplicado na origem; nulo onde o parâmetro não foi informado",
           properties: {
-            referencia: { type: ["string", "null"] as const },
-            dataInicial: { type: "string" as const },
-            dataFinal: { type: "string" as const },
+            referencia: { type: ["string", "null"] as const, description: "Referência pedida; nula quando não informada" },
+            dataInicial: { type: "string" as const, description: "Início da janela de coleta aplicada (yyyy-MM-dd)" },
+            dataFinal: { type: "string" as const, description: "Fim da janela de coleta aplicada (yyyy-MM-dd)" },
             janelaPadrao: { type: "boolean" as const, description: "true quando a janela de 30 dias foi assumida" },
-            suavizada: { type: ["boolean", "null"] as const }
+            suavizada: { type: ["boolean", "null"] as const, description: "Filtro de série suavizada pedido; nulo quando não informado" }
           },
           required: ["dataInicial", "dataFinal", "janelaPadrao"]
         },
         totalRegistros: { type: "number" as const, description: "Coletas encontradas (contagem client-side)" },
-        expectativas: { type: "array" as const, items: EXPECTATIVA_ITEM_SCHEMA },
+        expectativas: {
+          type: "array" as const,
+          description: "Expectativas por data de coleta, da mais recente para a mais antiga, até `limite`",
+          items: EXPECTATIVA_ITEM_SCHEMA
+        },
         urlConsulta: { type: "string" as const, description: "URL OData consultada, reproduzível no navegador" },
         consultadoEm: { type: "string" as const, description: "Timestamp ISO 8601 da consulta" },
-        observacao: { type: "string" as const }
+        observacao: {
+          type: "string" as const,
+          description: "Presente quando `expectativas` foi cortado por `limite` ou quando a janela voltou vazia, com o que fazer"
+        }
       },
       required: ["indicador", "horizonte", "base", "filtro", "totalRegistros", "expectativas", "urlConsulta", "consultadoEm"]
     }
@@ -810,24 +817,31 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
     outputSchema: {
       type: "object" as const,
       properties: {
-        base: { type: "string" as const, enum: ["consenso", "top5"] },
+        base: { type: "string" as const, enum: ["consenso", "top5"], description: "consenso (todas as instituições) ou top5 (as cinco mais assertivas)" },
         filtro: {
           type: "object" as const,
           description: "Filtro efetivamente aplicado; `reuniao` é nula quando não foi informada",
           properties: {
-            reuniao: { type: ["string", "null"] as const },
-            dataInicial: { type: "string" as const },
-            dataFinal: { type: "string" as const },
-            janelaPadrao: { type: "boolean" as const }
+            reuniao: { type: ["string", "null"] as const, description: "Reunião do Copom pedida (R1/2026); nula quando não informada" },
+            dataInicial: { type: "string" as const, description: "Início da janela de coleta aplicada (yyyy-MM-dd)" },
+            dataFinal: { type: "string" as const, description: "Fim da janela de coleta aplicada (yyyy-MM-dd)" },
+            janelaPadrao: { type: "boolean" as const, description: "true quando a janela de 30 dias foi assumida" }
           },
           required: ["dataInicial", "dataFinal", "janelaPadrao"]
         },
-        totalRegistros: { type: "number" as const },
-        expectativas: { type: "array" as const, items: EXPECTATIVA_ITEM_SCHEMA },
-        urlConsulta: { type: "string" as const },
-        consultadoEm: { type: "string" as const },
-        observacaoEixo: { type: "string" as const },
-        observacao: { type: "string" as const }
+        totalRegistros: { type: "number" as const, description: "Coletas encontradas na janela (contagem client-side), antes do corte por `limite`" },
+        expectativas: {
+          type: "array" as const,
+          description: "Expectativas por data de coleta, da mais recente para a mais antiga, até `limite`; `referencia` é a reunião",
+          items: EXPECTATIVA_ITEM_SCHEMA
+        },
+        urlConsulta: { type: "string" as const, description: "URL OData consultada, reproduzível no navegador" },
+        consultadoEm: { type: "string" as const, description: "Timestamp ISO 8601 da consulta" },
+        observacaoEixo: { type: "string" as const, description: "Lembrete de que o eixo é a reunião do Copom, não o calendário" },
+        observacao: {
+          type: "string" as const,
+          description: "Presente quando `expectativas` foi cortado por `limite` ou quando a janela voltou vazia, com o que fazer"
+        }
       },
       required: ["base", "filtro", "totalRegistros", "expectativas", "urlConsulta", "consultadoEm"]
     }
@@ -867,7 +881,7 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
           type: "object" as const,
           description: "Filtro pedido; nulo onde o parâmetro não foi informado",
           properties: {
-            indicador: { type: ["string", "null"] as const },
+            indicador: { type: ["string", "null"] as const, description: "Indicador pedido; nulo quando não informado" },
             escopo: { type: ["string", "null"] as const, description: `Um de: ${ESCOPOS.join(", ")}; nulo quando a consulta cobriu todos` }
           }
         },
@@ -875,8 +889,8 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
           type: "object" as const,
           description: "Janela de coleta observada para montar as listas",
           properties: {
-            dataInicial: { type: "string" as const },
-            dataFinal: { type: "string" as const }
+            dataInicial: { type: "string" as const, description: "Início da janela (yyyy-MM-dd): 15 dias antes de hoje" },
+            dataFinal: { type: "string" as const, description: "Fim da janela (yyyy-MM-dd): hoje" }
           },
           required: ["dataInicial", "dataFinal"]
         },
@@ -901,7 +915,7 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ["escopo", "tool", "exigeReferencia", "temTop5", "indicadores", "referencias", "urlConsulta", "disponivel"]
           }
         },
-        totalRegistros: { type: "number" as const },
+        totalRegistros: { type: "number" as const, description: "Linhas lidas da fonte, somadas em todos os escopos que responderam" },
         falhas: {
           type: "array" as const,
           description: "Escopos que não responderam nesta consulta",
@@ -914,9 +928,12 @@ export const FOCUS_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ["escopo", "erro"]
           }
         },
-        consultadoEm: { type: "string" as const },
-        observacao: { type: "string" as const },
-        observacaoFalhas: { type: "string" as const }
+        consultadoEm: { type: "string" as const, description: "Timestamp ISO 8601 da consulta" },
+        observacao: { type: "string" as const, description: "Como usar as listas: o texto é sensível ao nome EXATO e o conjunto muda por escopo" },
+        observacaoFalhas: {
+          type: "string" as const,
+          description: "Presente quando algum escopo não respondeu, ou quando nenhum escopo publica o indicador pedido"
+        }
       },
       required: ["indicadores", "referencias", "escopos", "janela", "totalRegistros", "consultadoEm"]
     }
