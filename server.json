@@ -17,13 +17,13 @@
     "url": "https://github.com/SidneyBissoli/bcb-br-mcp",
     "source": "github"
   },
-  "version": "1.18.4",
+  "version": "1.19.0",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "bcb-br-mcp",
-      "version": "1.18.4",
+      "version": "1.19.0",
       "transport": {
         "type": "stdio"
       }
@@ -43,7 +43,7 @@
         "endpoint": "https://bcb.sidneybissoli.com/mcp",
         "declared": {
           "sha256": "e71100fa749760024bd4ba45cda0ff117070d28e9875a611cd15ac51dcc466a3",
-          "lockedAt": "1.18.4"
+          "lockedAt": "1.19.0"
         },
         "anonymous": {
           "sha256": "ade1bd429bdfc63453a924614520010bb782ffd8d24fdd6483aa17d5b36b61a4",
