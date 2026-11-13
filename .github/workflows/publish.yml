@@ -20,6 +20,12 @@ on:
         required: false
         type: string
 
+# Least privilege by default (actions/missing-workflow-permissions): `build`
+# only reads. The publishing and release jobs declare their own permissions
+# (`id-token: write`, `contents: write`), and a job-level block replaces this one.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
