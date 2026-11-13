@@ -75,6 +75,10 @@ on:
     - cron: "17 8 * * 1"
   workflow_dispatch:
 
+# Menor privilégio: os dois jobs só leem o repositório (actions/missing-workflow-permissions).
+permissions:
+  contents: read
+
 jobs:
   stdio:
     name: contrato no código do PR (stdio)
