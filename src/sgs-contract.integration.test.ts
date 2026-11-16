@@ -95,7 +95,10 @@ async function ultimoPonto(codigo: number): Promise<Ultimo | undefined> {
       err.kind === "malformed_body" &&
       err.body !== undefined &&
       ehEnvelopeDeErro(err.body);
-    if (!envelope) throw err;
+    // 304 sem condicional: a mesma conduta por URL (4390 e 1 em 16/11/2026),
+    // o mesmo contorno do servidor (`Erro304SemCondicionalSgs`).
+    const naoModificado = err instanceof UpstreamError && err.kind === "http_4xx" && err.status === 304;
+    if (!envelope && !naoModificado) throw err;
     body = await buscarUltimos(codigo, ULTIMOS + 1);
   }
   let ultimo: Ultimo | undefined;

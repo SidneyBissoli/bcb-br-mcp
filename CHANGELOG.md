@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **HTTP 304 sem pedido condicional deixa de ser "recusa do pedido".** O SGS
+  respondeu `304 Not Modified`, sem corpo, a GET sem `If-None-Match` nem
+  `If-Modified-Since`: em 09/11/2026 (6 de 135 séries) e em 16/11/2026 (4390 e
+  1 em `ultimos/2`, as mesmas URLs nas 3 tentativas do run de contrato, por 5
+  minutos; horas depois respondiam 200). É a conduta do envelope `{"erro":{}}`:
+  a origem guarda a resposta ruim por URL até expirar. Até aqui o servidor
+  devolvia `Erro na API do BCB: 304` sem tentar outra URL. Agora o 304 vira
+  `Erro304SemCondicionalSgs`, filho de `ErroEnvelopeDeErroSgs`, e herda os dois
+  contornos: `ultimos/N` pede N+1 e devolve as N últimas, e a janela de datas é
+  partida ao meio, uma vez só. Persistindo, o erro é de classe `fonte` e nomeia
+  o contorno. Que a outra URL escapa do 304 é inferido do envelope, não medido
+  (a anomalia já tinha expirado); a tentativa falha fica no `retrieval` da
+  resposta. O teste de contrato ao vivo usa o mesmo contorno. Superfície
+  inalterada.
+
 ## [1.19.0] - 2026-10-27
 
 Renumerada de 1.18.4 (nunca publicada) para 1.19.0: a superfície publicada mudou (descrições no `outputSchema`), e pela convenção do repositório isso é versão minor.
