@@ -22,6 +22,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CONFIG,
+  Erro304SemCondicionalSgs,
+
   ErroEnvelopeDeErroSgs,
   ErroHttpBcb,
   ErroSerieInexistente,
@@ -192,6 +194,24 @@ describe("envelope de erro com 200 não é dado nem série inexistente", () => {
 
     expect(erro).toBeInstanceOf(ErroEnvelopeDeErroSgs);
     expect((erro as Error).message).toContain("1 tentativa");
+    expect(n).toBe(1);
+  });
+
+  // 304 a pedido sem condicional (4390 e 1, `ultimos/2`, 16/11/2026: as mesmas
+  // URLs nas 3 tentativas do run, por 5 minutos). Não é recusa do pedido
+  // (`ErroHttpBcb`): é a conduta por URL do envelope, e herda os contornos dele.
+  it("304 sem condicional é Erro304SemCondicionalSgs (filho do envelope) na 1ª tentativa, classe fonte", async () => {
+    let n = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => { n++; return new Response(null, { status: 304 }); }));
+
+    const erro = await fetchBcbApi(PEQUENO, CONFIG.TIMEOUT_MS, CONFIG.MAX_RETRIES).then((d) => d, (e: unknown) => e);
+
+    expect(erro).toBeInstanceOf(Erro304SemCondicionalSgs);
+    expect(erro).toBeInstanceOf(ErroEnvelopeDeErroSgs);
+    expect(erro).not.toBeInstanceOf(ErroHttpBcb);
+    expect((erro as Erro304SemCondicionalSgs).classe).toBe("fonte");
+    expect((erro as Error).message).toContain("HTTP 304");
+    expect((erro as Error).message).toMatch(/outra quantidade|bcb_serie_valores/);
     expect(n).toBe(1);
   });
 });

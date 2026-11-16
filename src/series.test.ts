@@ -43,7 +43,10 @@ function mock(rotas: Array<[string, unknown]>): void {
     if (!hit) throw new Error(`URL não roteada: ${url}`);
     const corpo = hit[1] as Record<string, unknown>;
     if (corpo && typeof corpo === "object" && "__status" in corpo) {
-      return new Response(JSON.stringify(({ error: "janela" })), { status: corpo.__status as number, statusText: "Not Acceptable", headers: { "content-type": "application/json" } });
+      const status = corpo.__status as number;
+      // 304 não tem corpo (o `Response` recusa um), como na origem.
+      if (status === 304) return new Response(null, { status, statusText: "Not Modified" });
+      return new Response(JSON.stringify(({ error: "janela" })), { status, statusText: "Not Acceptable", headers: { "content-type": "application/json" } });
     }
     return new Response(JSON.stringify(hit[1]), { status: 200, statusText: "OK", headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
@@ -269,6 +272,19 @@ describe("buscarSerieSgs", () => {
     expect(r.requisicoes).toBe(3);
   });
 
+  it("304 sem condicional numa janela: parte ao meio como o envelope", async () => {
+    mock([
+      ["dataInicial=01/01/2024&dataFinal=31/12/2024", { __status: 304 }],
+      ["dataInicial=01/01/2024&dataFinal=01/07/2024", diarias("2024-01-02", 2)],
+      ["dataInicial=02/07/2024&dataFinal=31/12/2024", diarias("2024-07-02", 2)]
+    ]);
+
+    const r = await buscarSerieSgs({ codigo: 1, dataInicial: "01/01/2024", dataFinal: "31/12/2024" }, 5000, 1);
+
+    expect(r.observacoes.map(o => o.data)).toEqual(["02/01/2024", "03/01/2024", "02/07/2024", "03/07/2024"]);
+    expect(r.requisicoes).toBe(3);
+  });
+
   it("envelope numa FATIA do chunking: só aquela fatia é partida", async () => {
     mock([
       ["dados/ultimos/20", diarias("2026-07-15", 20)],
@@ -381,6 +397,29 @@ describe("buscarUltimosSgs", () => {
     mock([["dados/ultimos/", { erro: {} }]]);
 
     await expect(buscarUltimosSgs(190, 1, 5000, 1)).rejects.toThrow(/envelope de erro/);
+    expect(urls.length).toBe(2);
+  });
+
+  // 304 sem condicional, guardado por URL (4390 e 1 em `ultimos/2`, 16/11/2026):
+  // o mesmo contorno do envelope.
+  it("304 sem condicional em ultimos/N: pede N+1 e devolve as N últimas", async () => {
+    const tres = mensais("2026-07-01", 3);
+    mock([
+      ["dados/ultimos/2?", { __status: 304 }],
+      ["dados/ultimos/3?", tres]
+    ]);
+
+    const r = await buscarUltimosSgs(4390, 2, 5000, 1);
+
+    expect(urls.map(u => u.replace(/^.*dados\//, ""))).toEqual(["ultimos/2?formato=json", "ultimos/3?formato=json"]);
+    expect(r.observacoes).toEqual(tres.slice(1));
+    expect(r.requisicoes).toBe(2);
+  });
+
+  it("304 também em N+1 sobe como veio, classe fonte (o contorno é uma vez só)", async () => {
+    mock([["dados/ultimos/", { __status: 304 }]]);
+
+    await expect(buscarUltimosSgs(4390, 2, 5000, 1)).rejects.toThrow(/HTTP 304/);
     expect(urls.length).toBe(2);
   });
 

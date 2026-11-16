@@ -287,6 +287,29 @@ export class ErroEnvelopeDeErroSgs extends Error {
 }
 
 /**
+ * A origem respondeu `304 Not Modified`, sem corpo, a um pedido SEM cabeçalho
+ * condicional — nenhum caminho do servidor manda `If-None-Match` nem
+ * `If-Modified-Since`, então não há cópia local a que o 304 se refira.
+ *
+ * Medido duas vezes no teste de contrato: em 09/11/2026 (6 de 135 séries) e em
+ * 16/11/2026 (4390 e 1, `ultimos/2`). Na segunda, as MESMAS duas URLs deram 304
+ * nas três tentativas do run, ao longo de 5 minutos, e as outras 134 responderam
+ * dado; horas depois as duas respondiam 200. É a mesma conduta do envelope de
+ * erro: a origem guarda a resposta ruim POR URL até expirar. Por isso é filha de
+ * `ErroEnvelopeDeErroSgs`: herda os dois contornos por OUTRA URL (N+1 em
+ * `buscarUltimosSgs`, a janela partida ao meio em `buscarJanela`), e repetir a
+ * mesma URL não adianta (o pacote já não repete `http_4xx`). Que a outra URL
+ * escapa do 304 é inferido do envelope, não medido: a anomalia tinha expirado
+ * quando o conserto foi escrito. O `retrieval` da resposta conta a tentativa.
+ */
+export class Erro304SemCondicionalSgs extends ErroEnvelopeDeErroSgs {
+  constructor(mensagem: string) {
+    super(mensagem);
+    this.name = "Erro304SemCondicionalSgs";
+  }
+}
+
+/**
  * O corpo é um envelope de erro do SGS: objeto JSON com a chave `erro` no topo.
  * Array (dado), objeto sem `erro` e corpo que nem JSON é (página HTML — o
  * pacote já o rejeita sozinho) não são envelope.
@@ -496,6 +519,18 @@ function traduzirErroDaOrigem(erro: unknown, pequeno: boolean, orcamentoMs: numb
   // Erro de cliente (4xx) é determinístico: repetir só gasta tempo e
   // requisição. O 406 da janela decenal é o caso que importa — quem chama
   // precisa dele de volta rápido para fatiar a janela e tentar de novo.
+  // 304 a pedido não condicional: defeito da origem guardado por URL, não
+  // recusa do pedido. Ver `Erro304SemCondicionalSgs`.
+  if (erro.kind === "http_4xx" && erro.status === 304) {
+    return new Erro304SemCondicionalSgs(
+      `A API do BCB respondeu HTTP 304 (sem conteúdo) a um pedido não condicional em ` +
+        `${contarTentativas(erro.attempts)} — defeito da origem neste pedido, não ausência de dado ` +
+        "(medido em 09/11 e 16/11/2026: a origem guarda essa resposta por URL por alguns minutos; " +
+        "outras séries respondiam normalmente). " +
+        "Peça outra quantidade de observações ou um período com `bcb_serie_valores`, ou repita em instantes."
+    );
+  }
+
   if (erro.kind === "http_4xx") {
     return new ErroHttpBcb(erro.status ?? 400, `Erro na API do BCB: ${erro.status}`);
   }
