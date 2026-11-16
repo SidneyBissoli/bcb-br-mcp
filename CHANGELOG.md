@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-11-16
+
+O que muda para quem instala pelo npm é só o item abaixo. Os outros commits desde a 1.19.0
+(#97–#104 e #106) são dependências de desenvolvimento e do Worker e CI, e não entram no
+pacote publicado.
+
 ### Fixed
 
 - **HTTP 304 sem pedido condicional deixa de ser "recusa do pedido".** O SGS
@@ -23,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (a anomalia já tinha expirado); a tentativa falha fica no `retrieval` da
   resposta. O teste de contrato ao vivo usa o mesmo contorno. Superfície
   inalterada.
+- **O teste de contrato diz o que o contorno fez.** Contorno que funcionou deixa
+  o aviso `Contorno da origem usado` no run; antes, o sucesso era mudo. Um 304
+  que persiste em N+1 fica vermelho, rotulado `Falha alheia à origem`, porque
+  quem falhou foi a defesa do servidor. Antes, esse caso seria pulado como
+  "fonte indisponível". Provado com `fetch` falso nos dois sentidos.
 
 ## [1.19.0] - 2026-10-27
 
