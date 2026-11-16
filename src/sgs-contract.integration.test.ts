@@ -99,7 +99,27 @@ async function ultimoPonto(codigo: number): Promise<Ultimo | undefined> {
     // o mesmo contorno do servidor (`Erro304SemCondicionalSgs`).
     const naoModificado = err instanceof UpstreamError && err.kind === "http_4xx" && err.status === 304;
     if (!envelope && !naoModificado) throw err;
-    body = await buscarUltimos(codigo, ULTIMOS + 1);
+    try {
+      body = await buscarUltimos(codigo, ULTIMOS + 1);
+    } catch (err2) {
+      // 304 também em N+1: quem falhou é a NOSSA defesa (bcb#105, que supôs, sem
+      // medir, que outra URL escapa). Erro sem `UpstreamError` na cadeia = veredito
+      // `alheio`: vermelho, rotulado "Falha alheia à origem", sem repetir — nunca o
+      // pulo de "Fonte indisponível", que calaria justamente a medição pendente.
+      const de304 = err2 instanceof UpstreamError && err2.kind === "http_4xx" && err2.status === 304;
+      if (naoModificado && de304) {
+        throw new Error(
+          `SGS ${codigo}: HTTP 304 em ultimos/${ULTIMOS} e também em ultimos/${ULTIMOS + 1} — o contorno ` +
+            "N+1 do servidor (Erro304SemCondicionalSgs) NÃO escapa do 304; rever a defesa."
+        );
+      }
+      throw err2;
+    }
+    // O contorno funcionou: dizer, senão o sucesso é mudo e a hipótese nunca se mede.
+    process.stdout.write(
+      `::notice title=Contorno da origem usado::sgs-${codigo}: ` +
+        `${naoModificado ? "HTTP 304" : "envelope de erro"} em ultimos/${ULTIMOS}, dado em ultimos/${ULTIMOS + 1}\n`
+    );
   }
   let ultimo: Ultimo | undefined;
   for (const p of body) {
